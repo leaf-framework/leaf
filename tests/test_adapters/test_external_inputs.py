@@ -7,6 +7,7 @@ from threading import Thread
 import tempfile
 import yaml
 import uuid
+import pytest
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
@@ -211,6 +212,7 @@ class TestEquipmentAdapter(unittest.TestCase):
             found_match, "Expected log entry with valid timestamp not found."
         )
 
+    @pytest.mark.timeout(60)
     def test_external_inputs_config(self):
         error_holder = ErrorHolder()
         write_file = "tmp1.csv"

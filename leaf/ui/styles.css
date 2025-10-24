@@ -1,0 +1,112 @@
+/* Light mode styles */
+.leaf-gradient {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+.leaf-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(229, 231, 235, 0.8);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+.leaf-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+}
+.leaf-header {
+    background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+.leaf-tab {
+    transition: all 0.2s ease;
+    border-radius: 8px 8px 0 0;
+}
+.leaf-tab:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+    animation: pulse 2s infinite;
+}
+.status-online { background-color: #6b7280; }
+.status-offline { background-color: #9ca3af; }
+.status-warning { background-color: #d1d5db; }
+
+/* Dark mode styles */
+.dark .leaf-card {
+    background: rgba(31, 41, 55, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(55, 65, 81, 0.4);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+.dark .leaf-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(75, 85, 99, 0.6);
+}
+.dark .leaf-header {
+    background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+.dark .leaf-tab:hover {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* Enhanced animations */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Dark mode tab styling */
+.dark .q-tabs {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
+}
+
+/* Dark mode button styling */
+.dark .bg-gray-50 {
+    background-color: #1f2937 !important;
+}
+.dark .border-t {
+    border-color: #374151 !important;
+}
+
+/* Dark mode help cards */
+.dark .bg-blue-50 {
+    background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
+    border-color: #6b7280 !important;
+}
+.dark .bg-green-50 {
+    background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
+    border-color: #6b7280 !important;
+}
+.dark .bg-amber-50 {
+    background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
+    border-color: #6b7280 !important;
+}
+
+/* Dark mode configuration help box */
+.dark .bg-gradient-to-br.from-blue-50.to-indigo-50 {
+    background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
+    border-color: #6b7280 !important;
+}
+.dark .text-gray-700 {
+    color: #e5e7eb !important;
+}
+
+/* Dark mode text colors */
+.dark .text-gray-800 {
+    color: #f3f4f6 !important;
+}
+.dark .text-gray-700 {
+    color: #e5e7eb !important;
+}
+.dark .text-gray-600 {
+    color: #d1d5db !important;
+}

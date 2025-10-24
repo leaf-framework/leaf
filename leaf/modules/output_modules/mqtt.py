@@ -399,8 +399,9 @@ class MQTT(OutputModule):
         Returns:
             bool: True if the client is connected, False otherwise.
         """
-        logger.info(f"{self.__class__.__name__} - is_connected")
-        return self.client.is_connected()
+        connected = self.client.is_connected()
+        logger.debug(f"{self.__class__.__name__} - is_connected: {connected}")
+        return connected
 
     def on_message(
         self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage

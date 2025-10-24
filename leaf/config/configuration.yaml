@@ -8,17 +8,17 @@ EQUIPMENT_INSTANCES:
         interval: 10
 
 OUTPUTS:
-  - plugin: MQTT
-    broker: localhost
-    port: 1883
-    fallback: KEYDB
-
-  - plugin: KEYDB
-    host: localhost
-    port: 6379
-    db: 0
-    fallback: FILE
-
-  - plugin: FILE
-    filename: local.json
-    fallback: null
+#  - plugin: MQTT
+#    broker: localhost
+#    port: 1883
+#    fallback: KEYDB
+#  - plugin: KEYDB
+#    host: localhost
+#    port: 6379
+#    db: 0
+#    fallback: FILE
+#  - plugin: FILE
+#    filename: local.json
+#    fallback: null
+  - plugin: SQL
+    database: messages.db

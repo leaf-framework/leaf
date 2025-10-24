@@ -18,7 +18,7 @@ class FILE(OutputModule):
 
     def _handle_file_error(self, error) -> None:
         """
-        Handles file-related exceptions consistently 
+        Handles file-related exceptions consistently
         with a structured error message.
         """
         if isinstance(error, FileNotFoundError):
@@ -27,6 +27,9 @@ class FILE(OutputModule):
         elif isinstance(error, PermissionError):
             message = f"Permission denied when accessing '{self.filename}'"
             severity = SeverityLevel.CRITICAL
+        elif isinstance(error, (TypeError, ValueError)):
+            message = f"JSON serialization error - data not JSON-serializable: {error}"
+            severity = SeverityLevel.WARNING
         elif isinstance(error, OSError):
             message = f"I/O error in file '{self.filename}': {error}"
             severity = SeverityLevel.ERROR
@@ -44,52 +47,62 @@ class FILE(OutputModule):
     def transmit(self, topic: str, data: Optional[Union[str, dict]] = None) -> bool:
         """
         Transmit data to the file associated with a specific topic.
+        Appends a single line with the topic and data in compact JSON format.
         """
         try:
-            if os.path.exists(self.filename):
-                with open(self.filename, 'r') as f:
-                    try:
-                        file_data = json.load(f)
-                    except json.JSONDecodeError:
-                        file_data = {}
-            else:
-                file_data = {}
+            if data is None:
+                return True
 
-            if topic in file_data:
-                if not isinstance(file_data[topic], list):
-                    file_data[topic] = [file_data[topic]]
-            else:
-                file_data[topic] = []
+            # Create a single-line JSON entry
+            line = json.dumps({topic: [data]}, separators=(',', ':'))
 
-            if data is not None:
-                file_data[topic].append(data)
+            # Append to file (no reading required)
+            with open(self.filename, 'a') as f:
+                f.write(line + '\n')
 
-            with open(self.filename, 'w') as f:
-                json.dump(file_data, f, indent=4)
             # Reset global failure counter on successful transmission
             OutputModule.reset_failure_count()
             return True
 
-        except (OSError, IOError, json.JSONDecodeError) as e:
+        except (TypeError, ValueError) as e:
+            # Handle JSON serialization errors (non-serializable data)
+            self._handle_file_error(e)
+            return self.fallback(topic, data)
+        except (OSError, IOError) as e:
+            # Handle file I/O errors
             self._handle_file_error(e)
             return self.fallback(topic, data)
 
-    def retrieve(self, topic: str) -> Any | None:
+    def retrieve(self, topic: str) -> list:
         """
-        Retrieve data associated with a specific topic.
+        Retrieve all data associated with a specific topic by streaming line-by-line.
+        Returns a list of all data entries for the topic.
         """
         try:
-            if os.path.exists(self.filename):
-                with open(self.filename, 'r') as f:
-                    try:
-                        file_data = json.load(f)
-                    except json.JSONDecodeError as e:
-                        self._handle_file_error(e)
-                        return None
-            else:
-                return None
+            if not os.path.exists(self.filename):
+                return []
 
-            return file_data.get(topic, None)
+            results = []
+            with open(self.filename, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        # Check if this line contains the topic
+                        if topic in entry:
+                            # Extend results with all data from this line
+                            data = entry[topic]
+                            if isinstance(data, list):
+                                results.extend(data)
+                            else:
+                                results.append(data)
+                    except json.JSONDecodeError:
+                        # Skip malformed lines
+                        continue
+
+            return results if results else None
 
         except (OSError, IOError) as e:
             self._handle_file_error(e)
@@ -97,61 +110,67 @@ class FILE(OutputModule):
     
     def pop(self, key: str = None) -> tuple[str, Any] | None:
         """
-        Retrieve and remove a record from the file. 
-        If a specific key is provided, retrieve and remove all values under that key.
-        If no key is provided, retrieve and remove one element from a random key's list.
-        The key is removed when the last element is taken.
+        Retrieve and remove the first occurrence of a topic from the file.
+        If a specific key is provided, removes the first line with that topic.
+        If no key is provided, removes the first line in the file.
 
         Args:
-            key (Optional[str]): The key of the record to retrieve and remove. 
-                                If None, a random record is retrieved and removed.
+            key (Optional[str]): The topic to retrieve and remove.
+                                If None, removes the first line.
 
         Returns:
-            Optional[tuple[str, Any]]: A tuple of the key and the retrieved value,
-                                    or None if the key does not exist or the 
-                                    file is empty.
+            Optional[tuple[str, Any]]: A tuple of (topic, data_list),
+                                    or None if the file is empty or key not found.
         """
         try:
             if not os.path.exists(self.filename):
                 return None
 
+            lines = []
+            found_line = None
+            found_topic = None
+            found_data = None
+
+            # Read all lines and find the first matching one
             with open(self.filename, 'r') as f:
-                try:
-                    file_data = json.load(f)
-                except json.JSONDecodeError as e:
-                    self._handle_file_error(e)
-                    return None
+                for line in f:
+                    line_content = line.strip()
+                    if not line_content:
+                        continue
 
-            if key is not None:
-                if key in file_data:
-                    values = file_data.pop(key)
-                    with open(self.filename, 'w') as f:
-                        json.dump(file_data, f, indent=4)
-                    return key, values
-                else:
-                    return None
+                    try:
+                        entry = json.loads(line_content)
 
-            if not file_data:
+                        # If no key specified, take the first valid line
+                        if key is None and found_line is None:
+                            found_topic = list(entry.keys())[0]
+                            found_data = entry[found_topic]
+                            found_line = line
+                            continue  # Skip adding to lines (removes it)
+
+                        # If key specified, find matching topic
+                        if key is not None and key in entry and found_line is None:
+                            found_topic = key
+                            found_data = entry[key]
+                            found_line = line
+                            continue  # Skip adding to lines (removes it)
+
+                        # Keep all other lines
+                        lines.append(line)
+                    except json.JSONDecodeError:
+                        # Keep malformed lines
+                        lines.append(line)
+
+            if found_line is None:
                 return None
 
-            random_key = random.choice(list(file_data.keys()))
-            values = file_data[random_key]
-
-            if isinstance(values, list):
-                popped_value = values.pop(0)
-                if values:
-                    file_data[random_key] = values
-                else:
-                    file_data.pop(random_key)
-            else:
-                popped_value = values
-                file_data.pop(random_key)
-
+            # Rewrite file without the removed line
             with open(self.filename, 'w') as f:
-                json.dump(file_data, f, indent=4)
-            return random_key, popped_value
+                f.writelines(lines)
 
-        except (OSError, IOError, json.JSONDecodeError) as e:
+            return found_topic, found_data
+
+        except (OSError, IOError) as e:
             self._handle_file_error(e)
             return None
     

@@ -88,6 +88,5 @@ class TestStart(unittest.TestCase):
         _stop(adapter_thread)
 
 
-
 if __name__ == "__main__":
     unittest.main()
