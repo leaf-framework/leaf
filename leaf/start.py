@@ -23,6 +23,7 @@ from leaf.error_handler.exceptions import ClientUnreachableError
 from leaf.error_handler.exceptions import SeverityLevel
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.registry.registry import discover_from_config
+from leaf.utility.config_utils import substitute_env_variables
 from leaf.utility.logger.logger_utils import get_logger
 from leaf.utility.logger.logger_utils import set_log_dir
 from leaf.utility.logger.logger_utils import set_global_log_level
@@ -323,12 +324,11 @@ def create_configuration(args: argparse.Namespace) -> None:
         with open(args.config, "r") as src:
             content = src.read()
         with open(os.path.join(config_dir, CONFIG_FILE_NAME), "w") as dest:
-            logger.info(f"Configuration file content: {content}")
             if not content.strip():
                 logger.warning(f"Configuration file {args.config} is empty, skipping copy.")
             else:
                 dest.write(content)
-                logger.info(f"Configuration file {CONFIG_FILE_NAME} successfully created. with {len(content)} lines.")
+                logger.info(f"Configuration file {CONFIG_FILE_NAME} successfully created.")
 
     args.config = os.path.join(config_dir, CONFIG_FILE_NAME)
 
@@ -379,11 +379,16 @@ def main(args: Optional[list[str]] = None) -> None:
             if not content.strip():
                 logger.error("Configuration file is empty, please provide a valid configuration.")
                 return
+            # Substitute environment variables before parsing YAML
+            content = substitute_env_variables(content)
             config = yaml.safe_load(content)
             context.config_yaml = yaml.dump(config, indent=4)
             discover_from_config(config, context.args.path)
     except yaml.YAMLError as e:
         logger.error("Failed to parse YAML configuration.", exc_info=e)
+        return
+    except ValueError as e:
+        logger.error(f"Environment variable substitution failed: {e}")
         return
 
     if context.args.debug:

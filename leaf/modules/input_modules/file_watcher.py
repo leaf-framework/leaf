@@ -2,6 +2,7 @@ import csv
 import errno
 import fnmatch
 import os
+import sys
 import time
 from datetime import datetime
 from typing import Callable
@@ -13,6 +14,12 @@ from leaf_register.metadata import MetadataManager
 from watchdog.events import FileSystemEvent
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
+
+# Use PollingObserver on macOS when running in forked processes (e.g., pytest)
+# to avoid CoreFoundation fork safety issues with FSEvents
+if sys.platform == 'darwin' and 'pytest' in sys.modules:
+    Observer = PollingObserver
 
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterBuildError

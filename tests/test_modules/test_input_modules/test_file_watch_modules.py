@@ -1,4 +1,5 @@
 import csv
+import logging
 import os
 import sys
 import tempfile
@@ -7,6 +8,8 @@ import unittest
 from datetime import datetime
 from threading import Thread
 
+import leaf.utility.logger.logger_utils
+
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
@@ -14,6 +17,7 @@ sys.path.insert(0, os.path.join("..", "..", ".."))
 from leaf.modules.input_modules.file_watcher import FileWatcher
 from leaf_register.metadata import MetadataManager
 
+logger = leaf.utility.logger.logger_utils.get_logger("test_file_watch_modules")
 
 class TestFileWatcher(unittest.TestCase):
     def _write_csv_file(self, filepath, rows, delimiter=","):
@@ -251,9 +255,9 @@ class TestFileWatcher(unittest.TestCase):
             # Using >= instead of == because file watchers may detect additional events
             measurement_events = topics.get(measurement_key, [])
             if len(measurement_events) < num_mod:
-                print(f"\nDEBUG: Expected >= {num_mod}, got {len(measurement_events)}")
-                print(f"All topic keys: {list(topics.keys())}")
-                print(f"Measurement key: {measurement_key}")
+                logger.info(f"\nDEBUG: Expected >= {num_mod}, got {len(measurement_events)}")
+                logger.info(f"All topic keys: {list(topics.keys())}")
+                logger.info(f"Measurement key: {measurement_key}")
             self.assertGreaterEqual(len(measurement_events), num_mod)
 
     def test_watch_directory_return_filepath(self):
@@ -359,8 +363,8 @@ class TestFileWatcher(unittest.TestCase):
             # Assert the mock topic received the complete file data
             expected_topic = metadata.experiment.start()
             if expected_topic not in topics:
-                # Debug: print available topics if assertion fails
-                print(f"Expected topic '{expected_topic}' not found. Available topics: {list(topics.keys())}")
+                # Debug: available topics if assertion fails
+                logger.info(f"Expected topic '{expected_topic}' not found. Available topics: {list(topics.keys())}")
                 # If no topics found, check if we need to wait longer
                 if not topics:
                     self.fail("No topics received - FileWatcher callback may not have triggered")
@@ -484,7 +488,7 @@ class TestFileWatcher(unittest.TestCase):
 
             topics = {}
             def mock_callback(topic, data):
-                print("Callback invoked with topic: %s", topic(), "and data:", data)
+                logger.info("Callback invoked with topic: %s and data: %s", topic(), data)
                 nonlocal topics
                 topic = topic()
                 if topic not in topics:
@@ -515,7 +519,7 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(1)
             watcher.stop()
 
-            print("Topics collected: %s", topics)
+            logger.info("Topics collected: %s", topics)
             self.assertGreaterEqual(len(topics[metadata.experiment.measurement()]), 1)
             found_row = any("Val1" in row for row in topics[metadata.experiment.measurement()][0])
             self.assertTrue(found_row)

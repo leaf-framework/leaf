@@ -126,7 +126,7 @@ class MQTTEventWatcher(EventWatcher):
         except (socket_error, gaierror, OSError) as e:
             self._handle_exception(
                 ClientUnreachableError(
-                    f"Error connecting to broker: {e}", 
+                    f"Error connecting to broker: {self._broker} {e}",
                     output_module=self))
 
     def stop(self) -> None:
@@ -296,3 +296,17 @@ class MQTTEventWatcher(EventWatcher):
             bool: True if the client is connected, False otherwise.
         """
         return self.client.is_connected()
+
+    def disconnect(self) -> None:
+        """
+        Disconnect the MQTT client from the broker.
+        """
+        self.client.disconnect()
+        logger.info(f"MQTT client disconnected: {self.client.is_connected()}")
+
+    def connect(self) -> None:
+        """
+        Connect the MQTT client to the broker.
+        """
+        self.client.connect(host=self._broker, port=self._port, keepalive=60)
+        logger.info(f"MQTT client connected: {self.client.is_connected()}")

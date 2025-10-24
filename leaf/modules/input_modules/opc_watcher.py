@@ -1,5 +1,6 @@
 import time
 from typing import Optional, Callable, List, Any, Set
+import re
 
 from leaf_register.metadata import MetadataManager
 
@@ -49,7 +50,8 @@ class OPCWatcher(EventWatcher):
 
         self._host = host
         self._port = port
-        self._topics: set[str] = topics
+        self._topics: set[str] = set(topics)
+        self._all_topics: set[str] = set()
         self._exclude_topics: list[str] = exclude_topics
         self._metadata_manager = metadata_manager
         self._sub: Subscription|None = None
@@ -82,13 +84,32 @@ class OPCWatcher(EventWatcher):
         root = self._client.get_root_node()
         objects_node = root.get_child(["0:Objects"])
         # Automatically browse and read nodes to obtain topics user could provide a list of topics.
+        self._all_topics = self._browse_and_read(objects_node)
         if self._topics is None or len(self._topics) == 0:
-            self.logger.info("No topics provided. Browsing and reading all nodes.")
-            self._topics = self._browse_and_read(objects_node)
+            self.logger.info("No topics provided. Will register to all " + str(len(self._all_topics)) + " topics.")
+            for topic in self._all_topics:
+                self.logger.debug(f"Found topic: {topic}")
+        else:
+            # Topics are provided by the user
+            subscribe_to_topics = set()
             for topic in self._topics:
-                self.logger.info(f"Found topic: {topic}")
-
-        self.logger.info(f"Number of topics: {len(self._topics)}")
+                # Allow regex matching with the all_topics list
+                if topic not in self._all_topics:
+                    # Perform regex matching
+                    found = False
+                    for all_topic in self._all_topics:
+                        if re.match("^" + topic + "$", all_topic):
+                            subscribe_to_topics.add(all_topic)
+                            found = True
+                            # no break to allow multiple topics to match but it should at least match one topic
+                    # Throw error if no match found
+                    if not found:
+                        self.logger.error(f"Topic {topic} not found in OPC UA server topics and this adapter will stop.")
+                        raise Exception(f"Topic {topic} not found in OPC UA server topics. Available topics: {self._all_topics}")
+                else:
+                    subscribe_to_topics.add(topic)
+            # Update topics
+            self._topics = subscribe_to_topics
 
         # Subscribe to topics
         self._subscribe_to_topics()
@@ -123,10 +144,14 @@ class OPCWatcher(EventWatcher):
         Subscribe to OPC UA nodes and monitor data changes.
         """
         if not self._client:
-            self.logger.warn("Client is not connected.")
+            self.logger.warning("Client is not connected.")
             return
         try:
             self._sub = self._client.create_subscription(self._interval * 1000, self)  # second interval converted to ms
+            # When no topics are provided, subscribe to all topics
+            if not self._topics:
+                self._topics = self._all_topics
+
             for topic in self._topics:
                 if topic in self._exclude_topics:
                     self.logger.info("Excluded topic: {}".format(topic))

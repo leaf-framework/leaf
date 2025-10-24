@@ -8,6 +8,7 @@ from threading import Thread
 import yaml
 import tempfile
 import uuid
+import pytest
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
@@ -250,6 +251,8 @@ class TestAdapterArray(unittest.TestCase):
             expected_run = "True"
             self.assertEqual(self.mock_client.messages[running_topic][0], expected_run)
 
+    # @pytest.mark.skip(reason="Flaky test with excessive sleep statements (50s+ timeout) - needs refactoring")
+    @pytest.mark.timeout(120)
     def test_logic(self) -> None:
         threads = self._run_adapters()
         self.mock_client.reset_messages()

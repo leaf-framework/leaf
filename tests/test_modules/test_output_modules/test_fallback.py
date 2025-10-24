@@ -142,7 +142,12 @@ class TestFallbacks(unittest.TestCase):
             if topic not in inp_messages:
                 continue
             self.assertIn(topic,inp_messages)
-            self.assertIn(message,inp_messages[topic])
+            # FILE module returns message as a list, so check each item
+            if isinstance(message, list):
+                for item in message:
+                    self.assertIn(item, inp_messages[topic])
+            else:
+                self.assertIn(message,inp_messages[topic])
         self.assertIsNone(self._file.pop())
 
     def test_pop_all_messages_multi_output(self):
@@ -163,11 +168,11 @@ class TestFallbacks(unittest.TestCase):
         manager.add_instance_value("instance_id",instance_id)
         
         keydb_messages = {manager.experiment.measurement(experiment_id=experiment_id,
-                                                         measurement=measurement_id): ["{'A':'A'}", "{'B':'B'}","{'C':'C'}"],
-                                                         manager.experiment.start(): ["{'D':'D'}", "{'E':'E'}", "{'F':'F'}"]}
+                                                         measurement=measurement_id): ['{"A":"A"}', '{"B":"B"}', '{"C":"C"}'],
+                                                         manager.experiment.start(): ['{"D":"D"}', '{"E":"E"}', '{"F":"F"}']}
         file_messages = {manager.experiment.measurement(experiment_id=experiment_id,
-                                                        measurement=measurement_id): ["{'G':'G'}", "{'H':'H'}", "{'I':'I'}"],
-                                                        manager.experiment.start(): ["{'J':'J'}", "{'K':'K'}", "{'L':'L'}"]}
+                                                        measurement=measurement_id): ['{"G":"G"}', '{"H":"H"}', '{"I":"I"}'],
+                                                        manager.experiment.start(): ['{"J":"J"}', '{"K":"K"}', '{"L":"L"}']}
         for topic,messages in keydb_messages.items():
             for message in messages:
                 self._keydb.transmit(topic,message)
@@ -178,9 +183,37 @@ class TestFallbacks(unittest.TestCase):
                 time.sleep(0.1)
         
         messages = list(self._module.pop_all_messages())
-        for topic,message in messages:
+        # Verify we got messages from both modules
+        self.assertTrue(len(messages) > 0)
+
+        for topic, message in messages:
+            # Check topic is valid
             self.assertTrue(topic in keydb_messages or topic in file_messages)
-            self.assertTrue(message in keydb_messages[topic] or message in file_messages[topic])
+
+            # FILE module returns message as a list, KEYDB returns as dict/string
+            if isinstance(message, list):
+                # FILE module - message is wrapped in a list
+                for item in message:
+                    # Parse if string, use as-is if dict
+                    parsed_item = json.loads(item) if isinstance(item, str) else item
+                    item_str = json.dumps(parsed_item, separators=(',', ':'))
+
+                    # Check if this message is in either keydb or file expected messages
+                    found = False
+                    if topic in file_messages and item_str in file_messages[topic]:
+                        found = True
+                    if topic in keydb_messages and item_str in keydb_messages[topic]:
+                        found = True
+                    self.assertTrue(found, f"Message {item_str} not found in expected messages for topic {topic}")
+            else:
+                # KEYDB module returns dict directly - convert to JSON string for comparison
+                message_str = json.dumps(message, separators=(',', ':')) if isinstance(message, dict) else message
+                found = False
+                if topic in keydb_messages and message_str in keydb_messages[topic]:
+                    found = True
+                if topic in file_messages and message_str in file_messages[topic]:
+                    found = True
+                self.assertTrue(found, f"Message {message_str} not found in expected messages for topic {topic}")
 
         self.assertIsNone(self._file.pop())
         self.assertIsNone(self._keydb.pop())
