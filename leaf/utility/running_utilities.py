@@ -36,7 +36,7 @@ def handle_disabled_modules(output: OutputModule, timeout: float) -> None:
                 output.disable()
                 return
         output.enable()
-        thread = threading.Thread(target=output_messages, 
+        thread = threading.Thread(target=output_messages,
                                   args=(output,), daemon=True)
         thread.start()
 
@@ -47,10 +47,10 @@ def output_messages(output_module: OutputModule) -> None:
         output_module.transmit(topic, message)
 
 
-def get_existing_ids(output_module: OutputModule, 
+def get_existing_ids(output_module: OutputModule,
                      time_to_sleep: float = 5.0) -> list[str]:
     """Returns instance IDs of equipment already present in the system."""
-    if not isinstance(output_module,MQTT):
+    if not isinstance(output_module, MQTT):
         return []
     topic = topic_utilities.details()
     logger.debug(f"Setting up subscription to {topic}")
@@ -66,7 +66,7 @@ def get_existing_ids(output_module: OutputModule,
     return ids
 
 
-def build_output_module(config: dict[str, Any], 
+def build_output_module(config: dict[str, Any],
                         error_holder: ErrorHolder) -> Optional[OutputModule]:
     """Finds, initializes, and connects all output adapters defined in config."""
     outputs = config["OUTPUTS"]
@@ -88,7 +88,7 @@ def build_output_module(config: dict[str, Any],
         try:
             adapter_cls = get_output_adapter(code)
             output_objects[code]["output"] = adapter_cls(
-                fallback=None, error_holder=error_holder, 
+                fallback=None, error_holder=error_holder,
                 **out_data["data"]
             )
         except TypeError as ex:
@@ -108,12 +108,15 @@ def build_output_module(config: dict[str, Any],
     return None
 
 
-def process_instance(instance: dict[str, Any], 
+def process_instance(instance: dict[str, Any],
                      output: OutputModule) -> EquipmentAdapter:
     """Initializes and validates an equipment adapter from config data."""
     equipment_code = instance.pop("adapter")
     instance_data = instance.pop("data")
-    requirements = instance.pop("requirements")
+    # See if requirements can become optional
+    requirements = None
+    if "requirements" in instance:
+        requirements = instance.pop("requirements")
 
     if "external_input" in instance:
         ei_data = instance.pop("external_input")
@@ -122,7 +125,7 @@ def process_instance(instance: dict[str, Any],
         external_watcher = external_input_cls(**ei_data)
     else:
         external_watcher = None
-    
+
     adapter_cls = get_equipment_adapter(equipment_code)
 
     try:
@@ -142,17 +145,28 @@ def process_instance(instance: dict[str, Any],
         if name not in fixed_params and param.default == inspect.Parameter.empty
     }
 
-    provided_keys = set(requirements.keys())
-    missing_keys = required_params - provided_keys
-    unexpected_keys = provided_keys - adapter_param_names
+    if requirements is not None:
+        provided_keys = set(requirements.keys())
+        missing_keys = required_params - provided_keys
+        unexpected_keys = provided_keys - adapter_param_names
 
-    if missing_keys:
-        raise AdapterBuildError(f"Missing required keys for '{equipment_code}': {missing_keys}")
-    if unexpected_keys:
-        logger.warning(f"Unexpected keys provided for '{equipment_code}': {unexpected_keys}")
+        if missing_keys:
+            raise AdapterBuildError(f"Missing required keys for '{equipment_code}': {missing_keys}")
+        if unexpected_keys:
+            logger.warning(f"Unexpected keys provided for '{equipment_code}': {unexpected_keys}")
+    else:
+        logger.info("Required parameters are: %s", required_params)
+        if required_params != set():
+            raise AdapterBuildError(f"Missing required keys for '{equipment_code}': {required_params}")
+        logger.warning(f"No requirements provided for '{equipment_code}'.")
+        requirements = {}
 
     try:
         error_holder = ErrorHolder(instance_id)
+        logger.debug(f"Initializing {instance_id} with {adapter_cls}")
+        logger.debug(f"Parameters: {instance_data}, {output}, {error_holder}")
+        logger.debug(f"Requirements: {requirements}")
+        logger.debug(f"Additional arguments: {instance}")
         return adapter_cls(
             instance_data,
             output,
@@ -170,15 +184,15 @@ def start_all_adapters_in_threads(adapters: list[EquipmentAdapter]) -> list[thre
     threads: list[threading.Thread] = []
     for adapter in adapters:
         logger.info(f"Starting adapter: {adapter}")
-        thread = threading.Thread(target=adapter.start, 
-                                  name=f"AdapterThread-{adapter}", 
+        thread = threading.Thread(target=adapter.start,
+                                  name=f"AdapterThread-{adapter}",
                                   daemon=True)
         thread.start()
         threads.append(thread)
     return threads
 
 
-def run_simulation_in_thread(adapter: EquipmentAdapter, 
+def run_simulation_in_thread(adapter: EquipmentAdapter,
                              **kwargs: Any) -> threading.Thread:
     """Runs the adapter's simulate function in a separate daemon thread."""
     logger.info(f"Running simulation: {adapter}")
@@ -191,8 +205,8 @@ def run_simulation_in_thread(adapter: EquipmentAdapter,
         except Exception as e:
             logger.error(f"Simulation failed: {e}", exc_info=True)
 
-    thread = threading.Thread(target=simulation, 
-                              name=f"SimThread-{adapter}", 
+    thread = threading.Thread(target=simulation,
+                              name=f"SimThread-{adapter}",
                               daemon=True)
     thread.start()
     return thread

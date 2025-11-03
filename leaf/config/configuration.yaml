@@ -5,13 +5,21 @@ EQUIPMENT_INSTANCES:
         instance_id: demo_device
         institute: university_lab
       requirements:
-        interval: 10
+        interval: 1
+  # ADD THIS - LiveView monitoring adapter
+  - equipment:
+      adapter: LiveViewUI
+      data:
+        instance_id: live_monitor
+        institute: leaf
+      requirements:
+        monitor_topics: ["#"]  # Monitor all topics
 
 OUTPUTS:
-#  - plugin: MQTT
-#    broker: localhost
-#    port: 1883
-#    fallback: KEYDB
+  - plugin: MQTT
+    broker: localhost
+    port: 1883
+    fallback: SQL
 #  - plugin: KEYDB
 #    host: localhost
 #    port: 6379

@@ -179,3 +179,35 @@ def get_all_adapter_codes() -> list[dict[str, str]]:
 
     # equipment_codes = [code for code, _, _ in available_equipment]
     return equipment # equipment_codes
+
+
+def discover_adapter_ui_extensions() -> list[dict[str, Any]]:
+    """
+    Discover all adapter UI extensions from installed adapters.
+
+    Returns:
+        List of dicts containing:
+            - adapter_code: The adapter's code/identifier
+            - adapter_name: The adapter's display name
+            - ui_config: The UI extension configuration
+    """
+    from leaf.ui.adapter_ui_extension import get_ui_extension
+
+    ui_extensions = []
+    adapters = get_all_adapter_codes()
+
+    for adapter_info in adapters:
+        adapter_class = adapter_info.get('class')
+        if adapter_class:
+            ui_config = get_ui_extension(adapter_class)
+            if ui_config:
+                ui_extensions.append({
+                    'adapter_code': adapter_info['code'],
+                    'adapter_name': adapter_info['name'],
+                    'ui_config': ui_config
+                })
+
+    # Sort by order field
+    ui_extensions.sort(key=lambda x: x['ui_config'].get('order', 1000))
+
+    return ui_extensions
