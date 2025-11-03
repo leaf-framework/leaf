@@ -1,9 +1,53 @@
 import os
 import logging
-from typing import Optional
+from collections import deque
+from typing import Deque, Optional
 
 log_dir = "logs"
 _global_log_level = logging.INFO
+
+# Shared log buffer for UI display (1000 most recent log messages)
+_log_buffer: Deque[str] = deque(maxlen=1000)
+_buffer_handler_attached = False
+
+
+class BufferHandler(logging.Handler):
+    """Handler that stores formatted log messages in the shared buffer."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = self.format(record)
+            _log_buffer.append(msg)
+        except Exception:
+            self.handleError(record)
+
+def _ensure_buffer_handler() -> None:
+    """Ensure the buffer handler is attached to the root logger (called once)."""
+    global _buffer_handler_attached
+    if not _buffer_handler_attached:
+        # Attach to the TRUE root logger (empty string) to capture ALL logs
+        root_logger = logging.getLogger()
+        # Set root logger to DEBUG so it doesn't filter messages before they reach handlers
+        root_logger.setLevel(logging.DEBUG)
+        handler = BufferHandler()
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        handler.setFormatter(formatter)
+        handler.setLevel(logging.DEBUG)  # Capture all levels
+        root_logger.addHandler(handler)
+        _buffer_handler_attached = True
+        # Use a LEAF logger for this message to avoid infinite recursion
+        logging.getLogger('leaf.utility.logger').info("Buffer handler attached to root logger")
+
+
+def get_log_buffer() -> Deque[str]:
+    """Get the shared log buffer containing recent log messages."""
+    return _log_buffer
+
+
+def clear_log_buffer() -> None:
+    """Clear the shared log buffer."""
+    _log_buffer.clear()
+
 
 def set_global_log_level(level: int) -> None:
     """Set the global log level for all loggers."""
@@ -66,3 +110,8 @@ def set_log_dir(directory: str) -> None:
     global log_dir
     os.makedirs(directory, exist_ok=True)
     log_dir = directory
+
+
+# Attach buffer handler immediately when this module is imported
+# This ensures we capture ALL logs from the very beginning
+_ensure_buffer_handler()

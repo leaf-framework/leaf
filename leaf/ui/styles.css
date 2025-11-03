@@ -2,17 +2,32 @@
 .leaf-gradient {
     background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
 }
-.leaf-card {
-    background: rgba(255, 255, 255, 0.95);
+.leaf-tabs-container,
+.leaf-tabs-container .q-tabs,
+.leaf-tabs-container .q-tabs__content,
+.leaf-tabs-container .q-tabs--horizontal {
+    background: linear-gradient(to right, #f9fafb, #ffffff) !important;
+}
+.leaf-card,
+.q-card.leaf-card,
+.nicegui-card.leaf-card {
+    background: rgba(255, 255, 255, 0.95) !important;
+    background-color: #ffffff !important;
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(229, 231, 235, 0.8);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(229, 231, 235, 0.8) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
     border-radius: 12px;
     transition: all 0.3s ease;
 }
-.leaf-card:hover {
+.leaf-card:hover,
+.q-card.leaf-card:hover,
+.nicegui-card.leaf-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15) !important;
+}
+/* Make card sections transparent to inherit parent card background */
+.q-card__section {
+    background-color: transparent !important;
 }
 .leaf-header {
     background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
@@ -38,16 +53,35 @@
 .status-warning { background-color: #d1d5db; }
 
 /* Dark mode styles */
-.dark .leaf-card {
-    background: rgba(31, 41, 55, 0.95);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(55, 65, 81, 0.4);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+.dark .leaf-tabs-container,
+.dark .leaf-tabs-container .q-tabs,
+.dark .leaf-tabs-container .q-tabs__content,
+.dark .leaf-tabs-container .q-tabs--horizontal,
+.dark .leaf-tabs-container > *,
+.dark .q-tabs.leaf-tabs-container,
+.dark .q-tabs.leaf-tabs-container .q-tabs__content {
+    background: linear-gradient(to right, #1f2937, #111827) !important;
+    background-color: #1f2937 !important;
 }
-.dark .leaf-card:hover {
+.dark .leaf-card,
+.dark .q-card.leaf-card,
+.dark .nicegui-card.leaf-card {
+    background: rgba(31, 41, 55, 0.95) !important;
+    background-color: #1f2937 !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(55, 65, 81, 0.4) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+}
+.dark .leaf-card:hover,
+.dark .q-card.leaf-card:hover,
+.dark .nicegui-card.leaf-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(75, 85, 99, 0.6);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4) !important;
+    border: 1px solid rgba(75, 85, 99, 0.6) !important;
+}
+/* Override Quasar card section backgrounds in dark mode */
+.dark .q-card__section {
+    background-color: transparent !important;
 }
 .dark .leaf-header {
     background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
@@ -64,9 +98,20 @@
     100% { opacity: 1; }
 }
 
-/* Dark mode tab styling */
-.dark .q-tabs {
-    background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
+/* Dark mode tab styling - more specific selectors */
+.dark .q-tabs,
+.dark .q-tabs__content,
+.dark .q-tabs .q-tabs__content {
+    background: linear-gradient(to right, #1f2937, #111827) !important;
+}
+.dark .q-tab {
+    color: #d1d5db !important;
+}
+.dark .q-tab--active {
+    color: #f3f4f6 !important;
+}
+.dark .q-tab__indicator {
+    background-color: #60a5fa !important;
 }
 
 /* Dark mode button styling */
@@ -109,4 +154,280 @@
 }
 .dark .text-gray-600 {
     color: #d1d5db !important;
+}
+
+/* Dark mode gradient backgrounds - override tailwind classes */
+.dark .bg-gradient-to-r.from-gray-50.to-white,
+.dark .bg-gradient-to-r.from-gray-50,
+.dark [class*="from-gray-50"][class*="to-white"] {
+    background: linear-gradient(to right, #1f2937, #111827) !important;
+    background-color: #1f2937 !important;
+}
+.dark .bg-gradient-to-br.from-gray-50.to-gray-100 {
+    background: linear-gradient(to bottom right, #374151, #1f2937) !important;
+}
+.dark .border-gray-200 {
+    border-color: #374151 !important;
+}
+
+/* Dark mode buttons */
+.dark .bg-gray-500 {
+    background-color: #4b5563 !important;
+}
+.dark .bg-gray-500:hover,
+.dark .hover\:bg-gray-600:hover {
+    background-color: #6b7280 !important;
+}
+.dark .bg-gray-600 {
+    background-color: #4b5563 !important;
+}
+.dark .bg-gray-600:hover,
+.dark .hover\:bg-gray-700:hover {
+    background-color: #6b7280 !important;
+}
+
+/* Dark mode form elements */
+.dark .q-field__control {
+    background-color: #374151 !important;
+    color: #f3f4f6 !important;
+}
+.dark .q-field__label {
+    color: #d1d5db !important;
+}
+.dark .q-select__dropdown-icon,
+.dark .q-field__append {
+    color: #d1d5db !important;
+}
+
+/* Dark mode cards and containers */
+.dark .bg-white {
+    background-color: #1f2937 !important;
+}
+.dark .border-b {
+    border-color: #374151 !important;
+}
+
+/* Additional tab bar fixes - nuclear option with multiple selectors */
+.dark .q-tabs--horizontal,
+.dark div.q-tabs,
+.dark [role="tablist"] {
+    background: linear-gradient(to right, #1f2937, #111827) !important;
+}
+.dark .q-tabs .q-tab__label {
+    color: #d1d5db !important;
+}
+.dark .q-tabs .q-tab--active .q-tab__label {
+    color: #f3f4f6 !important;
+}
+/* Force remove any white background from tabs container */
+.dark .w-full.bg-gradient-to-r {
+    background: linear-gradient(to right, #1f2937, #111827) !important;
+}
+/* Override any Tailwind utility classes */
+.dark [class*="bg-gradient"] {
+    background: linear-gradient(to right, #1f2937, #111827) !important;
+}
+
+/* Dark mode CodeMirror editor */
+.dark .cm-editor {
+    background-color: #1f2937 !important;
+}
+.dark .cm-editor .cm-gutters {
+    background-color: #111827 !important;
+    color: #9ca3af !important;
+}
+
+/* Dark mode status colors for visibility */
+.dark .status-online {
+    background-color: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+.dark .status-offline {
+    background-color: #ef4444;
+    box-shadow: 0 0 8px #ef4444;
+}
+.dark .status-warning {
+    background-color: #f59e0b;
+    box-shadow: 0 0 8px #f59e0b;
+}
+
+/* Log display - already dark styled, keep it consistent */
+.bg-gray-900 {
+    background-color: #111827 !important;
+}
+.text-green-400 {
+    color: #34d399 !important;
+}
+
+/* Light mode adjustments for log if needed */
+body:not(.dark) .bg-gray-900 {
+    background-color: #1f2937 !important;
+}
+body:not(.dark) .text-green-400 {
+    color: #059669 !important;
+}
+
+/* ============================================
+   SEMANTIC CUSTOM CLASSES FOR THEMING
+   ============================================ */
+
+/* Text Colors */
+.text-icon {
+    color: #6b7280;
+}
+.dark .text-icon {
+    color: #9ca3af !important;
+}
+
+.text-heading {
+    color: #1f2937;
+}
+.dark .text-heading {
+    color: #f3f4f6 !important;
+}
+
+.text-subheading {
+    color: #374151;
+}
+.dark .text-subheading {
+    color: #e5e7eb !important;
+}
+
+.text-body {
+    color: #4b5563;
+}
+.dark .text-body {
+    color: #d1d5db !important;
+}
+
+.text-body-secondary {
+    color: #6b7280;
+}
+.dark .text-body-secondary {
+    color: #9ca3af !important;
+}
+
+/* Background Colors - Panels */
+.bg-panel-light {
+    background-color: #f9fafb;
+}
+.dark .bg-panel-light {
+    background-color: #1f2937 !important;
+}
+
+.bg-info-card {
+    background: linear-gradient(to bottom right, #f9fafb, #f3f4f6);
+    border-color: #e5e7eb;
+}
+.dark .bg-info-card {
+    background: linear-gradient(to bottom right, #374151, #4b5563) !important;
+    border-color: #6b7280 !important;
+}
+
+.bg-log-display {
+    background-color: #111827;
+}
+.dark .bg-log-display {
+    background-color: #0f172a !important;
+}
+
+/* Button Styles */
+.btn-primary {
+    background-color: #2563eb;
+    color: white;
+}
+.btn-primary:hover {
+    background-color: #1d4ed8;
+}
+.dark .btn-primary {
+    background-color: #3b82f6 !important;
+}
+.dark .btn-primary:hover {
+    background-color: #2563eb !important;
+}
+
+.btn-secondary {
+    background-color: #4b5563;
+    color: white;
+}
+.btn-secondary:hover {
+    background-color: #6b7280;
+}
+.dark .btn-secondary {
+    background-color: #6b7280 !important;
+}
+.dark .btn-secondary:hover {
+    background-color: #9ca3af !important;
+}
+
+.btn-tertiary {
+    background-color: #6b7280;
+    color: white;
+}
+.btn-tertiary:hover {
+    background-color: #9ca3af;
+}
+.dark .btn-tertiary {
+    background-color: #4b5563 !important;
+}
+.dark .btn-tertiary:hover {
+    background-color: #6b7280 !important;
+}
+
+.btn-danger {
+    background-color: #ef4444;
+    color: white;
+}
+.btn-danger:hover {
+    background-color: #dc2626;
+}
+.dark .btn-danger {
+    background-color: #ef4444 !important;
+}
+.dark .btn-danger:hover {
+    background-color: #dc2626 !important;
+}
+
+/* Border Colors */
+.border-default {
+    border-color: #e5e7eb;
+}
+.dark .border-default {
+    border-color: #374151 !important;
+}
+
+/* Prose/Markdown Dark Mode Overrides */
+.dark .prose {
+    color: #e5e7eb !important;
+}
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4,
+.dark .prose h5,
+.dark .prose h6 {
+    color: #f3f4f6 !important;
+}
+.dark .prose strong {
+    color: #f9fafb !important;
+}
+.dark .prose a {
+    color: #60a5fa !important;
+}
+.dark .prose code {
+    color: #93c5fd !important;
+    background-color: #1f2937 !important;
+}
+.dark .prose pre {
+    background-color: #1f2937 !important;
+}
+.dark .prose .codehilite {
+    background-color: #111827 !important;
+}
+.dark .prose ul,
+.dark .prose ol {
+    color: #e5e7eb !important;
+}
+.dark .prose li {
+    color: #e5e7eb !important;
 }

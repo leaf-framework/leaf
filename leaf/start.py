@@ -13,9 +13,7 @@ import threading
 import time
 from typing import Any, Optional, Type
 
-from dateparser.data.date_translation_data import el
 import yaml  # type: ignore
-from leaf.ui.interface import start_nicegui
 
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterBuildError
@@ -23,10 +21,11 @@ from leaf.error_handler.exceptions import ClientUnreachableError
 from leaf.error_handler.exceptions import SeverityLevel
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.registry.registry import discover_from_config
+from leaf.ui.interface import start_nicegui
 from leaf.utility.config_utils import substitute_env_variables
 from leaf.utility.logger.logger_utils import get_logger
-from leaf.utility.logger.logger_utils import set_log_dir
 from leaf.utility.logger.logger_utils import set_global_log_level
+from leaf.utility.logger.logger_utils import set_log_dir
 from leaf.utility.running_utilities import build_output_module
 from leaf.utility.running_utilities import handle_disabled_modules
 from leaf.utility.running_utilities import process_instance
@@ -147,32 +146,36 @@ def welcome_message() -> None:
         for adapter_code in adapter_codes:
             logger.info(f"- {adapter_code['code']}")
     else:
-        logger.warn("No adapters installed.")
+        logger.warning("No adapters installed.")
 
 def stop_all_adapters() -> None:
     """Gracefully stops all running adapters and joins threads."""
-    logger.info("Stopping all adapters.")
-    adapter_timeout = 10
-    count = 0
-    while len(adapters) == 0:
-        time.sleep(0.5)
-        count += 1
-        if count >= adapter_timeout:
-            raise AdapterBuildError("Cannot stop adapter, likely hasn't started before shutdown.")
+    # If no adapters were started, nothing to stop
+    if len(adapters) == 0:
+        logger.info("No adapters to stop.")
+        return
+
+    logger.info(f"Stopping {len(adapters)} adapter(s).")
 
     for adapter in adapters:
-        if adapter.is_running():
-            adapter.withdraw()
+        try:
+            if adapter.is_running():
+                adapter.withdraw()
+        except Exception as e:
+            logger.error(f"Error withdrawing adapter {adapter}: {e}")
 
     for adapter in adapters:
         try:
             adapter.stop()
             logger.info(f"Adapter for {adapter} stopped successfully.")
         except Exception as e:
-            logger.error(f"Error stopping adapter: {e}")
+            logger.error(f"Error stopping adapter {adapter}: {e}")
 
     for thread in adapter_threads:
-        thread.join()
+        try:
+            thread.join(timeout=5)
+        except Exception as e:
+            logger.error(f"Error joining thread: {e}")
 
 
 def signal_handler(signal_received: int, 
@@ -214,7 +217,8 @@ def error_shutdown(error: Exception, output: OutputModule,
 def run_adapters(
     equipment_instances: list[dict[str, Any]],
     output: OutputModule,
-    error_handler: ErrorHolder
+    error_handler: ErrorHolder,
+    nicegui_thread: Optional[threading.Thread] = None
 ) -> None:
     """Initializes, runs, and monitors equipment adapters."""
     global adapter_threads
@@ -223,31 +227,65 @@ def run_adapters(
     cooldown_period_warning = 1
     max_warning_retries = 2
     client_warning_retry_count = 0
+    gui_was_alive = nicegui_thread.is_alive() if nicegui_thread else False
 
     try:
         for equipment_instance in equipment_instances:
-            simulated = equipment_instance["equipment"].pop("simulation", None)
-            instance_id = equipment_instance["equipment"]["data"]["instance_id"]
-            adapter = process_instance(equipment_instance["equipment"], output)
-            if adapter is None:
-                continue
+            try:
+                simulated = equipment_instance["equipment"].pop("simulation", None)
+                instance_id = equipment_instance["equipment"]["data"]["instance_id"]
+                adapter_name = equipment_instance["equipment"].get("adapter", "Unknown")
 
-            adapters.append(adapter)
-            
+                logger.info(f"Attempting to start adapter '{adapter_name}' for instance '{instance_id}'...")
 
-            if simulated:
-                if not hasattr(adapter, "simulate"):
-                    raise AdapterBuildError("Adapter does not support simulation.")
-                logger.info(f"Simulator started for instance {instance_id}.")
-                thread = run_simulation_in_thread(adapter, **simulated)
-            else:
-                logger.info(f"Proxy started for instance {instance_id}.")
-                thread = start_all_adapters_in_threads([adapter])[0]
+                try:
+                    adapter = process_instance(equipment_instance["equipment"], output)
+                except Exception as e:
+                    adapter = None
+                    logger.error(f"Failed to process instance '{instance_id}': {e}", exc_info=True)
 
-            adapter_threads.append(thread)
+                if adapter is None:
+                    logger.warning(f"Adapter '{adapter_name}' for instance '{instance_id}' could not be initialized. Skipping.")
+                    continue
+
+                adapters.append(adapter)
+
+                if simulated:
+                    if not hasattr(adapter, "simulate"):
+                        logger.error(f"Adapter '{adapter_name}' does not support simulation. Skipping instance '{instance_id}'.")
+                        continue
+                    logger.info(f"Simulator started for instance {instance_id}.")
+                    thread = run_simulation_in_thread(adapter, **simulated)
+                else:
+                    logger.info(f"Proxy started for instance {instance_id}.")
+                    thread = start_all_adapters_in_threads([adapter])[0]
+
+                adapter_threads.append(thread)
+
+            except Exception as e:
+                logger.error(f"Failed to start adapter '{adapter_name}' for instance '{instance_id}': {e}", exc_info=True)
+                logger.warning(f"Continuing with other adapters...")
+
+        # If no adapters started successfully, log warning but don't crash
+        if len(adapters) == 0:
+            logger.warning("No adapters were started successfully. LEAF will continue running but no data will be collected.")
+            logger.info("Check your configuration file and ensure required adapters are installed.")
+            # Keep LEAF running even with no adapters (for UI access)
+            while True:
+                time.sleep(10)
+                # Monitor NiceGUI thread status even when no adapters running
+                if nicegui_thread and gui_was_alive and not nicegui_thread.is_alive():
+                    logger.warning("NiceGUI web interface has stopped unexpectedly.")
+                    gui_was_alive = False
 
         while True:
             time.sleep(1)
+
+            # Monitor NiceGUI thread status
+            if nicegui_thread and gui_was_alive and not nicegui_thread.is_alive():
+                logger.warning("NiceGUI web interface has stopped unexpectedly during adapter operation.")
+                gui_was_alive = False
+
             if all(not t.is_alive() for t in adapter_threads):
                 logger.info("All adapters have stopped.")
                 break
@@ -314,22 +352,23 @@ def run_adapters(
 
 
 def create_configuration(args: argparse.Namespace) -> None:
-    """Ensures configuration file is available in the expected directory."""
+    """Ensures configuration file is available in the expected directory.
+
+    NOTE: This function is kept for backward compatibility but should not
+    overwrite the config path when using editable installs or explicit paths.
+    """
     script_dir = os.path.dirname(os.path.realpath(__file__))
     config_dir = os.path.join(script_dir, "config")
     os.makedirs(config_dir, exist_ok=True)
 
+    # If config already points to an existing file, don't change it
     if args.config and os.path.exists(args.config):
-        logger.info(f"Configuration file {args.config} found.")
-        with open(args.config, "r") as src:
-            content = src.read()
-        with open(os.path.join(config_dir, CONFIG_FILE_NAME), "w") as dest:
-            if not content.strip():
-                logger.warning(f"Configuration file {args.config} is empty, skipping copy.")
-            else:
-                dest.write(content)
-                logger.info(f"Configuration file {CONFIG_FILE_NAME} successfully created.")
+        logger.info(f"Configuration file {args.config} already exists, using as-is.")
+        # Don't overwrite args.config - use the existing path
+        return
 
+    # Only create/copy if no config exists
+    logger.warning(f"No configuration file found at {args.config}, creating default.")
     args.config = os.path.join(config_dir, CONFIG_FILE_NAME)
 
 
@@ -350,24 +389,47 @@ def main(args: Optional[list[str]] = None) -> None:
 
     logger.info("Context arguments parsed: %s", context.args)
 
-    # Start NiceGUI in a separate thread
-    nicegui_thread: threading.Thread|None = None
-    if not context.args.nogui:
-        logger.info("Running LEAF with NiceGUI interface.")
-        nicegui_thread = threading.Thread(target=start_nicegui, args=(context.args.port,), daemon=True)
-        nicegui_thread.start()
-    else:
-        logger.info("Running LEAF in headless mode without NiceGUI interface.")
-
-    welcome_message()
-
-    # Load configuration file first.
+    # Determine configuration file path first (needed for UI)
     if not context.args.config:
         logger.info("No configuration file provided, using default configuration...")
         # Load default configuration
         from pathlib import Path
         context.args.config = Path(os.path.dirname(os.path.realpath(__file__))) / "config" / "configuration.yaml"
         logger.info(f"Using default configuration: {context.args.config}")
+        logger.info(f"Configuration file exists: {os.path.exists(context.args.config)}")
+        logger.info(f"Configuration file size: {os.path.getsize(context.args.config) if os.path.exists(context.args.config) else 'N/A'} bytes")
+
+    # Start NiceGUI in a separate thread (after config path is determined)
+    # Capture the config path NOW before create_configuration() changes it
+    ui_config_path = context.args.config
+    ui_port = context.args.port
+
+    def start_nicegui_wrapper():
+        """Wrapper to catch and log any exceptions from the UI thread."""
+        try:
+            # Use captured values, not context.args which may change
+            start_nicegui(ui_port, ui_config_path)
+        except Exception as e:
+            logger.error(f"NiceGUI thread crashed with error: {e}", exc_info=True)
+            raise
+
+    nicegui_thread: threading.Thread|None = None
+    if not context.args.nogui:
+        logger.info("Running LEAF with NiceGUI interface.")
+        logger.info(f"UI will use config file: {ui_config_path}")
+        nicegui_thread = threading.Thread(
+            target=start_nicegui_wrapper,
+            daemon=True,  # Daemon so it dies when main thread (adapters) exits
+            name="NiceGUI-Thread"
+        )
+        nicegui_thread.start()
+        logger.info("NiceGUI thread started successfully.")
+        # Give the UI server a moment to initialize
+        time.sleep(0.5)
+    else:
+        logger.info("Running LEAF in headless mode without NiceGUI interface.")
+
+    welcome_message()
     
     if not os.path.exists(context.args.config):
         raise FileNotFoundError(
@@ -403,24 +465,46 @@ def main(args: Optional[list[str]] = None) -> None:
         signal.signal(signal.SIGTERM, signal_handler)
         sys.excepthook = handle_exception
 
+
     if context.config_yaml is not None:
         logger.info(context.__dict__)
-        logger.info(f"Configuration: {context.args.config} loaded.")
-        logger.info(f"\n{context.config_yaml}\n")
+        pretty = yaml.safe_dump(
+            yaml.safe_load(context.config_yaml) if isinstance(context.config_yaml, str) else context.config_yaml,
+            sort_keys=False,
+            default_flow_style=False,
+            indent=2
+        )
+        logger.info(f"Configuration: {context.args.config} loaded.\n{pretty}")
         context.error_handler = ErrorHolder()
         context.output = build_output_module(config, context.error_handler)
         if context.output is not None:
             logger.debug("Output module built successfully.")
-            run_adapters(
-                config.get("EQUIPMENT_INSTANCES", []),
-                context.output,
-                context.error_handler,
-            )
-    # Wait for NiceGUI thread to finish
-    if nicegui_thread is not None:
-        nicegui_thread.join()
-        logger.info("NiceGUI thread has finished.")
-        logger.info("LEAF Proxy has stopped.")
+            if config.get("EQUIPMENT_INSTANCES", None) is None or len(config.get("EQUIPMENT_INSTANCES", [])) == 0:
+                logger.warning("No equipment instances found in configuration.")
+                logger.info("LEAF will run in UI-only mode. Use the Configuration tab to add equipment instances.")
+                # Keep running for UI access even with no adapters
+                if nicegui_thread is not None and nicegui_thread.is_alive():
+                    logger.info("Running in UI-only mode. Press Ctrl+C to stop.")
+                    try:
+                        # Keep main thread alive so daemon UI thread continues
+                        while True:
+                            time.sleep(1)
+                            # Check if UI crashed
+                            if not nicegui_thread.is_alive():
+                                logger.error("NiceGUI thread stopped unexpectedly in UI-only mode.")
+                                break
+                    except KeyboardInterrupt:
+                        logger.info("Keyboard interrupt received.")
+            else:
+                run_adapters(
+                    config.get("EQUIPMENT_INSTANCES", []),
+                    context.output,
+                    context.error_handler,
+                    nicegui_thread,
+                )
+
+    # Main thread (adapters) finished, daemon UI thread will stop automatically
+    logger.info("LEAF Proxy has stopped.")
 
 
 if __name__ == "__main__":
