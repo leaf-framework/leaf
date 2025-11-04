@@ -16,7 +16,6 @@ from typing import Any, Optional, Type
 import yaml  # type: ignore
 
 from leaf.error_handler.error_holder import ErrorHolder
-from leaf.error_handler.exceptions import AdapterBuildError
 from leaf.error_handler.exceptions import ClientUnreachableError
 from leaf.error_handler.exceptions import SeverityLevel
 from leaf.modules.output_modules.output_module import OutputModule
@@ -93,7 +92,7 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--port",
         type=int,
-        default=8080,
+        default=4242,
         help="Port to run the NiceGUI interface on. Default is 8080.",
     )
         
@@ -389,6 +388,12 @@ def main(args: Optional[list[str]] = None) -> None:
 
     logger.info("Context arguments parsed: %s", context.args)
 
+    # Set debug logging BEFORE any other modules are loaded
+    if context.args.debug:
+        set_global_log_level(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+        logger.debug("Debug logging enabled.")
+
     # Determine configuration file path first (needed for UI)
     if not context.args.config:
         logger.info("No configuration file provided, using default configuration...")
@@ -452,11 +457,6 @@ def main(args: Optional[list[str]] = None) -> None:
     except ValueError as e:
         logger.error(f"Environment variable substitution failed: {e}")
         return
-
-    if context.args.debug:
-        set_global_log_level(logging.DEBUG)
-        logger.setLevel(logging.DEBUG)
-        logger.debug("Debug logging enabled.")
 
     create_configuration(context.args)
 

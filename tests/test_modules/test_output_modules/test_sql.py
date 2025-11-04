@@ -80,8 +80,8 @@ class TestSQLOutputModule(unittest.TestCase):
 
         self.assertEqual(count, 2)
 
-    def test_retrieve_returns_all_messages_for_topic(self):
-        """Test that retrieve returns all messages for a given topic"""
+    def test_retrieve_pops_one_message_at_a_time(self):
+        """Test that retrieve pops and returns one message at a time"""
         topic = "test_topic"
         data1 = {"msg": "first"}
         data2 = {"msg": "second"}
@@ -90,12 +90,21 @@ class TestSQLOutputModule(unittest.TestCase):
         sql_module.transmit(topic, data1)
         sql_module.transmit(topic, data2)
 
-        results = sql_module.retrieve(topic)
+        # First retrieve should get first message and delete it
+        result1 = sql_module.retrieve(topic)
+        self.assertIsNotNone(result1)
+        self.assertEqual(result1[0], topic)
+        self.assertEqual(result1[1], data1)
 
-        self.assertIsNotNone(results)
-        self.assertEqual(len(results), 2)
-        self.assertEqual(results[0], data1)
-        self.assertEqual(results[1], data2)
+        # Second retrieve should get second message and delete it
+        result2 = sql_module.retrieve(topic)
+        self.assertIsNotNone(result2)
+        self.assertEqual(result2[0], topic)
+        self.assertEqual(result2[1], data2)
+
+        # Third retrieve should return None (no more messages)
+        result3 = sql_module.retrieve(topic)
+        self.assertIsNone(result3)
 
     def test_retrieve_returns_none_for_nonexistent_topic(self):
         """Test that retrieve returns None when topic doesn't exist"""
@@ -202,11 +211,24 @@ class TestSQLOutputModule(unittest.TestCase):
         for i in range(100):
             sql_module.transmit(topic, {"count": i})
 
-        # Verify all messages were stored
-        results = sql_module.retrieve(topic)
+        # Verify all messages were stored by counting in DB
+        conn = sqlite3.connect(self.database)
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM messages WHERE topic = ?', (topic,))
+        count = cursor.fetchone()[0]
+        conn.close()
 
-        self.assertIsNotNone(results)
-        self.assertEqual(len(results), 100)
+        self.assertEqual(count, 100)
+
+        # Also verify we can retrieve all of them one by one
+        retrieved_count = 0
+        while True:
+            result = sql_module.retrieve(topic)
+            if result is None:
+                break
+            retrieved_count += 1
+
+        self.assertEqual(retrieved_count, 100)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,6 @@
 """LEAF Adapters tab."""
+import json
+import os
 
 import httpx
 from nicegui import ui
@@ -78,8 +80,15 @@ def create_adapters_tab(adapters_tab: ui.tab) -> None:
                         logger.debug(f"Fetching marketplace data from {url}")
                         # Use async httpx client with timeout
                         async with httpx.AsyncClient(timeout=5.0) as client:
-                            response = await client.get(url)
-                            data = response.json()
+                            if os.path.exists('marketplace.json'):
+                                data = json.load(open('marketplace.json'))
+                            else:
+                                response = await client.get(url)
+                                data = response.json()
+                                # Write to file
+                                with open('marketplace.json', 'w') as f:
+                                    f.write(response.text)
+
                         logger.debug(f"Marketplace data fetched successfully, found {len(data)} adapters")
 
                         # Remove loading indicator
