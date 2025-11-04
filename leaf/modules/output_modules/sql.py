@@ -1,4 +1,5 @@
 import json
+import logging
 import sqlite3
 from typing import Any
 from typing import Optional
@@ -93,41 +94,56 @@ class SQL(OutputModule):
 
             # Reset global failure counter on successful transmission
             OutputModule.reset_failure_count()
+
+            # If debug, count number of messages in database
+            if logger.isEnabledFor(logging.DEBUG):  # DEBUG level
+                conn = sqlite3.connect(self.database)
+                cursor = conn.cursor()
+                cursor.execute('SELECT COUNT(*) FROM messages')
+                count = cursor.fetchone()[0]
+                conn.close()
+                logger.debug(f"Message stored. Total messages in database: {count}")
             return True
 
-        except (sqlite3.Error, json.JSONEncodeError) as e:
+        except (sqlite3.Error, json.JSONDecodeError) as e:
             self._handle_db_error(e)
             return self.fallback(topic, data)
 
-    def retrieve(self, topic: str) -> list:
+    def retrieve(self, topic: str) -> tuple[str, Any] | None:
         """
-        Retrieve all data associated with a specific topic.
-        Returns a list of all data entries for the topic.
+        Retrieve and remove the first message for a specific topic.
+        Returns a tuple of (topic, data), or None if no messages exist.
+        This method pops one message at a time to enable iterative processing.
         """
         try:
             conn = sqlite3.connect(self.database)
             cursor = conn.cursor()
+
+            # Get first message with specific topic
             cursor.execute(
-                'SELECT data FROM messages WHERE topic = ? ORDER BY id',
+                'SELECT id, topic, data FROM messages WHERE topic = ? ORDER BY id LIMIT 1',
                 (topic,)
             )
-            rows = cursor.fetchall()
-            conn.close()
 
-            if not rows:
+            row = cursor.fetchone()
+
+            if row is None:
+                conn.close()
                 return None
 
-            # Deserialize JSON data from each row
-            results = []
-            for row in rows:
-                try:
-                    data = json.loads(row[0])
-                    results.append(data)
-                except json.JSONDecodeError:
-                    # Skip malformed entries
-                    continue
+            message_id, msg_topic, data_json = row
 
-            return results if results else None
+            # Delete the message
+            cursor.execute('DELETE FROM messages WHERE id = ?', (message_id,))
+            conn.commit()
+            conn.close()
+
+            # Deserialize the data
+            try:
+                data = json.loads(data_json)
+                return msg_topic, data
+            except json.JSONDecodeError:
+                return msg_topic, data_json
 
         except sqlite3.Error as e:
             self._handle_db_error(e)

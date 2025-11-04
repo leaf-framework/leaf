@@ -180,6 +180,10 @@ class MQTT(OutputModule):
             logger.warning(
                 f"{self.__class__.__name__} - transmit called with module disabled."
             )
+            # Call the fallback if available
+            if self._fallback is not None:
+                logger.debug("Calling fallback as module is disabled.")
+                return self.fallback(topic, data)
             return False
         # Register the topic in sending_success if not already present
         if topic not in self.sending_success:
@@ -217,12 +221,13 @@ class MQTT(OutputModule):
             self.sending_success[topic] = True
             if self._fallback is not None:
                 while True:
-                    fallback_data = self._fallback.retrieve(topic)
-                    if fallback_data is not None:
+                    fallback_result = self._fallback.retrieve(topic)
+                    if fallback_result is not None:
+                        fallback_topic, fallback_data = fallback_result
                         logger.info(
-                            f"Fallback data found for topic {topic}, publishing now."
+                            f"Fallback data found for topic {fallback_topic}, publishing now."
                         )
-                        self.transmit(topic, fallback_data)
+                        self.transmit(fallback_topic, fallback_data)
                         # Sleep 0.05 seconds to allow the message to be processed
                         time.sleep(0.05)
                     else:
