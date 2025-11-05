@@ -416,7 +416,6 @@ def main(args: Optional[list[str]] = None) -> None:
             start_nicegui(ui_port, ui_config_path)
         except Exception as e:
             logger.error(f"NiceGUI thread crashed with error: {e}", exc_info=True)
-            raise
 
     nicegui_thread: threading.Thread|None = None
     if not context.args.nogui:
@@ -431,6 +430,16 @@ def main(args: Optional[list[str]] = None) -> None:
         logger.info("NiceGUI thread started successfully.")
         # Give the UI server a moment to initialize
         time.sleep(0.5)
+
+        # Check if UI thread is still alive (it would die if port is in use)
+        if not nicegui_thread.is_alive():
+            logger.error(f"FATAL: UI failed to start on port {ui_port}.")
+            logger.error(f"This is usually caused by the port already being in use.")
+            logger.error(f"Please use a different port with --port flag or stop the process using port {ui_port}.")
+            logger.error(f"Example: python -m leaf.start --port 8081")
+            logger.error(f"Or run in headless mode with --nogui flag: python -m leaf.start --nogui --config config.yaml")
+            logger.info("Shutting down gracefully...")
+            sys.exit(1)
     else:
         logger.info("Running LEAF in headless mode without NiceGUI interface.")
 
