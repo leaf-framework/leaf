@@ -115,3 +115,55 @@ def _collect_output_codes(outputs: list[dict]) -> set[str]:
         recurse(output)
 
     return result
+
+
+def update_equipment_registry(discovered_equipment: list[tuple[str, Type[EquipmentAdapter], Any]]) -> list[str]:
+    """
+    Update the equipment registry with newly discovered adapters.
+
+    Args:
+        discovered_equipment: List of tuples (adapter_id, class, entry_point/group)
+
+    Returns:
+        List of newly registered adapter codes
+    """
+    from leaf.utility.logger.logger_utils import get_logger
+    logger = get_logger(__name__)
+
+    newly_registered = []
+    for code, cls, group in discovered_equipment:
+        code_lower = code.lower()
+        if code_lower not in _registry["equipment"]:
+            register("equipment", code, cls)
+            newly_registered.append(code)
+            logger.info(f"Registered new adapter: {code}")
+        else:
+            # Update existing registration (in case class definition changed)
+            register("equipment", code, cls)
+            logger.debug(f"Updated existing adapter: {code}")
+
+    return newly_registered
+
+
+def refresh_equipment_from_discovery() -> list[str]:
+    """
+    Refresh equipment adapters by re-discovering all available adapters.
+    This allows picking up newly installed adapters without restart.
+
+    Returns:
+        List of newly registered adapter codes
+    """
+    from leaf.registry import discovery
+    from leaf.utility.logger.logger_utils import get_logger
+    logger = get_logger(__name__)
+
+    logger.info("Refreshing equipment adapter registry...")
+
+    # Discover all available equipment adapters (no filter)
+    discovered = discovery.discover_entry_point_equipment(needed_codes=None)
+
+    # Update registry with discovered adapters
+    newly_registered = update_equipment_registry(discovered)
+
+    logger.info(f"Registry refresh complete. {len(newly_registered)} new adapter(s) registered.")
+    return newly_registered

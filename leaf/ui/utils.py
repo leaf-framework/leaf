@@ -46,8 +46,17 @@ def install_adapter(adapter: dict[Any, Any]) -> None:
     Args:
         adapter: Dictionary containing adapter metadata including 'repo_url' and 'name'
     """
-    logger.info(f"Installing {adapter}...")
+    adapter_name = adapter.get('name') or adapter.get('adapter_id', 'adapter')
+    logger.info(f"Installing {adapter_name}...")
     repository = adapter['repo_url']
+
+    # Show "installing" notification
+    ui.notify(
+        f"Installing {adapter_name}... This may take a moment.",
+        type='info',
+        position='top',
+        timeout=3000
+    )
 
     result = subprocess.run(
         [sys.executable, "-m", "pip", "install", f'git+{repository}'],
@@ -57,16 +66,24 @@ def install_adapter(adapter: dict[Any, Any]) -> None:
     )
 
     if result.returncode != 0:
-        logger.error(f"Failed to install {adapter['name']}: {result.stderr}")
-        ui.notify(f"Failed to install {adapter['name']}", color='red')
+        logger.error(f"Failed to install {adapter_name}: {result.stderr}")
+        ui.notify(
+            f"Failed to install {adapter_name}",
+            type='negative',
+            position='top',
+            close_button=True,
+            timeout=8000
+        )
         return
 
-    logger.info(f"Installed {adapter['name']}:\n{result.stdout}")
-    ui.notify(f"Installed {adapter['name']}")
-    time.sleep(1)
-
-    logger.info("Restarting...")
-    os.execl(sys.executable, sys.executable, *sys.argv)
+    logger.info(f"Installed {adapter_name}:\n{result.stdout}")
+    ui.notify(
+        f"Successfully installed {adapter_name}! Click the Refresh button to detect it.",
+        type='positive',
+        position='top',
+        close_button=True,
+        timeout=10000
+    )
 
 
 def uninstall_adapter(installed_adapter: Dict) -> None:
@@ -81,10 +98,22 @@ def uninstall_adapter(installed_adapter: Dict) -> None:
 
     if not package_name:
         print(f"Cannot uninstall adapter without package name: {installed_adapter}")
+        ui.notify(
+            "Cannot uninstall adapter without package name",
+            type='negative',
+            position='top',
+            close_button=True,
+            timeout=8000
+        )
         return
 
     logger.info(f"Uninstalling {package_name}...")
-    ui.notify(f"Uninstalling {package_name}", color='red')
+    ui.notify(
+        f"Uninstalling {package_name}... This may take a moment.",
+        type='info',
+        position='top',
+        timeout=3000
+    )
 
     result = subprocess.run(
         [sys.executable, "-m", "pip", "uninstall", "-y", package_name],
@@ -96,9 +125,20 @@ def uninstall_adapter(installed_adapter: Dict) -> None:
     if result.returncode == 0:
         print(f"Uninstalled {package_name} successfully.")
         logger.info(f"Uninstalled {package_name} successfully.")
-        ui.notify(f"Uninstalled {package_name}")
-        time.sleep(1)
-        logger.info("Restarting...")
-        os.execl(sys.executable, sys.executable, *sys.argv)
+        ui.notify(
+            f"Successfully uninstalled {package_name}! Click the Refresh button to update the list.",
+            type='positive',
+            position='top',
+            close_button=True,
+            timeout=10000
+        )
     else:
         print(f"Failed to uninstall {package_name}.\nError: {result.stderr}")
+        logger.error(f"Failed to uninstall {package_name}: {result.stderr}")
+        ui.notify(
+            f"Failed to uninstall {package_name}",
+            type='negative',
+            position='top',
+            close_button=True,
+            timeout=8000
+        )

@@ -211,3 +211,34 @@ def discover_adapter_ui_extensions() -> list[dict[str, Any]]:
     ui_extensions.sort(key=lambda x: x['ui_config'].get('order', 1000))
 
     return ui_extensions
+
+
+def refresh_adapter_discovery() -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+    """
+    Refresh the adapter discovery by re-scanning for installed adapters.
+    This is useful after installing new adapters without restarting.
+
+    Returns:
+        Tuple of (all_adapter_codes, adapter_ui_extensions)
+    """
+    logger.info("Refreshing adapter discovery...")
+
+    # Clear entry_points cache to pick up newly installed packages
+    try:
+        # In Python 3.10+, entry_points returns an EntryPoints object that doesn't cache
+        # But we'll trigger a fresh import to ensure we get the latest
+        import importlib.metadata
+        if hasattr(importlib.metadata, '_cache'):
+            importlib.metadata._cache.clear()
+    except Exception as e:
+        logger.debug(f"Could not clear importlib.metadata cache: {e}")
+
+    # Re-discover all adapters
+    all_adapters = get_all_adapter_codes()
+    logger.info(f"Discovered {len(all_adapters)} adapter(s) after refresh")
+
+    # Re-discover UI extensions
+    ui_extensions = discover_adapter_ui_extensions()
+    logger.info(f"Discovered {len(ui_extensions)} UI extension(s) after refresh")
+
+    return all_adapters, ui_extensions
