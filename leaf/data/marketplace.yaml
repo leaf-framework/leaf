@@ -1,0 +1,202 @@
+# LEAF Marketplace Adapters
+# Lab Equipment Adapter Framework - Available Adapters
+
+- adapter_id: Table
+  image: "./images/table.png"
+  description: "File conversion module to parse tabular data from various file formats into InfluxObject messages."
+  equipment_data:
+    version: "1.0"
+    manufacturer: LEAF
+    device_type: table processor
+    application: Table parser
+  requirements:
+    folder: "<path>"
+  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-table.git
+
+- adapter_id: LiveViewUI
+  image: "./images/plot.png"
+  description: "A plugin with a graph viewer to show submitted data in real-time." # TODO: Add description
+  equipment_data:
+    version: "1.0"
+    manufacturer: LEAF
+    device_type: UI_DEMO
+    application: UI Extension Demonstration
+  requirements:
+    interval: int
+  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-live-view.git
+
+# - adapter_id: MockFunctionalAdapter
+#   image: ""
+#   description: "" # TODO: Add description
+#   equipment_data:
+#     version: "1.0"
+#     manufacturer: Demo Manufacturer
+#     device_type: DEMO
+#     application: DEMO application
+#   requirements:
+#     interval: int
+#   repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-examples
+#   name: LEAF-Examples
+
+- adapter_id: BiolectorXT
+  image: ./images/biolector-xt.jpg
+  description: "A LEAF adapter for the Biolector XT microbioreactor system by Beckman Coulter. This plugin uses the gRPC API provided by Beckman Coulter to connect to the Biolector XT device and retrieve real-time data on microbial cultures."
+  version: "6.0.4"
+  manufacturer: Beckman Coulter
+  device_type: microbioreactor
+  application: Biolector XT Microbioreactor
+  requirements:
+    interval: 11
+    host: string
+    token: string
+  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-biolector-xt
+  name: LEAF-Biolector XT
+
+- adapter_id: BioLector1
+  image: ""
+  description: "A LEAF adapter for the BioLector 1 microbioreactor system by m2p-labs GmbH. This plugin facilitates high-throughput cultivation and analysis by providing real-time monitoring and control of various parameters."
+  equipment_data:
+    type: Bioreactor
+    version: "1.0"
+    manufacturer: m2p-labs GmbH
+    device_type: Microbioreactor
+    application: High-throughput cultivation and analysis
+    features:
+      multi-parallel_cultivation: true
+      real_time_monitoring: true
+      optical_density_measurement: true
+      fluorescence_detection: true
+      pH_measurement: true
+      oxygen_measurement: true
+      temperature_control: true
+      shaking_speed_control: true
+    supported_media_volumes: "200 µL to 1000 µL"
+    measurement_range:
+      optical_density: "0.1 to 10 OD"
+      fluorescence: "Low to High (relative units)"
+      pH_range: "4.0 to 9.0"
+      oxygen_saturation: "0% to 100%"
+    parameters:
+      shaking_speed_rpm: "200 to 1500 RPM"
+      temperature_control_range: "20°C to 50°C"
+    interface:
+      data_export: "CSV, XML"
+      connectivity: "USB, Ethernet"
+      software: BioLection Software
+    power_supply: "110-240V AC, 50/60Hz"
+    dimensions: "300mm x 400mm x 200mm"
+    weight: "10kg"
+  requirements:
+    write_file: str
+  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-biolector1
+  name: LEAF-biolector1
+
+- adapter_id: leaf_indpensim
+  image: "./images/bioreactor.png"
+  description: "An adapter to process data from the Industrial Penicilin Simulation (http://www.industrialpenicillinsimulation.com)" # TODO: Add description
+  equipment_data:
+    type: simulation
+    version: "1.0"
+    manufacturer: University of Manchester, Newcastle University, Vanguard House
+    device_type: Simulation
+    application: Industrial Penicilin Simulation
+  requirements:
+    write_file: str
+  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-indpensim
+  name: LEAF-IndPenSim
+
+- adapter_id: maq
+  image: ./images/weather-station.jpg
+  description: "A LEAF adapter for the MAQ weather station system by Wageningen University & Ruisdael Observatory. This plugin connects to the MAQ API to retrieve real-time weather data for monitoring and analysis."
+  equipment_data:
+    type: Weather Station
+    version: "0.0.1"
+    manufacturer: Wageningen University & Ruisdael Observatory
+    device_type: Weather Station
+    application: MAQ Monitoring
+  requirements:
+    interval: int
+    token: str
+    site: int
+  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-maq
+  name: LEAF-MAQ
+
+- adapter_id: MinKNOW
+  image: ./images/minknow.jpg
+  description: "" # TODO: Add description
+  equipment_data:
+    version: "6.0.4"
+    manufacturer: Oxford Nanopore Technologies
+    device_type: Sequencer
+    application: MinKNOW Monitoring
+  requirements:
+    interval: int
+    host: string
+    port: int
+    token: string
+  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-minknow
+  name: LEAF-MinKNOW
+
+- adapter_id: iRODS
+  image: ./images/irods.png
+  description: "A LEAF adapter for the iRODS data management system by iRODS Consortium. This plugin connects to an iRODS server to retrieve storage information in general and at group level."
+  equipment_data:
+    version: "4.3.3"
+    manufacturer: iRODS Consortium
+    device_type: Data Management
+    application: iRODS Monitoring
+  requirements:
+    interval: int
+    host: string
+    port: int
+    zone: string
+    user: string
+    password: string
+  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-irods
+  name: LEAF-iRODS
+
+# - adapter_id: HelloWorld
+#   image: ""
+#   description: "A simple demonstration adapter that serves as a starting point for developing new LEAF adapters."
+#   equipment_data:
+#     version: "1.0"
+#     manufacturer: Demo Manufacturer
+#     device_type: DEMO
+#     application: DEMO application
+#   requirements:
+#     interval: int
+#   repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-hello-world
+#   name: LEAF-Hello World
+
+- adapter_id: Pioreactor
+  image: ./images/pioreactor.png
+  description: "A LEAF adapter for the Pioreactor bioreactor system by Pioreactor. This plugin connects to the Pioreactor MQTT broker to retrieve real-time data on bioreactor conditions and performance."
+  equipment_data:
+    version: "1.0"
+    manufacturer: Pioreactor
+    device_type: bioreactor
+    application: Pioreactor adapter
+  requirements:
+    host: str
+    topics: list[str]
+    port: int
+    username: str
+    password: str
+  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-pioreactor
+  name: LEAF-Pioreactor
+
+- adapter_id: OPC
+  image: ./images/opcua.png
+  description: "A LEAF adapter for the OPC sensor module. This plugin connects to OPC sensors to retrieve real-time monitoring data. It uses the topic subscription model to retrieve data in real-time."
+  equipment_data:
+    version: "1.0.0"
+    manufacturer: OPC
+    device_type: OPC sensor module
+    application: OPC Monitoring
+  requirements:
+    port: int
+    host: string
+    topics: list[string]
+    exclude_topics: list[string]
+  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-opc-adapter.git
+  name: LEAF OPC

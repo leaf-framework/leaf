@@ -1,8 +1,8 @@
 """LEAF Adapters tab."""
-import json
-import os
+from pathlib import Path
 
 import httpx
+import yaml
 from nicegui import ui
 
 from leaf.registry.discovery import get_all_adapter_codes
@@ -11,6 +11,40 @@ from leaf.ui.utils import install_adapter, uninstall_adapter
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")
+
+# Cache location for downloaded marketplace
+CACHE_DIR = Path.home() / ".cache" / "leaf"
+CACHE_FILE = CACHE_DIR / "marketplace.yaml"
+
+
+def get_bundled_marketplace_path() -> Path:
+    """
+    Get the path to the bundled marketplace.yaml file.
+
+    Returns:
+        Path to the bundled marketplace file
+    """
+    # The bundled file is in leaf/data/marketplace.yaml
+    return Path(__file__).parent.parent / "data" / "marketplace.yaml"
+
+
+def load_bundled_marketplace() -> list | None:
+    """
+    Load marketplace data from the bundled file.
+
+    Returns:
+        Marketplace data as a list, or None if file doesn't exist
+    """
+    try:
+        bundled_path = get_bundled_marketplace_path()
+        if bundled_path.exists():
+            with open(bundled_path, 'r') as f:
+                data = yaml.safe_load(f)
+            logger.debug(f"Loaded bundled marketplace data from {bundled_path}")
+            return data
+    except Exception as e:
+        logger.warning(f"Failed to load bundled marketplace: {e}")
+    return None
 
 
 def build_adapters_content(container: ui.column) -> None:
@@ -31,9 +65,14 @@ def build_adapters_content(container: ui.column) -> None:
         # Try to load marketplace data to get repo URLs for installed adapters
         marketplace_data = {}
         try:
-            if os.path.exists('marketplace.json'):
-                with open('marketplace.json', 'r') as f:
-                    marketplace_list = json.load(f)
+            if CACHE_FILE.exists():
+                with open(CACHE_FILE, 'r') as f:
+                    marketplace_list = yaml.safe_load(f)
+                    marketplace_data = {item['adapter_id']: item for item in marketplace_list}
+            else:
+                # Try bundled marketplace as fallback
+                marketplace_list = load_bundled_marketplace()
+                if marketplace_list:
                     marketplace_data = {item['adapter_id']: item for item in marketplace_list}
         except Exception as e:
             logger.debug(f"Could not load marketplace data: {e}")
@@ -92,21 +131,51 @@ def build_adapters_content(container: ui.column) -> None:
 
         # Load marketplace data asynchronously
         async def load_marketplace():
+            data = None
+            cache_is_fresh = False
+
             try:
                 url = MARKETPLACE_URL
-                logger.debug(f"Fetching marketplace data from {url}")
-                # Use async httpx client with timeout
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    if os.path.exists('marketplace.json'):
-                        data = json.load(open('marketplace.json'))
-                    else:
-                        response = await client.get(url)
-                        data = response.json()
-                        # Write to file
-                        with open('marketplace.json', 'w') as f:
-                            f.write(response.text)
 
-                logger.debug(f"Marketplace data fetched successfully, found {len(data)} adapters")
+                # Check if cache exists and is fresh (< 30 days)
+                if CACHE_FILE.exists():
+                    from datetime import datetime, timedelta
+                    cache_age = datetime.now() - datetime.fromtimestamp(CACHE_FILE.stat().st_mtime)
+                    cache_is_fresh = cache_age < timedelta(days=30)
+
+                    if cache_is_fresh:
+                        logger.debug(f"Loading fresh cached marketplace from {CACHE_FILE}")
+                        with open(CACHE_FILE, 'r') as f:
+                            data = yaml.safe_load(f)
+
+                # If no fresh cache, start with bundled file
+                if not cache_is_fresh:
+                    logger.debug("Cache is stale or missing, loading bundled marketplace")
+                    data = load_bundled_marketplace()
+
+                    # Try to download fresh version to cache for next time
+                    try:
+                        logger.debug(f"Attempting to download fresh marketplace from {url}")
+                        async with httpx.AsyncClient(timeout=5.0) as client:
+                            response = await client.get(url)
+                            response.raise_for_status()
+                            fresh_data = yaml.safe_load(response.text)
+
+                            # Cache the downloaded data
+                            CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                            with open(CACHE_FILE, 'w') as f:
+                                f.write(response.text)
+                            logger.info(f"Downloaded and cached fresh marketplace data to {CACHE_FILE}")
+
+                            # Use the fresh downloaded data
+                            data = fresh_data
+                    except Exception as download_error:
+                        logger.warning(f"Could not download fresh marketplace: {download_error}")
+                        if not data:
+                            raise Exception("No bundled marketplace available and download failed")
+
+                if data:
+                    logger.debug(f"Marketplace data loaded successfully, found {len(data)} adapters")
 
                 # Remove loading indicator
                 loading_label.delete()

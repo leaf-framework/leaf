@@ -221,7 +221,7 @@ class MQTT(OutputModule):
             self.sending_success[topic] = True
             if self._fallback is not None:
                 while True:
-                    fallback_result = self._fallback.retrieve(topic)
+                    fallback_result = self._fallback.pop(topic)
                     if fallback_result is not None:
                         fallback_topic, fallback_data = fallback_result
                         logger.info(
@@ -481,16 +481,21 @@ class MQTT(OutputModule):
         logger.info(f"{self.__class__.__name__} - disabled")
         return super().disable()
 
-    def pop(self, key: Optional[str] = None) -> None:
+    def pop(self, key: Optional[str] = None) -> Any:
         """
-        Placeholder for a pop method.
+        Retrieve and remove a stored message from the fallback.
+
+        MQTT does not buffer messages locally, so this delegates to the fallback
+        module (e.g., KeyDB or FILE) to retrieve buffered messages.
 
         Args:
             key (Optional[str]): A key for which to pop data. Defaults to None.
 
         Returns:
-            None
+            Any: Retrieved message tuple (topic, message) or None if no messages.
         """
+        if self._fallback is not None:
+            return self._fallback.pop(key)
         return None
 
     def _handle_return_code(self, return_code: int) -> Optional[ClientUnreachableError]:

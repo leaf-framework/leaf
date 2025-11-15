@@ -27,7 +27,7 @@ class TestSQLOutputModule(unittest.TestCase):
 
     def test_initialize_database_creates_table(self):
         """Test that initializing SQL creates the messages table"""
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
 
         # Verify table exists
         conn = sqlite3.connect(self.database)
@@ -44,7 +44,7 @@ class TestSQLOutputModule(unittest.TestCase):
         topic = "test_topic"
         data = {"key": "value"}
 
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         result = sql_module.transmit(topic, data)
 
         self.assertTrue(result)
@@ -67,7 +67,7 @@ class TestSQLOutputModule(unittest.TestCase):
         data1 = {"temp": 20}
         data2 = {"temp": 21}
 
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         sql_module.transmit(topic, data1)
         sql_module.transmit(topic, data2)
 
@@ -86,7 +86,7 @@ class TestSQLOutputModule(unittest.TestCase):
         data1 = {"msg": "first"}
         data2 = {"msg": "second"}
 
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         sql_module.transmit(topic, data1)
         sql_module.transmit(topic, data2)
 
@@ -108,7 +108,7 @@ class TestSQLOutputModule(unittest.TestCase):
 
     def test_retrieve_returns_none_for_nonexistent_topic(self):
         """Test that retrieve returns None when topic doesn't exist"""
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         results = sql_module.retrieve("nonexistent_topic")
 
         self.assertIsNone(results)
@@ -118,7 +118,7 @@ class TestSQLOutputModule(unittest.TestCase):
         topic = "test_topic"
         data = {"key": "value"}
 
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         sql_module.transmit(topic, data)
 
         popped = sql_module.pop()
@@ -143,7 +143,7 @@ class TestSQLOutputModule(unittest.TestCase):
         data1 = {"msg": "first"}
         data2 = {"msg": "second"}
 
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         sql_module.transmit(topic1, data1)
         sql_module.transmit(topic2, data2)
 
@@ -167,14 +167,14 @@ class TestSQLOutputModule(unittest.TestCase):
 
     def test_pop_returns_none_when_empty(self):
         """Test that pop returns None when database is empty"""
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         result = sql_module.pop()
 
         self.assertIsNone(result)
 
     def test_pop_returns_none_for_nonexistent_key(self):
         """Test that pop returns None when specified key doesn't exist"""
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         sql_module.transmit("existing_topic", {"data": "value"})
 
         result = sql_module.pop(key="nonexistent_topic")
@@ -183,12 +183,12 @@ class TestSQLOutputModule(unittest.TestCase):
 
     def test_is_connected_returns_true(self):
         """Test that is_connected always returns True for SQLite"""
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         self.assertTrue(sql_module.is_connected())
 
     def test_transmit_with_none_data_returns_true(self):
         """Test that transmitting None data returns True without inserting"""
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         result = sql_module.transmit("test_topic", None)
 
         self.assertTrue(result)
@@ -204,7 +204,7 @@ class TestSQLOutputModule(unittest.TestCase):
 
     def test_concurrent_writes_are_safe(self):
         """Test that multiple sequential writes don't cause data loss"""
-        sql_module = SQL(database=self.database)
+        sql_module = SQL(filename=self.database)
         topic = "concurrent_test"
 
         # Simulate rapid writes

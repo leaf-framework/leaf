@@ -72,7 +72,8 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         callbacks: Optional[List[Callable[[str, str], None]]] = None,
         error_holder: Optional[ErrorHolder] = None,
         return_data: Optional[bool] = True,
-        filenames: Optional[Union[str, List[str]]] = None
+        filenames: Optional[Union[str, List[str]]] = None,
+        debounce_delay: float = 0.75
     ) -> None:
         """
         Initialise FileWatcher.
@@ -83,6 +84,7 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             callbacks (Optional[List[Callable]]): Callbacks for file events.
             error_holder (Optional[ErrorHolder]): Optional error holder for capturing exceptions.
             return_data (Optional[bool]): Returns the data (content of file) is true else, return filename.
+            debounce_delay (float): Delay in seconds to debounce file modification events. Defaults to 0.75.
 
         Raises:
             AdapterBuildError: Raised if the provided file path is invalid.
@@ -106,7 +108,7 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
 
         self._last_created: Optional[float] = None
         self._last_modified: Optional[float] = None
-        self._debounce_delay: float = 0.75
+        self._debounce_delay: float = debounce_delay
 
         self._term_map = {
             self.on_created: metadata_manager.experiment.start,

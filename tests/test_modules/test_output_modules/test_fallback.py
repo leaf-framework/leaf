@@ -87,7 +87,7 @@ class TestFallbacks(unittest.TestCase):
         self._module.transmit(mock_topic, mock_data)
         time.sleep(1)
         self.assertNotIn(mock_topic, self._mock_client.messages)
-        res = self._keydb.retrieve(mock_topic)
+        res = self._keydb.pop(mock_topic)
         self.assertEqual(res, None)
 
         res = [json.loads(n) if not isinstance(n, dict) else n 

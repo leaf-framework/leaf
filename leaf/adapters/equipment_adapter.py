@@ -49,16 +49,18 @@ class AbstractInterpreter(ABC):
         """Assign an ErrorHolder instance to the interpreter."""
         self._error_holder = error_holder
 
-    @abstractmethod
     def metadata(self, data: Any) -> dict[str, Any]:
         """
         Parse metadata input and return it in structured form.
+
+        Default implementation records the experiment start timestamp.
+        Override this method in your interpreter if you need custom metadata processing.
 
         Args:
             data (Any): Raw metadata from input module.
 
         Returns:
-            dict[str, Any]: Parsed metadata dictionary.
+            dict[str, Any]: Parsed metadata dictionary with timestamp.
         """
         self._start_time = time.time()
         return {self.TIMESTAMP_KEY: self._start_time}

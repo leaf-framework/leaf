@@ -327,11 +327,11 @@ class TestFileWatcher(unittest.TestCase):
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], filenames="test.csv")
+            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], filenames="test.csv", debounce_delay=0.1)
             watcher.start()
 
             self._write_csv_file(csv_file, [["Time", "Value"], ["1", "100"]])
-            time.sleep(1)
+            time.sleep(2)  # macOS FSEvents can have significant delay
             watcher.stop()
 
             self.assertEqual(len(topics[metadata.experiment.start()]), 1)
@@ -347,7 +347,7 @@ class TestFileWatcher(unittest.TestCase):
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], filenames="test.csv")
+            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], filenames="test.csv", debounce_delay=0.1)
             watcher.start()
 
             # Wait a moment for the watcher to be ready
@@ -385,11 +385,11 @@ class TestFileWatcher(unittest.TestCase):
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], filenames="test.csv")
+            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], filenames="test.csv", debounce_delay=0.1)
             watcher.start()
 
             os.remove(csv_file)
-            time.sleep(1)
+            time.sleep(2)  # macOS FSEvents can have significant delay
             watcher.stop()
 
             self.assertEqual(len(topics[metadata.experiment.stop()]), 1)
@@ -405,7 +405,7 @@ class TestFileWatcher(unittest.TestCase):
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback])
+            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], debounce_delay=0.1)
             watcher.start()
 
             self._write_csv_file(csv_file, [["Time", "Val"], ["3", "300"]])
@@ -542,6 +542,7 @@ class TestFileWatcher(unittest.TestCase):
                 metadata_manager=metadata,
                 callbacks=[mock_cb],
                 return_data=True,
+                debounce_delay=0.1
             )
             watcher.start()
 
@@ -551,7 +552,7 @@ class TestFileWatcher(unittest.TestCase):
             with open(file_txt, "w") as f:
                 f.write("just some text")
 
-            time.sleep(1)
+            time.sleep(2)  # macOS FSEvents can have significant delay
             watcher.stop()
 
             self.assertGreaterEqual(len(topics.get(metadata.experiment.start(), [])), 2)
@@ -600,12 +601,12 @@ class TestFileWatcher(unittest.TestCase):
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(tmpdir, metadata, callbacks=[cb], filenames="bad.csv")
+            watcher = FileWatcher(tmpdir, metadata, callbacks=[cb], filenames="bad.csv", debounce_delay=0.1)
             watcher.start()
             with open(bad_path, "w") as f:
                 f.write('"\n"\n')
 
-            time.sleep(1)
+            time.sleep(2)  # macOS FSEvents can have significant delay
             watcher.stop()
 
             self.assertEqual(len(topics.get(metadata.experiment.start(), [])), 1)
@@ -626,6 +627,7 @@ class TestFileWatcher(unittest.TestCase):
                 metadata,
                 callbacks=[cb],
                 filenames=["data1.csv", "data2.tsv"],
+                debounce_delay=0.1
             )
             watcher.start()
 
@@ -633,7 +635,7 @@ class TestFileWatcher(unittest.TestCase):
             self._write_csv_file(f1, [["A", "B"]])
             self._write_file(f2, [["X", "Y"]], delimiter="\t")
 
-            time.sleep(1)
+            time.sleep(2)  # macOS FSEvents can have significant delay
             watcher.stop()
 
             self.assertEqual(len(topics.get(metadata.experiment.start(), [])), 2)

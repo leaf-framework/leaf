@@ -14,7 +14,11 @@ repository = "https://gitlab.com/LabEquipmentAdapterFramework/leaf"
 documentation = "https://leaf.systemsbiology.nl"
 
 packages = [
-    { include = "leaf" }         # your actual Python module
+    { include = "leaf" }
+]
+
+include = [
+    "leaf/data/marketplace.yaml"
 ]
 
 
@@ -22,23 +26,22 @@ packages = [
 aioredis = "~2.0.1"
 dateparser = "~1.2.2"
 httpx = "~0.28.1"
-influxobject = "~0.0.4"
-leaf-hello-world = ">=0.1.0"
+influxobject = "~0.0.8"
+leaf-example = "*"
 leaf-register = "~0.1.1"
-nicegui = "^3.2.0"
+nicegui = "^3.3.0"
 paho-mqtt = "~2.1.0"
 pyyaml = "~6.0.2"
 python = "^3.12"
-redis = "~6.2.0"
+redis = "~7.0.1"
 requests = "~2.32.4"
 watchdog = "~6.0.0"
-
 
 [tool.poetry.scripts]
 leaf = "leaf.start:main"
 
 [tool.poetry.group.test.dependencies]
-coverage = "^7.10.2"
+coverage = "^7.11.3"
 mypy = "^1.17.1"
 pytest = "^8.4.1"
 pytest-forked = "^1.6.0"
@@ -58,11 +61,10 @@ log_cli = true
 log_cli_level = "DEBUG"
 log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
 log_cli_date_format = "%Y-%m-%d %H:%M:%S"
-# Test configuration for CI (GitLab)
-# Use --forked for test isolation to prevent conflicts
+# Test configuration
+# Note: GitLab CI adds --forked flag for test isolation
 timeout = 30  # Maximum 30 seconds per test
 addopts = [
-    "--forked",  # Fork each test for isolation
     "--tb=short",  # Shorter tracebacks
 ]
 markers = [

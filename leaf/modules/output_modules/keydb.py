@@ -152,7 +152,7 @@ class KEYDB(OutputModule):
             logger.info(f"Found existing keys in KeyDB: {topics}")
             for topic in topics:
                 topic = topic.decode("utf-8")
-                self.retrieve(topic)
+                self.pop(topic)
         else:
             logger.debug("No existing keys found in KeyDB.")
         return self._client is not None
@@ -169,26 +169,6 @@ class KEYDB(OutputModule):
             logger.info("Disconnected from KeyDB.")
         else:
             logger.info("Already disconnected from KeyDB.")
-
-    def retrieve(self, key: str) -> Optional[str]:
-        """
-        Retrieve data from KeyDB for a given key.
-
-        Args:
-            key (str): The key name for which to retrieve data.
-
-        Returns:
-            Optional[str]: The retrieved data as a UTF-8 decoded
-                           string, or None if not found.
-        """
-        if self._client is None:
-            return None
-        try:
-            message = self._client.lpop(key)
-            return message.decode("utf-8") if message else None
-        except redis.RedisError as e:
-            self._handle_redis_error(e)
-            return None
 
     def pop(self, key: Optional[str] = None) -> Optional[tuple[str, Any]]:
         """
@@ -215,9 +195,8 @@ class KEYDB(OutputModule):
                 result = self._client.lpop(key)
                 if result:
                     # Content is already popped
-                    # self._client.delete(key)
-                    # If the key is empty after popping, delete it
-                    if self._client.get(key) is None:
+                    # If the list is empty after popping, delete the key
+                    if self._client.llen(key) == 0:
                         self._client.delete(key)
                     return key, json.loads(result.decode("utf-8"))
                 return None
@@ -238,8 +217,8 @@ class KEYDB(OutputModule):
 
             result = json.loads(result.decode("utf-8"))
             if result:
-                # Check if empty
-                if self._client.llen(random_key) is None:
+                # Check if the list is empty after popping
+                if self._client.llen(random_key) == 0:
                     logger.info(f"Key '{random_key}' is empty after popping.")
                     self._client.delete(random_key)
                 logger.info(f"Popped key '{random_key}' from KeyDB.")

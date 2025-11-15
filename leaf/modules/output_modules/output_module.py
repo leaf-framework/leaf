@@ -61,11 +61,15 @@ class OutputModule(ABC):
         """
         Retrieve and remove a stored message.
 
+        This removes the message from storage upon successful retrieval,
+        ensuring messages are sent only once.
+
         Args:
-            key (Optional[str]): Specific key to pop from buffer.
+            key (Optional[str]): Specific key/topic to pop from buffer.
+                                If None, implementation may pop from any available key.
 
         Returns:
-            Any: Retrieved message or None.
+            Any: Retrieved message tuple (topic, data) or None if no messages.
         """
         pass
 
