@@ -11,8 +11,10 @@ from leaf.error_handler.error_holder import ErrorHolder
 
 class SimpleWatcher(PollingWatcher):
     """
-    A minimal polling watcher that simulates static data for development
-    and testing purposes. Useful for mocking inputs or demonstrating flow.
+    A minimal polling watcher for development and testing.
+
+    Polls at regular intervals and triggers the interpreter's measurement() method.
+    Does not fetch data itself - the interpreter handles all data retrieval.
     """
 
     def __init__(
@@ -41,15 +43,18 @@ class SimpleWatcher(PollingWatcher):
         self._interval: int = interval
         self._metadata_manager: MetadataManager = metadata_manager
 
-    def _fetch_data(self) -> Dict[str, Dict[str, str]]:
+    def _fetch_data(self) -> Dict[str, Optional[dict]]:
         """
-        Return static dummy measurement data. Intended for testing purposes.
+        Trigger a measurement poll.
+
+        Returns a dict that triggers the measurement callback. The actual data
+        is fetched by the interpreter, so we just return an empty trigger.
 
         Returns:
-            Dict[str, Dict[str, str]]: Dummy structured data for measurement.
+            Dict[str, Optional[dict]]: Measurement trigger (content ignored by interpreter).
         """
         return {
-            "measurement": {
-                "data": "sample_measurement"
-            }
+            "measurement": {},  # Empty trigger - interpreter fetches real data
+            "start": None,
+            "stop": None
         }

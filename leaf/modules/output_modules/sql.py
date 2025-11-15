@@ -14,11 +14,11 @@ logger = get_logger(__name__, log_file="output_module.log")
 
 class SQL(OutputModule):
     def __init__(self,
-                 database: str = "leaf_messages.db",
+                 filename: str = "leaf_messages.db",
                  fallback: Optional[OutputModule] = None,
                  error_holder: Optional[ErrorHolder] = None) -> None:
         super().__init__(fallback=fallback, error_holder=error_holder)
-        self.database = database
+        self.database = filename
         self._connection = None
         self._initialize_database()
 

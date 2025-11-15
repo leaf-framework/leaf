@@ -38,7 +38,7 @@ class TestMQTTSQLFallback(unittest.TestCase):
         successful MQTT transmission when connection is restored.
         """
         # Create SQL fallback
-        sql_fallback = SQL(database=self.database)
+        sql_fallback = SQL(filename=self.database)
 
         # Mock MQTT client
         mock_client = MagicMock()
@@ -104,7 +104,7 @@ class TestMQTTSQLFallback(unittest.TestCase):
         not all messages at once.
         """
         # Create SQL fallback with test messages
-        sql_fallback = SQL(database=self.database)
+        sql_fallback = SQL(filename=self.database)
         topic = "test/topic"
         sql_fallback.transmit(topic, {"msg": "first"})
         sql_fallback.transmit(topic, {"msg": "second"})

@@ -2,7 +2,7 @@
 
 # Server constants
 DEFAULT_PORT = 8080
-MARKETPLACE_URL = "https://gitlab.com/LabEquipmentAdapterFramework/leaf-marketplace/-/raw/main/adapter_cache.json"
+MARKETPLACE_URL = "https://gitlab.com/LabEquipmentAdapterFramework/leaf-marketplace/-/raw/main/public/adapter.yaml"
 MAX_LOG_LINES = 1000
 CONFIGURATION_FILENAME = 'configuration.yaml'
 
