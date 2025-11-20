@@ -8,17 +8,36 @@ EQUIPMENT_INSTANCES:
         interval: 1
 
 OUTPUTS:
+# MQTT output requires 'broker' and 'port' 
+# optionally 'username', 'password', 'clientid', 'protocol', 'transport', and 'tls'
+# and optionally an alternative 'fallback' output
   - plugin: MQTT
     broker: test.mosquitto.org
     port: 1883
-#    fallback: SQL
+#   username: None #OPTIONAL expects a str
+#   password: None #OPTIONAL expects a str
+#   clientid: None #OPTIONAL expects a str
+#   protocol: v3   #OPTIONAL expects "v3" "v5"
+#   transport: tcp #OPTIONAL expects "tcp", "websockets", "unix"
+#   tls: False     #OPTIONAL expects True, False
+#   fallback: SQL  #OPTIONAL expects "SQL", "KEYDB", "FILE"
+
+# SQL output requires 'filename' of database 
+# and optionally an alternative 'fallback' output
 #  - plugin: SQL
-#    database: messages.db
-#    fallback: KEYDB
+#    filename: messages.db
+#    fallback: KEYDB #OPTIONAL expects "MQTT", "KEYDB", "FILE"
+
+# KEYDB output requires 'host', 'port', 'db'
+# and optionally an alternative 'fallback' output
 #  - plugin: KEYDB
 #    host: localhost
 #    port: 6379
 #    db: 0
-#    fallback: FILE
+#    fallback: FILE #OPTIONAL expects "MQTT", "SQL", "FILE"
+
+# FILE output requires 'filename'
+# and optionally an alternative 'fallback' output
 #  - plugin: FILE
 #    filename: local.json
+#    fallback: FILE #OPTIONAL expects "MQTT", "SQL", "KEYDB"
