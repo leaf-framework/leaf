@@ -4,6 +4,8 @@ import os
 import threading
 import time
 import unittest
+
+import pytest
 import redis
 import yaml
 
@@ -76,6 +78,7 @@ class TestKeyDB(unittest.TestCase):
         self.assertIsNone(result1)  # Both keys should be deleted
         self.assertIsNone(result2)
 
+    @pytest.mark.timeout(0)
     def test_leaf(self):
         """Test LEAF application integration with KeyDB output module.
 
