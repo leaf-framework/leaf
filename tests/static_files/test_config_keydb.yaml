@@ -1,6 +1,6 @@
 EQUIPMENT_INSTANCES:
   - equipment:
-      adapter: HelloWorld
+      adapter: Example
       data:
         instance_id: keydb_test_instance
         institute: keydb_test_instance_institute1
