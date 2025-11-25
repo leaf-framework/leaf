@@ -47,6 +47,7 @@ pytest = "^8.4.1"
 pytest-forked = "^1.6.0"
 pytest-timeout = "^2.3.1"
 pytest-xdist = "^3.8.0"
+opcua = "^0.98.13"
 
 [tool.poetry.group.dev.dependencies]
 bump2version = "^1.0.1"

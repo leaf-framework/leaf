@@ -60,8 +60,10 @@ class OPCWatcher(EventWatcher):
         self._handler = self._dispatch_callback
         self._handles: list[Any] = []
         self._interval = interval
-        from leaf.utility.logger.logger_utils import get_logger
         self.logger = get_logger(__name__, log_file="input_module.log")
+        if host is None or port is None:
+            raise ValueError("Host and port must be specified.")
+        self._client = Client(f"opc.tcp://{host}:{port}")
 
     def datachange_notification(self, node: Node, val: int|str|float, data: DataChangeNotification) -> None:
         self.logger.debug(f"OPC datachange_notification: node={node.nodeid.Identifier}, value={val}")
@@ -80,7 +82,6 @@ class OPCWatcher(EventWatcher):
             raise Exception("OPC UA library is not available. Cannot start OPCWatcher.")
 
         self.logger.info(f"Starting OPCWatcher on {self._host}:{self._port}")
-        self._client = Client(f"opc.tcp://{self._host}:{self._port}")
         self._client.connect()
 
         root = self._client.get_root_node()
@@ -88,13 +89,12 @@ class OPCWatcher(EventWatcher):
         # Automatically browse and read nodes to obtain topics user could provide a list of topics.
         # subscribe_to_topics = set()
         if self._topics is None or len(self._topics) == 0:
-            logger.info("No topics provided. Will register to all topics.")
+            logger.info("No topics provided. Will list all topics.")
             self._all_topics = self._browse_and_read(objects_node)
-            self.logger.info("No topics provided. Will register to all " + str(len(self._all_topics)) + " topics.")
             for topic in self._all_topics:
-                self.logger.debug(f"Found topic: {topic}")
-            self._topics = self._all_topics
-            logger.info(f"No topics provided. Will register to all {len(self._topics)} topics.")
+                self.logger.info(f"Found topic: {topic}")
+            logger.info("Finished listing topics.")
+            raise ValueError("No topics provided. Please provide a list of topics to subscribe to.")
 
         # Subscribe to topics
         self._subscribe_to_topics()
@@ -114,6 +114,7 @@ class OPCWatcher(EventWatcher):
             try:
                 child.get_value()
                 nodes_data.add(child.nodeid.Identifier)
+                logger.info(f"Found topic: '{child.nodeid.Identifier}'")
             except Exception as e:
                 # Skip nodes that don't support value reading (organizational nodes, etc.)
                 if "BadAttributeIdInvalid" in str(e):
@@ -133,9 +134,9 @@ class OPCWatcher(EventWatcher):
             return
         try:
             self._sub = self._client.create_subscription(self._interval * 1000, self)  # second interval converted to ms
-            # When no topics are provided, subscribe to all topics
-            if not self._topics:
-                self._topics = self._all_topics
+            # When no topics are provided, report all topics but subscribe to none
+            # if not self._topics:
+            #     self._topics = self._all_topics
 
             for topic in self._topics:
                 if topic in self._exclude_topics:
