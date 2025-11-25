@@ -193,9 +193,12 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         logger.debug(f"Received file modification event: {event}")
         try:
             fp = self._get_filepath(event)
-            if fp is None or not self._is_last_modified():
-                logger.debug("Modification event ignored due to debounce delay or file not found.")
+            if fp is None:
+                logger.debug(f"File not found or not accessible. Skipping event {event}.")
                 return
+            # if not self._is_last_modified():
+            #     logger.debug(f"Modification event ({event}) ignored due to debounce delay.")
+            #     return
             if self._return_data:
                 logger.debug("Reading file content...")
                 data = self._read_file_by_extension(fp)
@@ -236,6 +239,9 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         Returns:
             Optional[str]: Full file path if it matches the watched file, otherwise None.
         """
+        if event.is_directory:
+            return None
+
         if not os.path.isfile(event.src_path) and file_exists:
             return None
 
