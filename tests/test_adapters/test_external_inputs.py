@@ -257,6 +257,7 @@ class TestEquipmentAdapter(unittest.TestCase):
 
         def _stop(thread: Thread) -> None:
             stop_all_adapters()
+            thread.join()
             time.sleep(10)
 
         test_topic = "test_topic/external_action"
