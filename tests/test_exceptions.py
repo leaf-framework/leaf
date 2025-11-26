@@ -734,18 +734,19 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
             self.file_watcher.on_created(mock_event)
         self.assertIn("I/O error during creation event", str(context.exception))
 
-    @patch("builtins.open", new_callable=mock_open)
+    @patch("builtins.open")
     def test_csv_watcher_on_created_parse_error(self, mock_open_file) -> None:
         # Setup Watcher and simulate csv.Error during file reading
         directory = os.path.dirname(self.file_path)
         filename = os.path.basename(self.file_path)
-        csv_watcher = FileWatcher(directory, 
+        csv_watcher = FileWatcher(directory,
                                  metadata_manager=self.metadata_manager,
                                  filenames=filename
         )
         mock_open_file.side_effect = csv_error("CSV parsing failed")
         mock_event = MagicMock()
         mock_event.src_path = self.file_path
+        mock_event.is_directory = False
         with self.assertRaises(InputError) as context:
             csv_watcher.on_created(mock_event)
         self.assertIn("CSV parsing failed", str(context.exception))

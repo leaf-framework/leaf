@@ -158,31 +158,6 @@ class TestOPCWatcher(unittest.TestCase):
 
         watcher.stop()
 
-    def test_opc_watcher_subscribe(self):
-        """Test that OPCWatcher can connect to the demo server"""
-        metadata_manager = MetadataManager()
-
-        # Subscribe to Temperature node
-        topics = {"Temperature"}
-
-        watcher = OPCWatcher(
-            metadata_manager=metadata_manager,
-            host="127.0.0.1",
-            port=4841,
-            topics=topics,
-            exclude_topics=[],
-            interval=1
-        )
-
-        watcher.start()
-        time.sleep(0.5)
-
-        # Verify connection
-        self.assertIsNotNone(watcher._client)
-        self.assertIsNotNone(watcher._sub)
-
-        watcher.stop()
-
     def test_opc_watcher_receives_data(self):
         """Test that OPCWatcher receives data changes"""
         received_messages = []

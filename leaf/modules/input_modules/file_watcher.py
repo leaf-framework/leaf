@@ -30,10 +30,11 @@ from leaf.utility.logger.logger_utils import get_logger
 logger = get_logger(__name__, log_file="input_module.log")
 
 
-def _read_csv(fp: str, encodings=["utf-8", "latin-1"], 
+def _read_csv(fp: str, encodings=["utf-8", "latin-1"],
              delimiters=[";", ",", "\t", "|"]):
     if not isinstance(delimiters,list):
         delimiters = [delimiters]
+    last_error = None
     for encoding in encodings:
         for delim in delimiters:
             try:
@@ -42,8 +43,12 @@ def _read_csv(fp: str, encodings=["utf-8", "latin-1"],
                     data = list(reader)
                     if data and len(data[0]) > 1:
                         return data
-            except (csv.Error, UnicodeDecodeError, FileNotFoundError):
+            except (csv.Error, UnicodeDecodeError, FileNotFoundError) as e:
+                last_error = e
                 continue
+    # If we get here, all attempts failed
+    if last_error:
+        raise last_error
     return None
 
 
@@ -180,7 +185,11 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             else:
                 data = fp
         except Exception as e:
-            self._file_event_exception(e, "creation")
+            try:
+                self._file_event_exception(e, "creation")
+            except InputError:
+                raise
+            return
         self._dispatch_callback(self._term_map[self.on_created], data)
 
     def on_modified(self, event: FileSystemEvent) -> None:
@@ -206,7 +215,11 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
                 logger.debug("Returning file path instead of content...")
                 data = fp
         except Exception as e:
-            self._file_event_exception(e, "modification")
+            try:
+                self._file_event_exception(e, "modification")
+            except InputError:
+                raise
+            return
         self._dispatch_callback(self._term_map[self.on_modified], data)
 
     def on_deleted(self, event: FileSystemEvent) -> None:

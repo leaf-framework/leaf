@@ -109,6 +109,7 @@ class TestFileWatcher(unittest.TestCase):
             interval = 2
             watcher.start()
             creation_file = os.path.join(creation_dir,test_fn)
+            time.sleep(3)  # Wait for the watcher to be fully ready
             mthread = Thread(target=create_file, args=(creation_file, 
                                                        interval, 
                                                        num_create))
@@ -116,8 +117,7 @@ class TestFileWatcher(unittest.TestCase):
             mthread.join()
             time.sleep(1)
             watcher.stop()
-            self.assertEqual(len(topics[metadata.experiment.start()]), 
-                             num_create)
+            self.assertEqual(len(topics[metadata.experiment.start()]), num_create)
 
     def test_file_watcher_deletion(self) -> None:
         with tempfile.TemporaryDirectory() as test_dir:
