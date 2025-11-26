@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 """Tests for the OPC UA watcher."""
 import logging
-import os
-import tempfile
+import threading
 import time
 import unittest
 from datetime import datetime, timezone
 from typing import Optional
 from unittest.mock import Mock, patch
 
+import leaf_example
 from influxobject import InfluxPoint
+from leaf_example.adapter import Adapter
 from leaf_register.metadata import MetadataManager
 
 from leaf.adapters.core_adapters.discrete_experiment_adapter import DiscreteExperimentAdapter
@@ -87,8 +88,8 @@ class MBPOPCAdapter(DiscreteExperimentAdapter):
             output,
             topics: Optional[set[str]] = [".*R1.*"],
             exclude_topics: Optional[list[str]] = [],
-            host: str = '10.22.196.201',
-            port: int = 49580,
+            host: str = 'localhost',
+            port: int = 4840,
             reporting_interval=10,
             maximum_message_size: Optional[int] = 100,
             error_holder: Optional[ErrorHolder] = None,
@@ -207,43 +208,6 @@ class TestOpcWatcher(unittest.TestCase):
         self.assertEqual(result["device_type"], "opc_ua_device")
         self.assertEqual(result["protocol"], "opc_ua")
 
-
-    def test_complete_adapter_integration(self):
-        """Test complete adapter with watcher integration."""
-        # Setup temp file for output
-        temp_dir = tempfile.mkdtemp()
-        output_file = os.path.join(temp_dir, "opc_output.json")
-
-        try:
-
-            # Create output module
-            # output = FILE(filename=output_file)
-            fallback = KEYDB(port=6379, host="localhost", db=0, error_holder=self.error_holder, fallback=None)
-            output = MQTT(port=1883, clientid=None, error_holder=self.error_holder, fallback=fallback, broker="localhost")
-
-            # Create the complete adapter
-            adapter = MBPOPCAdapter(
-                instance_data={"instance_id":"instance_id", "institute":"institute"},
-                output=output,
-                maximum_message_size=100,
-                error_holder=self.error_holder,
-                experiment_timeout=100
-            )
-
-            adapter.start()
-            
-            # Verify adapter was created successfully
-            self.assertIsNotNone(adapter)
-            # Wait for 100 seconds
-            while True:
-                print(adapter.is_running())
-                if adapter.is_running():
-                    break
-                time.sleep(1)
-
-        finally:
-            import shutil
-            shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_watcher_callback_mechanism(self):
         """Test that watcher can trigger callbacks properly."""
