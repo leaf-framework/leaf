@@ -160,34 +160,34 @@ class TestOPCWatcher(unittest.TestCase):
                 print(f"Error stopping OPC demo server: {e}")
 
     # Skip tests if server failed to start
-    @unittest.skip("Skipping tests due to OPC demo server failure in gitlab runner")
-    def test_opc_watcher_connection(self):
-        """Test that OPCWatcher can successfully connect to the demo server"""
-        if self.server_failed:
-            self.skipTest(f"OPC demo server failed to start: {self.server_error}")
-
-        metadata_manager = MetadataManager()
-
-        # Subscribe to Temperature node
-        topics = {"Temperature"}
-
-        watcher = OPCWatcher(
-            metadata_manager=metadata_manager,
-            host="127.0.0.1",
-            port=4841,
-            topics=topics,
-            exclude_topics=[],
-            interval=1
-        )
-
-        watcher.start()
-        time.sleep(0.5)
-
-        # Verify connection
-        self.assertIsNotNone(watcher._client)
-        self.assertIsNotNone(watcher._sub)
-
-        watcher.stop()
+    # @unittest.skip("Skipping tests due to OPC demo server failure in gitlab runner")
+    # def test_opc_watcher_connection(self):
+    #     """Test that OPCWatcher can successfully connect to the demo server"""
+    #     if self.server_failed:
+    #         self.skipTest(f"OPC demo server failed to start: {self.server_error}")
+    #
+    #     metadata_manager = MetadataManager()
+    #
+    #     # Subscribe to Temperature node
+    #     topics = {"Temperature"}
+    #
+    #     watcher = OPCWatcher(
+    #         metadata_manager=metadata_manager,
+    #         host="127.0.0.1",
+    #         port=4841,
+    #         topics=topics,
+    #         exclude_topics=[],
+    #         interval=1
+    #     )
+    #
+    #     watcher.start()
+    #     time.sleep(0.5)
+    #
+    #     # Verify connection
+    #     self.assertIsNotNone(watcher._client)
+    #     self.assertIsNotNone(watcher._sub)
+    #
+    #     watcher.stop()
 
     def test_opc_watcher_receives_data(self):
         """Test that OPCWatcher receives data changes"""
