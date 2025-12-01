@@ -148,14 +148,16 @@ class OPCWatcher(EventWatcher):
                     # Support both full NodeId format (ns=2;s=topic) and simple topic names
                     if topic.startswith("ns=") or topic.startswith("i="):
                         # Full NodeId format provided
+                        logger.debug(f"Full NodeId format provided: {topic}")
                         node = self._client.get_node(topic)
                     else:
                         # Simple topic name, assume ns=2;s= format
+                        logger.debug(f"Simple topic name provided, subscribing to ns=2;s={topic}")
                         node = self._client.get_node(f"ns=2;s={topic}")
 
                     handle = self._sub.subscribe_data_change(node)
                     self._handles.append(handle)
-                    self.logger.info(f"Subscribed to: {topic}")
+                    self.logger.info(f"Subscribed to: {node.nodeid.to_string()}")
                     # Send a dummy value to trigger the callback
                     self._dispatch_callback(self._metadata_manager.experiment.measurement, {
                         "node": node.nodeid.Identifier,
