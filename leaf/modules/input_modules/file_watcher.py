@@ -203,7 +203,7 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         try:
             fp = self._get_filepath(event)
             if fp is None:
-                logger.debug(f"File not found or not accessible. Skipping event {event}.")
+                logger.warning(f"File not found or not accessible. Skipping event {event}.")
                 return
             # if not self._is_last_modified():
             #     logger.debug(f"Modification event ({event}) ignored due to debounce delay.")
