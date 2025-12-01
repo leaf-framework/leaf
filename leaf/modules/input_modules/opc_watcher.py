@@ -90,7 +90,7 @@ class OPCWatcher(EventWatcher):
         # subscribe_to_topics = set()
         if self._topics is None or len(self._topics) == 0:
             logger.info("No topics provided. Will list all topics.")
-            self._all_topics = self._browse_and_read(objects_node)
+            self._all_topics = self._browse_and_read(root)
             for topic in self._all_topics:
                 self.logger.info(f"Found topic: {topic}")
             logger.info("Finished listing topics.")
@@ -104,7 +104,7 @@ class OPCWatcher(EventWatcher):
         Recursively browse and read OPC UA nodes to obtain topics.
 
         Returns:
-            Set[str]: A set of node identifiers (NodeIds).
+            Set[str]: A set of node identifiers (NodeIds) in format "ns=X;s=identifier".
         """
         nodes_data = set()
         for child in node.get_children():
@@ -113,14 +113,16 @@ class OPCWatcher(EventWatcher):
                 continue
             try:
                 child.get_value()
-                nodes_data.add(child.nodeid.Identifier)
-                logger.info(f"Found topic: '{child.nodeid.Identifier}'")
+                # Store full NodeId string including namespace
+                full_nodeid = child.nodeid.to_string()
+                nodes_data.add(full_nodeid)
+                logger.info(f"Found topic: '{full_nodeid}'")
             except Exception as e:
                 # Skip nodes that don't support value reading (organizational nodes, etc.)
                 if "BadAttributeIdInvalid" in str(e):
-                    self.logger.debug(f"Skipping node {child.nodeid.Identifier} - doesn't support value reading")
+                    self.logger.debug(f"Skipping node {child.nodeid} - doesn't support value reading")
                 else:
-                    self.logger.error(f"Error reading node {child.nodeid.Identifier}: {e}")
+                    self.logger.error(f"Error reading node {child.nodeid}: {e}")
                 pass
             nodes_data.update(self._browse_and_read(child))  # Recursive call
         return nodes_data
@@ -143,7 +145,14 @@ class OPCWatcher(EventWatcher):
                     self.logger.info("Excluded topic: {}".format(topic))
                     continue
                 try:
-                    node = self._client.get_node(f"ns=2;s={topic}")  # Adjust namespace
+                    # Support both full NodeId format (ns=2;s=topic) and simple topic names
+                    if topic.startswith("ns=") or topic.startswith("i="):
+                        # Full NodeId format provided
+                        node = self._client.get_node(topic)
+                    else:
+                        # Simple topic name, assume ns=2;s= format
+                        node = self._client.get_node(f"ns=2;s={topic}")
+
                     handle = self._sub.subscribe_data_change(node)
                     self._handles.append(handle)
                     self.logger.info(f"Subscribed to: {topic}")
