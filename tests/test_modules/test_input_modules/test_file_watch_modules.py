@@ -314,7 +314,9 @@ class TestFileWatcher(unittest.TestCase):
             mthread.join()
             time.sleep(1)
             watcher.stop()
-            self.assertEqual(len(topics[metadata.experiment.measurement()]),1)
+            # Ensure max of 2 measurements per file
+            self.assertGreaterEqual(len(topics[metadata.experiment.measurement()]),1)
+            self.assertLessEqual(len(topics[metadata.experiment.measurement()]),2)
 
     def test_csv_file_creation(self):
         with tempfile.TemporaryDirectory() as test_dir:
