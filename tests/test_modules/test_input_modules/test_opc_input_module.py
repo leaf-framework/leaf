@@ -5,7 +5,6 @@ import sys
 import threading
 import time
 import unittest
-from unittest import skipIf
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
@@ -161,7 +160,7 @@ class TestOPCWatcher(unittest.TestCase):
                 print(f"Error stopping OPC demo server: {e}")
 
     # Skip tests if server failed to start
-    @unittest.skip
+    @unittest.skip("Skipping tests due to OPC demo server failure in gitlab runner")
     def test_opc_watcher_connection(self):
         """Test that OPCWatcher can successfully connect to the demo server"""
         if self.server_failed:
