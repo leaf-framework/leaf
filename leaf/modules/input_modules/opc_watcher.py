@@ -163,3 +163,39 @@ class OPCWatcher(EventWatcher):
                         continue  # Try the next topic
         except Exception as e:
             self.logger.info(f"Failed to create subscription: {e}")
+
+    def stop(self) -> None:
+        """
+        Stop the OPCWatcher and disconnect from the OPC UA server.
+        """
+        self.logger.info("Stopping OPCWatcher")
+
+        # Call parent stop to set _running flag
+        super().stop()
+
+        # Unsubscribe from all handles
+        if self._sub and self._handles:
+            try:
+                for handle in self._handles:
+                    self._sub.unsubscribe(handle)
+                self._handles.clear()
+                self.logger.debug("Unsubscribed from all topics")
+            except Exception as e:
+                self.logger.error(f"Error unsubscribing: {e}")
+
+        # Delete subscription
+        if self._sub:
+            try:
+                self._sub.delete()
+                self._sub = None
+                self.logger.debug("Deleted subscription")
+            except Exception as e:
+                self.logger.error(f"Error deleting subscription: {e}")
+
+        # Disconnect client
+        if self._client:
+            try:
+                self._client.disconnect()
+                self.logger.info("Disconnected from OPC UA server")
+            except Exception as e:
+                self.logger.error(f"Error disconnecting client: {e}")
