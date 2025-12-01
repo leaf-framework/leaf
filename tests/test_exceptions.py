@@ -770,13 +770,14 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
     @patch("builtins.open", new_callable=mock_open)
     def test_file_watcher_on_modified_os_error(self, mock_open_file) -> None:
         # Simulate an OSError during file modification
-        # The watcher should handle the error and continue (not raise)
+        # Without error_holder, the exception should be raised
         mock_open_file.side_effect = OSError("OS error during modification")
         mock_event = MagicMock()
         mock_event.src_path = self.file_path
-        with self.assertLogs("leaf.modules.input_modules.file_watcher", level="WARNING") as logs:
-            self.file_watcher.on_modified(MagicMock())
-        assert any("File not found or not accessible" in m for m in logs.output)
+        mock_event.is_directory = False
+        with self.assertRaises(InputError) as context:
+            self.file_watcher.on_modified(mock_event)
+        self.assertIn("I/O error during modification event", str(context.exception))
 
     @patch.object(FileWatcher, "_handle_exception")
     def test_file_not_found_error(self, mock_handle_exception) -> None:
