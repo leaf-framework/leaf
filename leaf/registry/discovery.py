@@ -43,14 +43,26 @@ def discover_entry_point_equipment(
                 continue
 
             module_dir = os.path.dirname(spec.origin)
-            device_json_path = os.path.join(module_dir, "device.json")
+            # Working on transition to YAML format
+            device_path = os.path.join(module_dir, "device.json")
+            device_yaml_path = os.path.join(module_dir, "device.yaml")
+            # Backwards compatibility
+            if not os.path.exists(device_path):
+                if not os.path.exists(device_yaml_path):
+                    logger.warning("Missing device.yaml for %s", module_path)
+                    continue
+                else:
+                    # Switch to using device.yaml
+                    device_path = device_yaml_path
 
-            if not os.path.exists(device_json_path):
-                logger.warning("Missing device.json for %s", module_path)
-                continue
+            with open(device_path, "r") as f:
+                if device_path.endswith(".yaml"):
+                    import yaml
+                    device_info = yaml.safe_load(f)
+                else:
+                    import json
+                    device_info = json.load(f)
 
-            with open(device_json_path, "r") as f:
-                device_info = json.load(f)
                 adapter_id: str = device_info.get("adapter_id")
 
                 if needed_codes is not None and (
