@@ -111,8 +111,8 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         self._return_data = return_data
         self._observing = False
 
-        self._last_created: Optional[float] = None
-        self._last_modified: Optional[float] = None
+        self._last_created: dict = {}  # Track creation time per file path
+        self._last_modified: dict = {}  # Track modification time per file path
         self._debounce_delay: float = debounce_delay
 
         self._term_map = {
@@ -142,8 +142,8 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
                 self._observer.start()
             super().start()
             self._observing = True
-            self._last_created = None
-            self._last_modified = None
+            self._last_created = {}
+            self._last_modified = {}
             logger.info("FileWatcher started.")
         except OSError as e:
             self._handle_exception(self._create_input_error(e))
@@ -179,7 +179,7 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             fp = self._get_filepath(event)
             if fp is None:
                 return
-            self._last_created = time.time()
+            self._last_created[fp] = time.time()
             if self._return_data:
                 data = self._read_file_by_extension(fp)
             else:
@@ -203,11 +203,18 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         try:
             fp = self._get_filepath(event)
             if fp is None:
-                logger.warning(f"File not found or not accessible. Skipping event {event}.")
+                if not event.is_directory:
+                    logger.warning(f"File not found or not accessible. Skipping event {event}.")
+                else:
+                    # TODO to discuss, should we ever return a directory?
+                    # if not self._return_data:
+                        # Return path?
+                        # data = event.src_path
+                    logger.debug("Modification event is for a directory. Ignored.")
                 return
-            # if not self._is_last_modified():
-            #     logger.debug(f"Modification event ({event}) ignored due to debounce delay.")
-            #     return
+            if not self._is_last_modified(fp):
+                logger.debug(f"Modification event ({event}) ignored due to debounce delay.")
+                return
             if self._return_data:
                 logger.debug("Reading file content...")
                 data = self._read_file_by_extension(fp)
@@ -269,18 +276,29 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             return None
         return event.src_path
 
-    def _is_last_modified(self) -> bool:
+    def _is_last_modified(self, fp: str) -> bool:
         """
-        Determine if the file modification is outside the debounce delay.
+        Determine if the file modification is outside the debounce delay for a specific file.
+
+        Args:
+            fp (str): The file path to check.
 
         Returns:
             bool: True if the modification event is outside the debounce period, False otherwise.
         """
         current_time = time.time()
-        if self._last_created and (current_time - self._last_created) <= self._debounce_delay:
-            return False
-        if self._last_modified is None or (current_time - self._last_modified) > self._debounce_delay:
-            self._last_modified = current_time
+        # Check if this file was recently created
+        # Use a longer debounce window (1.5 seconds) for newly created files to account for
+        # PollingObserver detecting file changes across multiple poll cycles
+        creation_debounce = max(self._debounce_delay, 1.5)
+        if fp in self._last_created:
+            time_since_creation = current_time - self._last_created[fp]
+            if time_since_creation <= creation_debounce:
+                logger.debug(f"File {fp}: ignoring modification (within {creation_debounce}s debounce window after creation)")
+                return False
+        # Check if this file was recently modified
+        if fp not in self._last_modified or (current_time - self._last_modified[fp]) > self._debounce_delay:
+            self._last_modified[fp] = current_time
             return True
         return False
 
