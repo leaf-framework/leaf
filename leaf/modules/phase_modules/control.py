@@ -1,10 +1,10 @@
+from collections.abc import Callable
 from typing import Any
-from typing import Optional
-from typing import Union
-from typing import Callable
-from leaf.modules.phase_modules.phase import PhaseModule
+
 from leaf_register.metadata import MetadataManager
+
 from leaf.error_handler.error_holder import ErrorHolder
+from leaf.modules.phase_modules.phase import PhaseModule
 
 
 class ControlPhase(PhaseModule):
@@ -17,9 +17,9 @@ class ControlPhase(PhaseModule):
 
     def __init__(
         self,
-        phase_term: Union[Callable, str],
-        metadata_manager: Optional[MetadataManager] = None,
-        error_holder: Optional[ErrorHolder] = None,
+        phase_term: Callable | str,
+        metadata_manager: MetadataManager | None = None,
+        error_holder: ErrorHolder | None = None,
     ) -> None:
         """
         Initialize the ControlPhase with the phase term and metadata manager.
@@ -29,11 +29,9 @@ class ControlPhase(PhaseModule):
             metadata_manager (Optional[MetadataManager]): Manages metadata associated with the phase.
             error_holder (Optional[ErrorHolder]): Optional, an error holder to manage phase errors.
         """
-        super().__init__(
-            phase_term, metadata_manager=metadata_manager, error_holder=error_holder
-        )
+        super().__init__(phase_term, metadata_manager=metadata_manager, error_holder=error_holder)
 
-    def update(self, data: Optional[Any] = None, **kwargs: Any) -> list:
+    def update(self, data: Any | None = None, **kwargs: Any) -> list:
         """
         Builds the control phase term.
 

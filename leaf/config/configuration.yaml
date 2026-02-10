@@ -11,9 +11,11 @@ OUTPUTS:
 # MQTT output requires 'broker' and 'port' 
 # optionally 'username', 'password', 'clientid', 'protocol', 'transport', and 'tls'
 # and optionally an alternative 'fallback' output
-  - plugin: MQTT
-    broker: test.mosquitto.org
-    port: 1883
+  - plugin: FILE
+    filename: testing.json
+    parallel: SQL
+  - plugin: SQL
+    filename: testing.db
 #   username: None #OPTIONAL expects a str
 #   password: None #OPTIONAL expects a str
 #   clientid: None #OPTIONAL expects a str

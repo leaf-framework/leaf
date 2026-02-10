@@ -28,14 +28,16 @@ dateparser = "~1.2.2"
 httpx = "~0.28.1"
 influxobject = "~0.0.8"
 leaf-example = "*"
-leaf-register = "~0.1.1"
-nicegui = "^3.3.0"
+leaf-register = "0.1.3"
+nicegui = "~3.5.0"
 paho-mqtt = "~2.1.0"
 pyyaml = "~6.0.2"
-python = "^3.12"
+python = ">=3.12,<3.15"
 redis = "~7.0.1"
 requests = "~2.32.4"
 watchdog = "~6.0.0"
+cairosvg = "^2.8.2"
+pillow = "^12.0.0"
 
 [tool.poetry.scripts]
 leaf = "leaf.start:main"
@@ -52,6 +54,10 @@ opcua = "^0.98.13"
 [tool.poetry.group.dev.dependencies]
 bump2version = "^1.0.1"
 pytest-cov = "^6.2.1"
+pyinstaller = "^6.17.0"
+cairosvg = "^2.8.2"
+pillow = "^12.0.0"
+ruff = "^0.14.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -93,3 +99,63 @@ precision = 2
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    ".eggs",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "B905",   # zip without explicit strict parameter
+    "SIM108", # use ternary operator instead of if-else
+    "SIM102", # collapsible-if (style preference)
+    "SIM105", # suppressible-exception (contextlib.suppress)
+    "SIM117", # multiple-with-statements (style preference)
+    "SIM118", # in-dict-keys (style preference)
+    "SIM103", # needless-bool (style preference)
+    "B024",   # abstract-base-class-without-abstract-method (design choice)
+    "UP008",  # super-call-with-parameters (legacy code)
+    "UP022",  # replace-stdout-stderr (style preference)
+    "B904",   # raise-without-from-inside-except (verbose, address incrementally)
+    "B007",   # unused-loop-control-variable (use _ prefix, address incrementally)
+    "E721",   # type-comparison (can be intentional)
+    "E741",   # ambiguous-variable-name (style preference)
+    "E402",   # module-import-not-at-top-of-file (can be intentional)
+    "B018",   # useless-expression (address incrementally)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "B017",   # assert-raises-exception
+    "SIM115", # open-file-with-context-handler (tests often need this pattern)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["leaf"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

@@ -1,29 +1,31 @@
+import json
 import os
 import sys
-import unittest
 import time
-import yaml
+import unittest
+from datetime import datetime
 from threading import Thread
 from unittest.mock import patch
-from datetime import datetime
+
+import yaml
 from influxobject import InfluxPoint
-import json
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf.modules.input_modules.mqtt_watcher import MQTTEventWatcher
-from leaf.modules.output_modules.mqtt import MQTT
+from leaf_register.metadata import MetadataManager
+
 from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.error_handler.exceptions import InterpreterError
-from leaf_register.metadata import MetadataManager
-from tests.mock_mqtt_client import MockBioreactorClient
+from leaf.modules.input_modules.mqtt_watcher import MQTTEventWatcher
+from leaf.modules.output_modules.mqtt import MQTT
 from tests.generic_adapter.adapter import GenericDiscreteAdapter
+from tests.mock_mqtt_client import MockBioreactorClient
 
 curr_dir: str = os.path.dirname(os.path.realpath(__file__))
 
-with open(curr_dir + '/../../test_config.yaml', 'r') as file:
+with open(curr_dir + "/../../test_config.yaml") as file:
     config = yaml.safe_load(file)
 
 broker = config["OUTPUTS"][0]["broker"]
@@ -35,318 +37,332 @@ except KeyError:
     un = None
     pw = None
 
+
 class TestMQTTWatcher(unittest.TestCase):
     def setUp(self):
-        self._mock_client = MockBioreactorClient(broker,port,
-                                                 username=un,
-                                                 password=pw)
-    
-    def send_messages(self,topic,payload):
-        self._mock_client.transmit(topic,payload)
+        self._mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
+
+    def send_messages(self, topic, payload):
+        self._mock_client.transmit(topic, payload)
         time.sleep(0.1)
 
     def test_mqtt_event_watcher_start(self):
         recieved_messages = []
-        def mock_start_process(topic,data):
-            recieved_messages.append((topic,data))
+
+        def mock_start_process(topic, data):
+            recieved_messages.append((topic, data))
 
         metadata_manager = MetadataManager()
-        start_topics = ["pioreactor/Worker2-1/LacZ-Slow-Single-KO/growth_rate_calculating",
-                        "pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity"]
-        watcher = MQTTEventWatcher(metadata_manager=metadata_manager,
-                                         broker=broker,
-                                         start_topics=start_topics,
-                                         port=port,
-                                         username=un,
-                                         password=pw,
-                                         clientid=None,
-                                         callbacks=[mock_start_process])
-        
+        start_topics = [
+            "pioreactor/Worker2-1/LacZ-Slow-Single-KO/growth_rate_calculating",
+            "pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity",
+        ]
+        watcher = MQTTEventWatcher(
+            metadata_manager=metadata_manager,
+            broker=broker,
+            start_topics=start_topics,
+            port=port,
+            username=un,
+            password=pw,
+            clientid=None,
+            callbacks=[mock_start_process],
+        )
+
         watcher.start()
         payload = {}
         for topic in start_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
         watcher.stop()
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
-            topic,data = r
-            self.assertEqual(topic(),metadata_manager.experiment.start())
-            self.assertIn(data["topic"],start_topics)
-            self.assertIn("payload",data)
-    
+            topic, data = r
+            self.assertEqual(topic(), metadata_manager.experiment.start())
+            self.assertIn(data["topic"], start_topics)
+            self.assertIn("payload", data)
+
     def test_mqtt_event_watcher_start_partials(self):
         recieved_messages = []
-        def mock_start_process(topic,data):
-            recieved_messages.append((topic,data))
+
+        def mock_start_process(topic, data):
+            recieved_messages.append((topic, data))
 
         metadata_manager = MetadataManager()
         start_topics = ["pioreactor/Worker2-1/#"]
-        watcher = MQTTEventWatcher(metadata_manager=metadata_manager,
-                                         broker=broker,
-                                         start_topics=start_topics,
-                                         port=port,
-                                         username=un,
-                                         password=pw,
-                                         clientid=None,
-                                         callbacks=[mock_start_process])
-        
+        watcher = MQTTEventWatcher(
+            metadata_manager=metadata_manager,
+            broker=broker,
+            start_topics=start_topics,
+            port=port,
+            username=un,
+            password=pw,
+            clientid=None,
+            callbacks=[mock_start_process],
+        )
+
         watcher.start()
         payload = {}
         transmit_topics = ["pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity"]
         for topic in transmit_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
-        
+
         non_registered_topics = ["non_reg_suf/Worker2-1/LacZ-Slow-Single-KO/intensity"]
         for topic in non_registered_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
 
         watcher.stop()
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
-            topic,data = r
-            self.assertEqual(topic(),metadata_manager.experiment.start())
-            self.assertIn(data["topic"],transmit_topics)
-            self.assertNotIn(data["topic"],non_registered_topics)
-            self.assertIn("payload",data)
+            topic, data = r
+            self.assertEqual(topic(), metadata_manager.experiment.start())
+            self.assertIn(data["topic"], transmit_topics)
+            self.assertNotIn(data["topic"], non_registered_topics)
+            self.assertIn("payload", data)
 
     def test_mqtt_event_watcher_measurement(self):
         recieved_messages = []
-        def mock_process(topic,data):
-            recieved_messages.append((topic,data))
+
+        def mock_process(topic, data):
+            recieved_messages.append((topic, data))
 
         metadata_manager = MetadataManager()
-        measurement_topics = ["pioreactor/Worker2-1/LacZ-Slow-Single-KO/growth_rate_calculating",
-                        "pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity"]
-        
-        watcher = MQTTEventWatcher(metadata_manager=metadata_manager,
-                                         broker=broker,
-                                         measurement_topics=measurement_topics,
-                                         port=port,
-                                         username=un,
-                                         password=pw,
-                                         clientid=None,
-                                         callbacks=[mock_process])
-        
+        measurement_topics = [
+            "pioreactor/Worker2-1/LacZ-Slow-Single-KO/growth_rate_calculating",
+            "pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity",
+        ]
+
+        watcher = MQTTEventWatcher(
+            metadata_manager=metadata_manager,
+            broker=broker,
+            measurement_topics=measurement_topics,
+            port=port,
+            username=un,
+            password=pw,
+            clientid=None,
+            callbacks=[mock_process],
+        )
+
         watcher.start()
         payload = {}
         for topic in measurement_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
         watcher.stop()
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
-            topic,data = r
-            self.assertEqual(topic(),metadata_manager.experiment.measurement())
-            self.assertIn(data["topic"],measurement_topics)
-            self.assertIn("payload",data)
-    
+            topic, data = r
+            self.assertEqual(topic(), metadata_manager.experiment.measurement())
+            self.assertIn(data["topic"], measurement_topics)
+            self.assertIn("payload", data)
+
     def test_mqtt_event_watcher_measurement_partials(self):
         recieved_messages = []
-        def mock_measurement_process(topic,data):
-            recieved_messages.append((topic,data))
+
+        def mock_measurement_process(topic, data):
+            recieved_messages.append((topic, data))
 
         metadata_manager = MetadataManager()
         measurement_topics = ["pioreactor/Worker2-1/#"]
-        watcher = MQTTEventWatcher(metadata_manager=metadata_manager,
-                                         broker=broker,
-                                         measurement_topics=measurement_topics,
-                                         port=port,
-                                         username=un,
-                                         password=pw,
-                                         clientid=None,
-                                         callbacks=[mock_measurement_process])
-        
+        watcher = MQTTEventWatcher(
+            metadata_manager=metadata_manager,
+            broker=broker,
+            measurement_topics=measurement_topics,
+            port=port,
+            username=un,
+            password=pw,
+            clientid=None,
+            callbacks=[mock_measurement_process],
+        )
+
         watcher.start()
         payload = {}
         transmit_topics = ["pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity"]
         for topic in transmit_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
-        
+
         non_registered_topics = ["non_reg_suf/Worker2-1/LacZ-Slow-Single-KO/intensity"]
         for topic in non_registered_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
 
         watcher.stop()
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
-            topic,data = r
-            self.assertEqual(topic(),metadata_manager.experiment.measurement())
-            self.assertIn(data["topic"],transmit_topics)
-            self.assertNotIn(data["topic"],non_registered_topics)
-            self.assertIn("payload",data)
+            topic, data = r
+            self.assertEqual(topic(), metadata_manager.experiment.measurement())
+            self.assertIn(data["topic"], transmit_topics)
+            self.assertNotIn(data["topic"], non_registered_topics)
+            self.assertIn("payload", data)
 
     def test_mqtt_event_watcher_stop(self):
         recieved_messages = []
-        def mock_process(topic,data):
-            recieved_messages.append((topic,data))
+
+        def mock_process(topic, data):
+            recieved_messages.append((topic, data))
 
         metadata_manager = MetadataManager()
-        stop_topics = ["pioreactor/Worker2-1/LacZ-Slow-Single-KO/growth_rate_calculating",
-                        "pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity"]
-        
-        watcher = MQTTEventWatcher(metadata_manager=metadata_manager,
-                                         broker=broker,
-                                         stop_topics=stop_topics,
-                                         port=port,
-                                         username=un,
-                                         password=pw,
-                                         clientid=None,
-                                         callbacks=[mock_process])
-        
+        stop_topics = [
+            "pioreactor/Worker2-1/LacZ-Slow-Single-KO/growth_rate_calculating",
+            "pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity",
+        ]
+
+        watcher = MQTTEventWatcher(
+            metadata_manager=metadata_manager,
+            broker=broker,
+            stop_topics=stop_topics,
+            port=port,
+            username=un,
+            password=pw,
+            clientid=None,
+            callbacks=[mock_process],
+        )
+
         watcher.start()
         payload = {}
         for topic in stop_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
         watcher.stop()
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
-            topic,data = r
-            self.assertEqual(topic(),metadata_manager.experiment.stop())
-            self.assertIn(data["topic"],stop_topics)
-            self.assertIn("payload",data)
-    
+            topic, data = r
+            self.assertEqual(topic(), metadata_manager.experiment.stop())
+            self.assertIn(data["topic"], stop_topics)
+            self.assertIn("payload", data)
+
     def test_mqtt_event_watcher_stop_partials(self):
         recieved_messages = []
-        def mock_stop_process(topic,data):
-            recieved_messages.append((topic,data))
+
+        def mock_stop_process(topic, data):
+            recieved_messages.append((topic, data))
 
         metadata_manager = MetadataManager()
         stop_topics = ["pioreactor/Worker2-1/#"]
-        watcher = MQTTEventWatcher(metadata_manager=metadata_manager,
-                                         broker=broker,
-                                         stop_topics=stop_topics,
-                                         port=port,
-                                         username=un,
-                                         password=pw,
-                                         clientid=None,
-                                         callbacks=[mock_stop_process])
-        
+        watcher = MQTTEventWatcher(
+            metadata_manager=metadata_manager,
+            broker=broker,
+            stop_topics=stop_topics,
+            port=port,
+            username=un,
+            password=pw,
+            clientid=None,
+            callbacks=[mock_stop_process],
+        )
+
         watcher.start()
         payload = {}
         transmit_topics = ["pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity"]
         for topic in transmit_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
-        
+
         non_registered_topics = ["non_reg_suf/Worker2-1/LacZ-Slow-Single-KO/intensity"]
         for topic in non_registered_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
 
         watcher.stop()
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
-            topic,data = r
-            self.assertEqual(topic(),metadata_manager.experiment.stop())
-            self.assertIn(data["topic"],transmit_topics)
-            self.assertNotIn(data["topic"],non_registered_topics)
-            self.assertIn("payload",data)
+            topic, data = r
+            self.assertEqual(topic(), metadata_manager.experiment.stop())
+            self.assertIn(data["topic"], transmit_topics)
+            self.assertNotIn(data["topic"], non_registered_topics)
+            self.assertIn("payload", data)
 
     def test_mqtt_event_watcher_error(self):
         recieved_messages = []
-        def mock_process(topic,data):
-            recieved_messages.append((topic,data))
+
+        def mock_process(topic, data):
+            recieved_messages.append((topic, data))
 
         metadata_manager = MetadataManager()
-        error_topics = ["pioreactor/Worker2-1/LacZ-Slow-Single-KO/growth_rate_calculating",
-                        "pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity"]
-        
-        watcher = MQTTEventWatcher(metadata_manager=metadata_manager,
-                                         broker=broker,
-                                         error_topics=error_topics,
-                                         port=port,
-                                         username=un,
-                                         password=pw,
-                                         clientid=None,
-                                         callbacks=[mock_process])
-        
+        error_topics = [
+            "pioreactor/Worker2-1/LacZ-Slow-Single-KO/growth_rate_calculating",
+            "pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity",
+        ]
+
+        watcher = MQTTEventWatcher(
+            metadata_manager=metadata_manager,
+            broker=broker,
+            error_topics=error_topics,
+            port=port,
+            username=un,
+            password=pw,
+            clientid=None,
+            callbacks=[mock_process],
+        )
+
         watcher.start()
         payload = {}
         for topic in error_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
         watcher.stop()
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
-            topic,data = r
-            self.assertEqual(topic(),metadata_manager.error())
-            self.assertIn(data["topic"],error_topics)
-            self.assertIn("payload",data)
-    
+            topic, data = r
+            self.assertEqual(topic(), metadata_manager.error())
+            self.assertIn(data["topic"], error_topics)
+            self.assertIn("payload", data)
+
     def test_mqtt_event_watcher_error_partials(self):
         recieved_messages = []
-        def mock_error_process(topic,data):
-            recieved_messages.append((topic,data))
+
+        def mock_error_process(topic, data):
+            recieved_messages.append((topic, data))
 
         metadata_manager = MetadataManager()
         error_topics = ["pioreactor/Worker2-1/#"]
-        watcher = MQTTEventWatcher(metadata_manager=metadata_manager,
-                                         broker=broker,
-                                         error_topics=error_topics,
-                                         port=port,
-                                         username=un,
-                                         password=pw,
-                                         clientid=None,
-                                         callbacks=[mock_error_process])
-        
+        watcher = MQTTEventWatcher(
+            metadata_manager=metadata_manager,
+            broker=broker,
+            error_topics=error_topics,
+            port=port,
+            username=un,
+            password=pw,
+            clientid=None,
+            callbacks=[mock_error_process],
+        )
+
         watcher.start()
         payload = {}
         transmit_topics = ["pioreactor/Worker2-1/LacZ-Slow-Single-KO/intensity"]
         for topic in transmit_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
-        
+
         non_registered_topics = ["non_reg_suf/Worker2-1/LacZ-Slow-Single-KO/intensity"]
         for topic in non_registered_topics:
-            mthread = Thread(target=self.send_messages, 
-                             args=(topic,payload))
+            mthread = Thread(target=self.send_messages, args=(topic, payload))
             mthread.start()
             mthread.join()
 
         watcher.stop()
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
-            topic,data = r
-            self.assertEqual(topic(),metadata_manager.error())
-            self.assertIn(data["topic"],transmit_topics)
-            self.assertNotIn(data["topic"],non_registered_topics)
-            self.assertIn("payload",data)
+            topic, data = r
+            self.assertEqual(topic(), metadata_manager.error())
+            self.assertIn(data["topic"], transmit_topics)
+            self.assertNotIn(data["topic"], non_registered_topics)
+            self.assertIn("payload", data)
 
     def test_mqtt_event_watcher_all_topic_types(self):
-        received_events = {
-            "start": [],
-            "measurement": [],
-            "stop": [],
-            "error": []
-        }
+        received_events = {"start": [], "measurement": [], "stop": [], "error": []}
 
         def callback(event, data):
             if event() == metadata_manager.experiment.start():
@@ -374,7 +390,7 @@ class TestMQTTWatcher(unittest.TestCase):
             port=port,
             username=un,
             password=pw,
-            callbacks=[callback]
+            callbacks=[callback],
         )
 
         watcher.start()
@@ -416,6 +432,7 @@ class TestMQTTWatcher(unittest.TestCase):
 
     def test_add_callback_after_init(self):
         messages = []
+
         def cb(topic, data):
             messages.append((topic, data))
 
@@ -427,7 +444,7 @@ class TestMQTTWatcher(unittest.TestCase):
             port=port,
             username=un,
             password=pw,
-            clientid=None
+            clientid=None,
         )
 
         watcher.add_callback(cb)
@@ -437,7 +454,8 @@ class TestMQTTWatcher(unittest.TestCase):
         watcher.stop()
         self.assertTrue(len(messages) > 0)
 
-    def test_reconnect_on_disconnect(self):
+    def test_disconnect_logs_warning_for_unexpected_disconnect(self):
+        """Test that unexpected disconnect logs a warning (paho handles reconnection)."""
         metadata_manager = MetadataManager()
         watcher = MQTTEventWatcher(
             metadata_manager=metadata_manager,
@@ -446,9 +464,11 @@ class TestMQTTWatcher(unittest.TestCase):
             username=un,
             password=pw,
         )
-        with patch.object(watcher.client, 'reconnect') as mock_reconnect:
+        # Unexpected disconnect (rc != 0) should just log, paho's loop_start handles reconnection
+        with patch("leaf.modules.input_modules.mqtt_watcher.logger") as mock_logger:
             watcher.on_disconnect(watcher.client, None, None, 1)
-            self.assertTrue(mock_reconnect.called)
+            mock_logger.warning.assert_called_once()
+            self.assertIn("paho will auto-reconnect", mock_logger.warning.call_args[0][0])
 
     def test_invalid_protocol(self):
         with self.assertRaises(Exception):
@@ -462,12 +482,7 @@ class TestMQTTWatcher(unittest.TestCase):
     @patch("paho.mqtt.client.Client.tls_set", side_effect=Exception("TLS failed"))
     def test_tls_setup_failure(self, mock_tls):
         with self.assertRaises(Exception) as context:
-            MQTTEventWatcher(
-                metadata_manager=MetadataManager(),
-                broker=broker,
-                port=port,
-                tls=True
-            )
+            MQTTEventWatcher(metadata_manager=MetadataManager(), broker=broker, port=port, tls=True)
         self.assertIn("Failed to set up TLS", str(context.exception))
 
     def test_is_connected_flag(self):
@@ -480,19 +495,17 @@ class TestMQTTWatcher(unittest.TestCase):
             self.assertTrue(watcher.is_connected())
 
 
-
 class MQTTInputMockInterpreter(AbstractInterpreter):
-    def __init__(self, error_holder = None):
+    def __init__(self, error_holder=None):
         super().__init__(error_holder)
 
-    
     # A note for when you copy this over.
     # You could enable a system where somebody could provide start experiment as a partial like <bla>/<bla>/#
-    # Then when any topic is published to, you send the start signal. 
+    # Then when any topic is published to, you send the start signal.
     # Just need to consider how this could be done so the interpreter.metadata isnt being called all the time.
-    def metadata(self,data):
+    def metadata(self, data):
         # Mock interpreter assumes topic for this piece of equipment follows the structure:
-        #<adapter_id>/<Instance_id>/<experiment_id>/.....
+        # <adapter_id>/<Instance_id>/<experiment_id>/.....
         if "topic" not in data:
             excp = InterpreterError("Recieved metadata without original topic.")
             self._handle_exception(excp)
@@ -503,17 +516,13 @@ class MQTTInputMockInterpreter(AbstractInterpreter):
         topic = data["topic"].split("/")
         self.id = topic[2]
 
-
-        payload = {self.TIMESTAMP_KEY: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                   self.EXPERIMENT_ID_KEY: self.id}
+        payload = {self.TIMESTAMP_KEY: datetime.now().strftime("%Y-%m-%d %H:%M:%S"), self.EXPERIMENT_ID_KEY: self.id}
         try:
             payload.update(json.loads(data["payload"]))
         except json.JSONDecodeError:
             payload["metadata"] = data["payload"]
 
         return payload
-
-
 
     def measurement(self, data):
         inf_obj = InfluxPoint()
@@ -526,14 +535,14 @@ class MQTTInputMockInterpreter(AbstractInterpreter):
 
         topic = data["topic"].split("/")
         inf_obj.set_timestamp(datetime.now())
-        inf_obj.add_tag("NA","NA")
-        
+        inf_obj.add_tag("NA", "NA")
+
         experiment_id = topic[-2]
         # Just to show they SHOULD be the same in this case.
-        assert(experiment_id == self.id) 
+        assert experiment_id == self.id
         # To display, two cases (This depends on how the data actually comes out of the equipment).
         try:
-            # The influx measurement in this example is the suffix 
+            # The influx measurement in this example is the suffix
             # measurement type (growth_rate for example.)
             # The fields are the k,v values of the payload of the original mqtt messages.
             inf_obj.set_measurement(topic[-1])
@@ -542,14 +551,13 @@ class MQTTInputMockInterpreter(AbstractInterpreter):
             # Measurement in this example is the experiment_id (LacZ-Slow-Single-KO for example.)
             # Single field where suffix of topic is the key (growth_rate) and value is the single literal payload.
             inf_obj.set_measurement(topic[-2])
-            inf_obj.add_field(topic[-1],data["payload"])
+            inf_obj.add_field(topic[-1], data["payload"])
         return inf_obj.to_json()
-    
+
+
 class TestMQTTWatcherInAdapter(unittest.TestCase):
     def setUp(self):
-        self._mock_client = MockBioreactorClient(broker,port,
-                                                 username=un,
-                                                 password=pw)
+        self._mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
 
     def test_end_to_end(self):
         # Constants for test config
@@ -561,10 +569,7 @@ class TestMQTTWatcherInAdapter(unittest.TestCase):
         stop_signal = "interval"
         error_log = "pid_log"
 
-        instance_data = {
-            "instance_id": instance_id,
-            "institute": institute_id
-        }
+        instance_data = {"instance_id": instance_id, "institute": institute_id}
 
         # Define topics
         start_topics = [sensor_topic_base]
@@ -586,25 +591,15 @@ class TestMQTTWatcherInAdapter(unittest.TestCase):
             "port": port,
             "username": un,
             "password": pw,
-            "clientid": None
+            "clientid": None,
         }
 
         # Output client
-        output = MQTT(
-            broker=broker,
-            port=port,
-            username=un,
-            password=pw,
-            clientid=None
-        )
+        output = MQTT(broker=broker, port=port, username=un, password=pw, clientid=None)
 
         # Start adapter
         self._adapter = GenericDiscreteAdapter(
-            instance_data,
-            MQTTEventWatcher,
-            input_params,
-            output,
-            MQTTInputMockInterpreter()
+            instance_data, MQTTEventWatcher, input_params, output, MQTTInputMockInterpreter()
         )
 
         adapter_thread = Thread(target=self._adapter.start)
@@ -627,7 +622,7 @@ class TestMQTTWatcherInAdapter(unittest.TestCase):
         for topic in measurement_topics:
             self._mock_client.transmit(topic, measurement_payload)
 
-        stop_payload = {"timestamp" : time.time()}
+        stop_payload = {"timestamp": time.time()}
         for topic in stop_topics:
             self._mock_client.transmit(topic, stop_payload)
 
@@ -652,8 +647,7 @@ class TestMQTTWatcherInAdapter(unittest.TestCase):
 
         # Validate measurement message
         measurement_event = metadata_manager.experiment.measurement(
-            experiment_id=experiment_id,
-            measurement=growth_rate_measurement
+            experiment_id=experiment_id, measurement=growth_rate_measurement
         )
         self.assertIn(measurement_event, output_messages)
         for message in output_messages[measurement_event]:

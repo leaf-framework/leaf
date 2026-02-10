@@ -1,11 +1,10 @@
-from typing import Optional
+from leaf_register.metadata import MetadataManager
 
-from leaf.modules.process_modules.process_module import ProcessModule
+from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterBuildError
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.modules.phase_modules.phase import PhaseModule
-from leaf_register.metadata import MetadataManager
-from leaf.error_handler.error_holder import ErrorHolder
+from leaf.modules.process_modules.process_module import ProcessModule
 
 
 class DiscreteProcess(ProcessModule):
@@ -21,8 +20,8 @@ class DiscreteProcess(ProcessModule):
         self,
         output: OutputModule,
         phases: list[PhaseModule],
-        metadata_manager: Optional[MetadataManager] = None,
-        error_holder: Optional[ErrorHolder] = None,
+        metadata_manager: MetadataManager | None = None,
+        error_holder: ErrorHolder | None = None,
     ):
         """
         Initialize the DiscreteProcess with multiple phases.
@@ -39,9 +38,5 @@ class DiscreteProcess(ProcessModule):
                               Use ContinuousProcess instead.
         """
         if not isinstance(phases, (list, tuple, set)) or len(phases) <= 1:
-            raise AdapterBuildError(
-                "Discrete process should have more than one phase. Use continuous process instead."
-            )
-        super().__init__(
-            output, phases, metadata_manager=metadata_manager, error_holder=error_holder
-        )
+            raise AdapterBuildError("Discrete process should have more than one phase. Use continuous process instead.")
+        super().__init__(output, phases, metadata_manager=metadata_manager, error_holder=error_holder)

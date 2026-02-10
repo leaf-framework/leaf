@@ -14,16 +14,17 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
+from leaf_register.metadata import MetadataManager
+
 from leaf.adapters.core_adapters.upload_adapter import UploadAdapter
+from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.modules.output_modules.mqtt import MQTT
 from tests.mock_mqtt_client import MockBioreactorClient
-from leaf.adapters.equipment_adapter import AbstractInterpreter
-from leaf_register.metadata import MetadataManager
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(curr_dir, "..", "test_config.yaml")
 
-with open(config_path, "r") as file:
+with open(config_path) as file:
     config = yaml.safe_load(file)
 
 broker = config["OUTPUTS"][0]["broker"]
@@ -41,11 +42,12 @@ initial_file = os.path.join(test_file_dir, "upload_test.txt")
 
 
 def _upload_file(watch_dir: Path) -> None:
-    watch_file = os.path.join(watch_dir,os.path.basename(initial_file))
+    watch_file = os.path.join(watch_dir, os.path.basename(initial_file))
     if os.path.isfile(watch_file):
         os.remove(watch_file)
     shutil.copyfile(initial_file, watch_file)
     time.sleep(1)
+
 
 class MockUploadInterpreter(AbstractInterpreter):
     def __init__(self) -> None:
@@ -53,26 +55,24 @@ class MockUploadInterpreter(AbstractInterpreter):
         self.id = "TestUploadAdapter"
 
     def metadata(self, data):
-        return {"experiment_id" : self.id,
-                "metadata" : data}
+        return {"experiment_id": self.id, "metadata": data}
 
     def measurement(self, data):
-        return {"experiment_id" : self.id,
-                "data" : data}
+        return {"experiment_id": self.id, "data": data}
 
     def simulate(self):
         return
-    
+
+
 class MockUploadAdapter(UploadAdapter):
-    def __init__(self, instance_data,equipment_data, output, watch_dir):
+    def __init__(self, instance_data, equipment_data, output, watch_dir):
         metadata_manager = MetadataManager()
         metadata_manager.add_instance_data(instance_data)
         interpreter = MockUploadInterpreter()
-        super().__init__(equipment_data, output, interpreter, watch_dir,
-                         metadata_manager=metadata_manager)
-        
-class TestUploadAdapter(unittest.TestCase):
+        super().__init__(equipment_data, output, interpreter, watch_dir, metadata_manager=metadata_manager)
 
+
+class TestUploadAdapter(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
 
@@ -82,12 +82,13 @@ class TestUploadAdapter(unittest.TestCase):
             "instance_id": unique_id,
             "institute": f"TestUploadAdapter_{unique_id}_ins",
         }
-        self.equipment_data = {"adapter_id" : f"TestUploadAdapter_{unique_id}_equipment",}
+        self.equipment_data = {
+            "adapter_id": f"TestUploadAdapter_{unique_id}_equipment",
+        }
 
         self.mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
         self.output = MQTT(broker, port, username=un, password=pw)
-        self._adapter = MockUploadAdapter(self.instance_data,self.equipment_data, self.output, 
-                                          str(self.watch_dir))
+        self._adapter = MockUploadAdapter(self.instance_data, self.equipment_data, self.output, str(self.watch_dir))
 
         self.details_topic = self._adapter._metadata_manager.details()
         self.start_topic = self._adapter._metadata_manager.experiment.start()
@@ -104,14 +105,13 @@ class TestUploadAdapter(unittest.TestCase):
         self.mock_client.subscribe(wildcard_measure)
         time.sleep(1)
 
-
     def tearDown(self) -> None:
         self._adapter.stop()
         self._flush_topics()
         self.mock_client.reset_messages()
         self.temp_dir.cleanup()
 
-    def wait_for_adapter_start(self,adapter):
+    def wait_for_adapter_start(self, adapter):
         timeout = 30
         cur_count = 0
         while not adapter.is_running():

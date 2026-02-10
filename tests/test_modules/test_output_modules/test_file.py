@@ -1,11 +1,8 @@
-import sys
-import os
-import unittest
-from unittest.mock import mock_open
-from unittest.mock import patch
 import json
-import uuid
+import os
+import sys
 import tempfile
+import unittest
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
@@ -15,10 +12,9 @@ from leaf.modules.output_modules.file import FILE
 
 
 class TestFILEOutputModule(unittest.TestCase):
-
     def setUp(self):
         # Use a real temporary file for testing
-        self.temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+        self.temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
         self.filename = self.temp_file.name
         self.temp_file.close()
 
@@ -38,7 +34,7 @@ class TestFILEOutputModule(unittest.TestCase):
         self.assertTrue(os.path.exists(self.filename))
 
         # Verify the content
-        with open(self.filename, 'r') as f:
+        with open(self.filename) as f:
             line = f.readline().strip()
             parsed = json.loads(line)
             self.assertEqual(parsed, {topic: [data]})
@@ -55,7 +51,7 @@ class TestFILEOutputModule(unittest.TestCase):
         file_module.transmit(topic2, data2)
 
         # Verify both lines exist
-        with open(self.filename, 'r') as f:
+        with open(self.filename) as f:
             lines = f.readlines()
             self.assertEqual(len(lines), 2)
 
@@ -76,7 +72,7 @@ class TestFILEOutputModule(unittest.TestCase):
         file_module.transmit(topic, data2)
 
         # Verify both lines exist with the same topic
-        with open(self.filename, 'r') as f:
+        with open(self.filename) as f:
             lines = f.readlines()
             self.assertEqual(len(lines), 2)
 
@@ -95,9 +91,9 @@ class TestFILEOutputModule(unittest.TestCase):
 
         # File should be empty (or not exist)
         if os.path.exists(self.filename):
-            with open(self.filename, 'r') as f:
+            with open(self.filename) as f:
                 content = f.read()
-                self.assertEqual(content.strip(), '')
+                self.assertEqual(content.strip(), "")
 
     def test_retrieve_returns_all_data_for_topic(self):
         """Test that retrieve returns all data for a given topic"""
@@ -164,7 +160,7 @@ class TestFILEOutputModule(unittest.TestCase):
         self.assertEqual(result[1], [data1])
 
         # Verify only second line remains
-        with open(self.filename, 'r') as f:
+        with open(self.filename) as f:
             lines = f.readlines()
             self.assertEqual(len(lines), 1)
             parsed = json.loads(lines[0].strip())
@@ -189,7 +185,7 @@ class TestFILEOutputModule(unittest.TestCase):
         self.assertEqual(result[1], [data2])
 
         # Verify only first topic remains
-        with open(self.filename, 'r') as f:
+        with open(self.filename) as f:
             lines = f.readlines()
             self.assertEqual(len(lines), 1)
             parsed = json.loads(lines[0].strip())
@@ -224,10 +220,10 @@ class TestFILEOutputModule(unittest.TestCase):
         file_module = FILE(filename=self.filename)
         file_module.transmit(topic, data)
 
-        with open(self.filename, 'r') as f:
+        with open(self.filename) as f:
             line = f.readline()
             # Compact format should not have newlines within the JSON
-            self.assertEqual(line.count('\n'), 1)  # Only trailing newline
+            self.assertEqual(line.count("\n"), 1)  # Only trailing newline
             # Should use separators without spaces
             self.assertIn('{"test":[{"key":"value"}]}', line)
 

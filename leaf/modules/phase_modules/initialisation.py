@@ -1,7 +1,10 @@
-from typing import Optional, Any
-from leaf.modules.phase_modules.control import ControlPhase
+from typing import Any
+
 from leaf_register.metadata import MetadataManager
+
 from leaf.error_handler.error_holder import ErrorHolder
+from leaf.modules.phase_modules.control import ControlPhase
+
 
 class InitialisationPhase(ControlPhase):
     """
@@ -11,8 +14,8 @@ class InitialisationPhase(ControlPhase):
 
     def __init__(
         self,
-        metadata_manager: Optional[MetadataManager] = None,
-        error_holder: Optional[ErrorHolder] = None,
+        metadata_manager: MetadataManager | None = None,
+        error_holder: ErrorHolder | None = None,
     ) -> None:
         """
         Initialize the InitialisationPhase with metadata manager and error holder.
@@ -22,12 +25,9 @@ class InitialisationPhase(ControlPhase):
             error_holder (Optional[ErrorHolder]): Optional, an error holder to manage phase errors.
         """
         phase_term = metadata_manager.details
-        super().__init__(
-            phase_term, metadata_manager=metadata_manager, 
-            error_holder=error_holder
-        )
+        super().__init__(phase_term, metadata_manager=metadata_manager, error_holder=error_holder)
 
-    def update(self, data: Optional[Any] = None) -> list:
+    def update(self, data: Any | None = None) -> list:
         """
         Update the InitialisationPhase by building the initialization topic.
 

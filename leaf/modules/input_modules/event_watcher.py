@@ -1,25 +1,28 @@
-from abc import ABC
-from abc import abstractmethod
-from typing import Callable
-from typing import Optional
+from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 from leaf_register.metadata import MetadataManager
+
 from leaf.error_handler.error_holder import ErrorHolder
+from leaf.utility.logger.logger_utils import get_logger
+
+logger = get_logger(__name__, log_file="event_watcher.log")
+
 
 class EventWatcher(ABC):
     """
-    Abstract base class for monitoring and 
+    Abstract base class for monitoring and
     extracting specific information from equipment.
-    Designed to detect and handle observable events 
+    Designed to detect and handle observable events
     (e.g., file creation, sensor readouts).
     """
 
     def __init__(
         self,
-        metadata_manager: Optional[MetadataManager] = None,
-        callbacks: Optional[list[Callable[[str, Any], None]]] = None,
-        error_holder: Optional[ErrorHolder] = None,
+        metadata_manager: MetadataManager | None = None,
+        callbacks: list[Callable[[str, Any], None]] | None = None,
+        error_holder: ErrorHolder | None = None,
     ) -> None:
         """
         Initialize the EventWatcher.
@@ -29,8 +32,8 @@ class EventWatcher(ABC):
             callbacks: Callback functions to invoke when an event is triggered.
             error_holder: Optional error tracker for collecting exceptions.
         """
-        self._metadata_manager: Optional[MetadataManager] = metadata_manager
-        self._error_holder: Optional[ErrorHolder] = error_holder
+        self._metadata_manager: MetadataManager | None = metadata_manager
+        self._error_holder: ErrorHolder | None = error_holder
         self._callbacks: list[Callable[[str, Any], None]] = callbacks or []
         self._running: bool = False
 
@@ -85,7 +88,7 @@ class EventWatcher(ABC):
         """
         self._metadata_manager = metadata_manager
 
-    def _dispatch_callback(self, topic:str, data: Any) -> None:
+    def _dispatch_callback(self, topic: str, data: Any) -> None:
         """
         Dispatch a term and data payload to all registered callbacks.
 
@@ -93,6 +96,7 @@ class EventWatcher(ABC):
             function: The function that triggered the callback (used to find the term).
             data: Payload data to send to callbacks.
         """
+        logger.debug(f"Dispatching callback for topic '{topic}' with data: {data} to {self._callbacks}")
         for callback in self._callbacks:
             callback(topic, data)
 

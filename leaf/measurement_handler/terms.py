@@ -1,9 +1,10 @@
+import importlib
+import inspect
+import os
 from typing import Any
 
 import yaml
-import os
-import importlib
-import inspect
+
 from leaf.modules.measurement_modules.measurement_module import MeasurementModule
 
 
@@ -24,8 +25,7 @@ class MeasurementManager:
         if not hasattr(self, "_initialized"):
             self._initialized = True
             if file_path is None:
-                file_path = os.path.join(os.path.dirname(__file__), 
-                                         "measurements.yaml")
+                file_path = os.path.join(os.path.dirname(__file__), "measurements.yaml")
             self.measurements_data = self._load_measurements(file_path)
             self._measurement_instances = {}
 
@@ -34,7 +34,7 @@ class MeasurementManager:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"The file '{file_path}' was not found.")
 
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             return yaml.safe_load(file)
 
     def __getattr__(self, key):
@@ -54,8 +54,8 @@ class MeasurementManager:
 
     def _load_class(self, key, class_name):
         """
-        Dynamically load the measurement class from the appropriate 
-        module and find the class that inherits from the Measurement 
+        Dynamically load the measurement class from the appropriate
+        module and find the class that inherits from the Measurement
         base class.
         """
         module_name = f"leaf.modules.measurement_modules.{class_name.lower()}"
@@ -69,9 +69,7 @@ class MeasurementManager:
                 measurement_class = obj
                 break
         else:
-            raise ImportError(
-                f"No class derived from Measurement found in module {module_name}"
-            )
+            raise ImportError(f"No class derived from Measurement found in module {module_name}")
 
         return measurement_class(term=key)
 

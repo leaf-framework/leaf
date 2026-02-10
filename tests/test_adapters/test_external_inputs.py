@@ -1,34 +1,33 @@
-import os
 import ast
+import os
 import sys
+import tempfile
 import time
 import unittest
-from threading import Thread
-import tempfile
-import yaml
 import uuid
+from threading import Thread
+
 import pytest
+import yaml
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf.modules.output_modules.mqtt import MQTT
+from leaf_register.metadata import MetadataManager
+
+from leaf.adapters.equipment_adapter import AbstractInterpreter, EquipmentAdapter
+from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.file_watcher import FileWatcher
 from leaf.modules.input_modules.mqtt_external_event_watcher import MQTTExternalEventWatcher
+from leaf.modules.output_modules.mqtt import MQTT
+from leaf.modules.phase_modules.control import ControlPhase
 from leaf.modules.phase_modules.external_event_phase import logger
 from leaf.modules.phase_modules.measure import MeasurePhase
-from leaf.modules.phase_modules.control import ControlPhase
 from leaf.modules.process_modules.discrete_module import DiscreteProcess
-from leaf.start import run_adapters
-from leaf.start import stop_all_adapters
-from leaf.start import adapters
 from leaf.registry.registry import discover_from_config
-from leaf.adapters.equipment_adapter import EquipmentAdapter
-from leaf.adapters.equipment_adapter import AbstractInterpreter
-from leaf_register.metadata import MetadataManager
+from leaf.start import adapters, run_adapters, stop_all_adapters
 from tests.mock_mqtt_client import MockBioreactorClient
-from leaf.error_handler.error_holder import ErrorHolder
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(curr_dir, "..", "test_config.yaml")
@@ -36,7 +35,7 @@ test_file_dir = os.path.join(curr_dir, "..", "static_files")
 text_watch_file = os.path.join(curr_dir, "tmp.txt")
 mock_functional_adapter_path = os.path.join(curr_dir, "..", "mock_functional_adapter")
 
-with open(config_path, "r") as file:
+with open(config_path) as file:
     config = yaml.safe_load(file)
 
 broker = config["OUTPUTS"][0]["broker"]
@@ -48,7 +47,6 @@ try:
 except KeyError:
     un = None
     pw = None
-
 
 
 class MockBioreactorInterpreter(AbstractInterpreter):
@@ -71,8 +69,7 @@ class MockEquipmentAdapter(EquipmentAdapter):
         metadata_manager = MetadataManager()
         directory = os.path.dirname(fp)
         filename = os.path.basename(fp)
-        watcher = FileWatcher(directory, metadata_manager,
-                              filenames=filename)
+        watcher = FileWatcher(directory, metadata_manager, filenames=filename)
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
         start_p = ControlPhase(metadata_manager.experiment.start)
         stop_p = ControlPhase(metadata_manager.experiment.stop)
@@ -110,11 +107,6 @@ class TestEquipmentAdapter(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
 
-    def tearDown(self):
-        self._adapter.stop()
-        self.temp_dir.cleanup()
-        self.mock_client.reset_messages()
-
     def initialize_experiment(self, **kwargs):
         """
         Helper function to initialize a unique MockEquipmentAdapter
@@ -135,9 +127,7 @@ class TestEquipmentAdapter(unittest.TestCase):
 
         self.mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
 
-        self._adapter = MockEquipmentAdapter(
-            instance_data, equipment_data, text_watch_file, **kwargs
-        )
+        self._adapter = MockEquipmentAdapter(instance_data, equipment_data, text_watch_file, **kwargs)
 
         self.details_topic = self._adapter._metadata_manager.details()
         self.start_topic = self._adapter._metadata_manager.experiment.start()
@@ -157,6 +147,14 @@ class TestEquipmentAdapter(unittest.TestCase):
     def tearDown(self):
         try:
             self._adapter.stop()
+        except Exception:
+            pass
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
+        try:
+            self.mock_client.reset_messages()
         except Exception:
             pass
 
@@ -208,9 +206,7 @@ class TestEquipmentAdapter(unittest.TestCase):
             except Exception:
                 continue
 
-        self.assertTrue(
-            found_match, "Expected log entry with valid timestamp not found."
-        )
+        self.assertTrue(found_match, "Expected log entry with valid timestamp not found.")
 
     @pytest.mark.timeout(60)
     def test_external_inputs_config(self):
@@ -243,8 +239,7 @@ class TestEquipmentAdapter(unittest.TestCase):
                 }
             }
         ]
-        discover_from_config({"EQUIPMENT_INSTANCES":ins},
-                             mock_functional_adapter_path)
+        discover_from_config({"EQUIPMENT_INSTANCES": ins}, mock_functional_adapter_path)
 
         def _start() -> Thread:
             mthread = Thread(
@@ -298,9 +293,7 @@ class TestEquipmentAdapter(unittest.TestCase):
             except Exception:
                 continue
 
-        self.assertTrue(
-            found_match, "Expected log entry with valid timestamp not found."
-        )
+        self.assertTrue(found_match, "Expected log entry with valid timestamp not found.")
 
 
 if __name__ == "__main__":

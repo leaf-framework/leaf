@@ -1,5 +1,4 @@
 import csv
-import logging
 import os
 import sys
 import tempfile
@@ -14,10 +13,12 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf.modules.input_modules.file_watcher import FileWatcher
 from leaf_register.metadata import MetadataManager
 
+from leaf.modules.input_modules.file_watcher import FileWatcher
+
 logger = leaf.utility.logger.logger_utils.get_logger("test_file_watch_modules")
+
 
 class TestFileWatcher(unittest.TestCase):
     def _write_csv_file(self, filepath, rows, delimiter=","):
@@ -32,9 +33,9 @@ class TestFileWatcher(unittest.TestCase):
             for row in rows:
                 writer.writerow(row)
 
-
     def test_file_watcher_change(self):
         with tempfile.TemporaryDirectory() as test_dir:
+
             def mod_file(filename, interval, count):
                 for _ in range(count):
                     now = datetime.now()
@@ -44,7 +45,8 @@ class TestFileWatcher(unittest.TestCase):
                     time.sleep(interval)
 
             topics = {}
-            def mock_callback(topic,data):
+
+            def mock_callback(topic, data):
                 nonlocal topics
                 topic = topic()
                 if topic not in topics:
@@ -60,19 +62,18 @@ class TestFileWatcher(unittest.TestCase):
             num_mod = 2
             interval = 2
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir,metadata,
-                                  callbacks=[mock_callback],
-                                  filenames=test_fn)
+            watcher = FileWatcher(
+                test_dir, metadata, callbacks=[mock_callback], filenames=test_fn, skip_existing=True
+            )  # Skip existing file to test modifications only
             watcher.start()
 
-            # Wait for the file creation event to be processed and debounce to expire
+            # Wait for the watcher to be ready
             time.sleep(1.0)
 
-            mthread = Thread(target=mod_file, args=(text_watch_file,
-                                                    interval, num_mod))
+            mthread = Thread(target=mod_file, args=(text_watch_file, interval, num_mod))
             mthread.start()
             mthread.join()
-            time.sleep(1)
+            time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
             self.assertEqual(len(topics[metadata.experiment.measurement()]), num_mod)
 
@@ -83,16 +84,16 @@ class TestFileWatcher(unittest.TestCase):
                 for _ in range(count):
                     if os.path.isfile(filepath):
                         os.remove(filepath)
-                    headers = ["Timestamp"] + [
-                        f"TestHeading{str(h)}" for h in range(0, 10)
-                    ]
+                        time.sleep(1.5)  # Allow PollingObserver to detect deletion before recreation
+                    headers = ["Timestamp"] + [f"TestHeading{str(h)}" for h in range(0, 10)]
                     with open(filepath, "w", newline="") as file:
                         writer = csv.writer(file)
                         writer.writerow(headers)
                     time.sleep(interval)
 
             topics = {}
-            def mock_callback(topic,data):
+
+            def mock_callback(topic, data):
                 nonlocal topics
                 topic = topic()
                 if topic not in topics:
@@ -102,20 +103,18 @@ class TestFileWatcher(unittest.TestCase):
             test_fn = "test_file_watcher_creation.csv"
             creation_dir = test_dir
             metadata = MetadataManager()
-            watcher = FileWatcher(creation_dir,metadata,
-                                  callbacks=[mock_callback],
-                                  filenames=test_fn)
+            watcher = FileWatcher(
+                creation_dir, metadata, callbacks=[mock_callback], filenames=test_fn, skip_existing=True
+            )  # Only count new file events
             num_create = 3
             interval = 2
             watcher.start()
-            creation_file = os.path.join(creation_dir,test_fn)
+            creation_file = os.path.join(creation_dir, test_fn)
             time.sleep(3)  # Wait for the watcher to be fully ready
-            mthread = Thread(target=create_file, args=(creation_file, 
-                                                       interval, 
-                                                       num_create))
+            mthread = Thread(target=create_file, args=(creation_file, interval, num_create))
             mthread.start()
             mthread.join()
-            time.sleep(1)
+            time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
             self.assertEqual(len(topics[metadata.experiment.start()]), num_create)
 
@@ -125,9 +124,7 @@ class TestFileWatcher(unittest.TestCase):
             def delete_file(filepath, interval, count):
                 for _ in range(count):
                     if not os.path.isfile(filepath):
-                        headers = ["Timestamp"] + [
-                            f"TestHeading{str(h)}" for h in range(0, 10)
-                        ]
+                        headers = ["Timestamp"] + [f"TestHeading{str(h)}" for h in range(0, 10)]
                         with open(filepath, "w", newline="") as file:
                             writer = csv.writer(file)
                             writer.writerow(headers)
@@ -136,42 +133,38 @@ class TestFileWatcher(unittest.TestCase):
                     time.sleep(interval)
 
             topics = {}
-            def mock_callback(topic,data):
+
+            def mock_callback(topic, data):
                 nonlocal topics
                 topic = topic()
                 if topic not in topics:
                     topics[topic] = []
                 topics[topic].append(data)
-            
+
             test_filename = "test_file_watcher_deletion.csv"
             delete_dir = test_dir
             metadata = MetadataManager()
-            watcher = FileWatcher(delete_dir,metadata,
-                                  callbacks=[mock_callback],
-                                  filenames=test_filename)
+            watcher = FileWatcher(delete_dir, metadata, callbacks=[mock_callback], filenames=test_filename)
             num_create = 3
             interval = 2
             watcher.start()
-            delete_fn = os.path.join(delete_dir,test_filename)
-            mthread = Thread(
-                target=delete_file, args=(delete_fn, interval, num_create)
-            )
+            delete_fn = os.path.join(delete_dir, test_filename)
+            mthread = Thread(target=delete_file, args=(delete_fn, interval, num_create))
             mthread.start()
             mthread.join()
-            time.sleep(1)
+            time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
-            self.assertEqual(len(topics[metadata.experiment.stop()]), 
-                             num_create)
+            self.assertEqual(len(topics[metadata.experiment.stop()]), num_create)
 
     def test_watch_directory(self):
         with tempfile.TemporaryDirectory() as test_dir:
+
             def create_file(filepath, interval, count):
                 for _ in range(count):
                     if os.path.isfile(filepath):
                         os.remove(filepath)
-                    headers = ["Timestamp"] + [
-                        f"TestHeading{str(h)}" for h in range(0, 10)
-                    ]
+                        time.sleep(1.5)  # Allow PollingObserver to detect deletion before recreation
+                    headers = ["Timestamp"] + [f"TestHeading{str(h)}" for h in range(0, 10)]
                     with open(filepath, "w", newline="") as file:
                         writer = csv.writer(file)
                         writer.writerow(headers)
@@ -186,7 +179,8 @@ class TestFileWatcher(unittest.TestCase):
                     time.sleep(interval)
 
             topics = {}
-            def mock_callback(topic,data):
+
+            def mock_callback(topic, data):
                 nonlocal topics
                 topic = topic()
                 if topic not in topics:
@@ -194,22 +188,20 @@ class TestFileWatcher(unittest.TestCase):
                 topics[topic].append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir,metadata,
-                                  callbacks=[mock_callback])
+            watcher = FileWatcher(
+                test_dir, metadata, callbacks=[mock_callback], skip_existing=True
+            )  # Only count new file events
             num_create = 3
             interval = 2
             watcher.start()
             tmp_fn = "tmp.txt"
-            creation_dir = os.path.join(test_dir,tmp_fn)
-            mthread = Thread(target=create_file, args=(creation_dir, 
-                                                       interval, 
-                                                       num_create))
+            creation_dir = os.path.join(test_dir, tmp_fn)
+            mthread = Thread(target=create_file, args=(creation_dir, interval, num_create))
             mthread.start()
             mthread.join()
-            time.sleep(1)
+            time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
-            self.assertEqual(len(topics[metadata.experiment.start()]),
-                             num_create)
+            self.assertEqual(len(topics[metadata.experiment.start()]), num_create)
 
             # Give extra time for observer cleanup in forked mode
             time.sleep(1.5)
@@ -220,16 +212,15 @@ class TestFileWatcher(unittest.TestCase):
             num_mod = 4
             interval = 2
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir,metadata,
-                                  callbacks=[mock_callback],
-                                  filenames=tmp_fn)
+            watcher = FileWatcher(
+                test_dir, metadata, callbacks=[mock_callback], filenames=tmp_fn, skip_existing=True
+            )  # File exists from part 1, skip to test modifications only
             watcher.start()
 
-            # Wait for initial file detection event to be processed and debounce to complete
+            # Wait for watcher to be ready
             time.sleep(2.0)
 
-            mthread = Thread(target=mod_file, args=(creation_dir,
-                                                    interval, num_mod))
+            mthread = Thread(target=mod_file, args=(creation_dir, interval, num_mod))
             mthread.start()
             mthread.join()
 
@@ -262,12 +253,12 @@ class TestFileWatcher(unittest.TestCase):
 
     def test_watch_directory_return_filepath(self):
         with tempfile.TemporaryDirectory() as test_dir:
+
             def create_file(filepath, interval):
                 if os.path.isfile(filepath):
                     os.remove(filepath)
-                headers = ["Timestamp"] + [
-                    f"TestHeading{str(h)}" for h in range(0, 10)
-                ]
+                    time.sleep(1.5)  # Allow PollingObserver to detect deletion before recreation
+                headers = ["Timestamp"] + [f"TestHeading{str(h)}" for h in range(0, 10)]
                 with open(filepath, "w", newline="") as file:
                     writer = csv.writer(file)
                     writer.writerow(headers)
@@ -283,7 +274,8 @@ class TestFileWatcher(unittest.TestCase):
             topics = {}
             tmp_fn = "tmp.txt"
             creation_dir = os.path.join(test_dir)
-            def mock_callback(topic,data):
+
+            def mock_callback(topic, data):
                 nonlocal topics
                 topic = topic()
                 # Handle macOS path symlink differences (/var vs /private/var)
@@ -295,28 +287,23 @@ class TestFileWatcher(unittest.TestCase):
                 topics[topic].append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir,metadata,
-                                  callbacks=[mock_callback],
-                                  return_data=False,
-                                  filenames=tmp_fn)
+            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], return_data=False, filenames=tmp_fn)
             interval = 2
             watcher.start()
-            creation_file = os.path.join(creation_dir,tmp_fn)
-            mthread = Thread(target=create_file, args=(creation_file, 
-                                                       interval))
+            creation_file = os.path.join(creation_dir, tmp_fn)
+            mthread = Thread(target=create_file, args=(creation_file, interval))
             mthread.start()
             mthread.join()
-            time.sleep(1)
-            self.assertEqual(len(topics[metadata.experiment.start()]),1)
-            mthread = Thread(target=mod_file, args=(creation_file, 
-                                                    interval))
+            time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
+            self.assertEqual(len(topics[metadata.experiment.start()]), 1)
+            mthread = Thread(target=mod_file, args=(creation_file, interval))
             mthread.start()
             mthread.join()
-            time.sleep(1)
+            time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
             # Ensure max of 2 measurements per file
-            self.assertGreaterEqual(len(topics[metadata.experiment.measurement()]),1)
-            self.assertLessEqual(len(topics[metadata.experiment.measurement()]),2)
+            self.assertGreaterEqual(len(topics[metadata.experiment.measurement()]), 1)
+            self.assertLessEqual(len(topics[metadata.experiment.measurement()]), 2)
 
     def test_csv_file_creation(self):
         with tempfile.TemporaryDirectory() as test_dir:
@@ -329,7 +316,9 @@ class TestFileWatcher(unittest.TestCase):
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], filenames="test.csv", debounce_delay=0.1)
+            watcher = FileWatcher(
+                test_dir, metadata, callbacks=[mock_callback], filenames="test.csv", debounce_delay=0.1
+            )
             watcher.start()
 
             self._write_csv_file(csv_file, [["Time", "Value"], ["1", "100"]])
@@ -343,13 +332,16 @@ class TestFileWatcher(unittest.TestCase):
             csv_file = os.path.join(test_dir, "test.csv")
 
             topics = {}
+
             def mock_callback(topic, data):
                 nonlocal topics
                 topic = topic()
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], filenames="test.csv", debounce_delay=0.1)
+            watcher = FileWatcher(
+                test_dir, metadata, callbacks=[mock_callback], filenames="test.csv", debounce_delay=0.1
+            )
             watcher.start()
 
             # Wait a moment for the watcher to be ready
@@ -372,7 +364,7 @@ class TestFileWatcher(unittest.TestCase):
                     self.fail("No topics received - FileWatcher callback may not have triggered")
                 # Use the first available topic as fallback
                 expected_topic = list(topics.keys())[0]
-            self.assertEqual(topics[expected_topic], [[['Time', 'Value'], ['2', '200']]])
+            self.assertEqual(topics[expected_topic], [[["Time", "Value"], ["2", "200"]]])
             # self.assertEqual(len(topics[metadata.experiment.measurement()]), 1)
 
     def test_csv_file_deletion(self):
@@ -381,13 +373,16 @@ class TestFileWatcher(unittest.TestCase):
             self._write_csv_file(csv_file, [["Time", "Value"]])
 
             topics = {}
+
             def mock_callback(topic, data):
                 nonlocal topics
                 topic = topic()
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], filenames="test.csv", debounce_delay=0.1)
+            watcher = FileWatcher(
+                test_dir, metadata, callbacks=[mock_callback], filenames="test.csv", debounce_delay=0.1
+            )
             watcher.start()
 
             os.remove(csv_file)
@@ -411,7 +406,7 @@ class TestFileWatcher(unittest.TestCase):
             watcher.start()
 
             self._write_csv_file(csv_file, [["Time", "Val"], ["3", "300"]])
-            time.sleep(1)
+            time.sleep(3)  # Allow enough time for PollingObserver to detect file
             watcher.stop()
 
             self.assertEqual(len(topics[metadata.experiment.start()]), 1)
@@ -431,13 +426,15 @@ class TestFileWatcher(unittest.TestCase):
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
-            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], return_data=False, filenames="justpath.csv")
+            watcher = FileWatcher(
+                test_dir, metadata, callbacks=[mock_callback], return_data=False, filenames="justpath.csv"
+            )
             watcher.start()
 
             # Give the watcher time to initialize before creating files
             time.sleep(0.1)
             self._write_csv_file(csv_file, [["A", "B"], ["X", "Y"]])
-            time.sleep(1)
+            time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
 
             self.assertEqual(len(topics[metadata.experiment.start()]), 1)
@@ -451,6 +448,7 @@ class TestFileWatcher(unittest.TestCase):
             row = ["Alice", "30", "USA"]
 
             topics = {}
+
             def mock_callback(topic, data):
                 nonlocal topics
                 topic = topic()
@@ -472,7 +470,7 @@ class TestFileWatcher(unittest.TestCase):
                 writer.writerow(headers)
                 writer.writerow(row)
 
-            time.sleep(1)
+            time.sleep(3)  # Allow enough time for PollingObserver to detect file
             watcher.stop()
 
             self.assertEqual(len(topics[metadata.experiment.start()]), 1)
@@ -489,6 +487,7 @@ class TestFileWatcher(unittest.TestCase):
                 writer.writerow(["Header1", "Header2"])
 
             topics = {}
+
             def mock_callback(topic, data):
                 logger.info("Callback invoked with topic: %s and data: %s", topic(), data)
                 nonlocal topics
@@ -507,8 +506,8 @@ class TestFileWatcher(unittest.TestCase):
             watcher.start()
 
             def modify_file():
-                # Wait longer than the debounce delay (0.75s) before modifying
-                time.sleep(1.0)
+                # Wait longer than the creation debounce delay (1.5s) before modifying
+                time.sleep(2.0)
                 with open(file_path, "a", newline="") as f:
                     writer = csv.writer(f, delimiter="\t")
                     writer.writerow(["Val1", "Val2"])
@@ -518,12 +517,13 @@ class TestFileWatcher(unittest.TestCase):
             mod_thread.start()
             mod_thread.join()
 
-            time.sleep(1)
+            time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
 
             logger.info("Topics collected: %s", topics)
             self.assertGreaterEqual(len(topics[metadata.experiment.measurement()]), 1)
-            found_row = any("Val1" in row for row in topics[metadata.experiment.measurement()][0])
+            # Check all measurement callbacks for the modified content
+            found_row = any("Val1" in str(callback_data) for callback_data in topics[metadata.experiment.measurement()])
             self.assertTrue(found_row)
 
     def test_any_file_content(self):
@@ -533,6 +533,7 @@ class TestFileWatcher(unittest.TestCase):
             file_tsv = os.path.join(tmpdir, "data.tsv")
 
             topics = {}
+
             def mock_cb(topic, data):
                 nonlocal topics
                 topic = topic()
@@ -540,11 +541,7 @@ class TestFileWatcher(unittest.TestCase):
 
             metadata = MetadataManager()
             watcher = FileWatcher(
-                tmpdir,
-                metadata_manager=metadata,
-                callbacks=[mock_cb],
-                return_data=True,
-                debounce_delay=0.1
+                tmpdir, metadata_manager=metadata, callbacks=[mock_cb], return_data=True, debounce_delay=0.1
             )
             watcher.start()
 
@@ -566,6 +563,7 @@ class TestFileWatcher(unittest.TestCase):
             file_tsv = os.path.join(tmpdir, "skip.tsv")
 
             topics = {}
+
             def mock_cb(topic, data):
                 topic = topic()
                 topics.setdefault(topic, []).append(data)
@@ -579,14 +577,14 @@ class TestFileWatcher(unittest.TestCase):
                 filenames=[".csv"],
             )
             watcher.start()
-            time.sleep(1)
+            time.sleep(0.5)
 
             self._write_file(file_csv, [["col1", "col2"]], delimiter=",")
             with open(file_txt, "w") as f:
                 f.write("txt")
             self._write_file(file_tsv, [["tab1", "tab2"]], delimiter="\t")
 
-            time.sleep(1)
+            time.sleep(3)  # Allow enough time for PollingObserver to detect file
             watcher.stop()
 
             paths = topics.get(metadata.experiment.start(), [])
@@ -598,6 +596,7 @@ class TestFileWatcher(unittest.TestCase):
             bad_path = os.path.join(tmpdir, "bad.csv")
 
             topics = {}
+
             def cb(topic, data):
                 topic = topic()
                 topics.setdefault(topic, []).append(data)
@@ -619,17 +618,14 @@ class TestFileWatcher(unittest.TestCase):
             f2 = os.path.join(tmpdir, "data2.tsv")
 
             topics = {}
+
             def cb(topic, data):
                 topic = topic()
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
             watcher = FileWatcher(
-                tmpdir,
-                metadata,
-                callbacks=[cb],
-                filenames=["data1.csv", "data2.tsv"],
-                debounce_delay=0.1
+                tmpdir, metadata, callbacks=[cb], filenames=["data1.csv", "data2.tsv"], debounce_delay=0.1
             )
             watcher.start()
 
@@ -637,7 +633,7 @@ class TestFileWatcher(unittest.TestCase):
             self._write_csv_file(f1, [["A", "B"]])
             self._write_file(f2, [["X", "Y"]], delimiter="\t")
 
-            time.sleep(2)  # macOS FSEvents can have significant delay
+            time.sleep(3)  # Allow enough time for PollingObserver to detect files
             watcher.stop()
 
             self.assertEqual(len(topics.get(metadata.experiment.start(), [])), 2)
@@ -649,17 +645,14 @@ class TestFileWatcher(unittest.TestCase):
             txt_file = os.path.join(tmpdir, "test3.txt")
 
             topics = {}
+
             def cb(topic, data):
                 topic = topic()
                 topics.setdefault(topic, []).append(data)
 
             metadata = MetadataManager()
             watcher = FileWatcher(
-                tmpdir,
-                metadata,
-                callbacks=[cb],
-                return_data=True,
-                filenames=[".csv", ".tsv", ".txt"]
+                tmpdir, metadata, callbacks=[cb], return_data=True, filenames=[".csv", ".tsv", ".txt"]
             )
             watcher.start()
 
@@ -669,7 +662,7 @@ class TestFileWatcher(unittest.TestCase):
             with open(txt_file, "w", encoding="utf-8") as f:
                 f.write("Hello world\nSecond line")
 
-            time.sleep(1)
+            time.sleep(3)  # Allow enough time for PollingObserver to detect all files
             watcher.stop()
 
             events = topics.get(metadata.experiment.start(), [])
@@ -682,6 +675,129 @@ class TestFileWatcher(unittest.TestCase):
             self.assertIsNotNone(csv_data, "CSV content missing or failed to parse")
             self.assertIsNotNone(tsv_data, "TSV content missing or failed to parse")
             self.assertIsNotNone(txt_data, "TXT content missing or failed to parse")
+
+    def test_file_watcher_processes_existing_files(self):
+        """Test that FileWatcher processes existing files on startup by default"""
+        with tempfile.TemporaryDirectory() as test_dir:
+            topics = {}
+
+            def mock_callback(topic, data):
+                nonlocal topics
+                topic = topic()
+                if topic not in topics:
+                    topics[topic] = []
+                topics[topic].append(data)
+
+            test_fn = "existing_file.csv"
+            filepath = os.path.join(test_dir, test_fn)
+
+            # Create file BEFORE starting watcher
+            headers = ["Timestamp"] + [f"BLA{h}" for h in range(10)]
+            content = ["Some,data,that,does,not,match,headers"]
+            with open(filepath, "w", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow(headers)
+                writer.writerows([content])
+
+            metadata = MetadataManager()
+            watcher = FileWatcher(test_dir, metadata, callbacks=[mock_callback], filenames=test_fn)
+
+            watcher.start()
+            time.sleep(1)  # Give it time to process existing files
+            watcher.stop()
+
+            # Existing file should have triggered a "measurement" callback
+            self.assertIn(metadata.experiment.measurement(), topics)
+            self.assertEqual(len(topics[metadata.experiment.measurement()]), 1)
+            logger.error(f"Topics received: {topics}")
+
+    def test_file_watcher_skips_existing_files_when_configured(self):
+        """Test that FileWatcher skips existing files when skip_existing=True"""
+        with tempfile.TemporaryDirectory() as test_dir:
+            topics = {}
+
+            def mock_callback(topic, data):
+                nonlocal topics
+                topic = topic()
+                if topic not in topics:
+                    topics[topic] = []
+                topics[topic].append(data)
+
+            test_fn = "existing_file.csv"
+            filepath = os.path.join(test_dir, test_fn)
+
+            # Create file BEFORE starting watcher
+            headers = ["Timestamp"] + [f"TestHeading{h}" for h in range(10)]
+            with open(filepath, "w", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow(headers)
+
+            metadata = MetadataManager()
+            watcher = FileWatcher(
+                test_dir,
+                metadata,
+                callbacks=[mock_callback],
+                filenames=test_fn,
+                skip_existing=True,  # Explicitly skip existing files
+            )
+
+            watcher.start()
+            time.sleep(1)
+            watcher.stop()
+
+            # No callbacks should have been triggered
+            self.assertEqual(len(topics), 0)
+
+    def test_file_watcher_trailing_debounce(self):
+        """Test that debounced modifications are eventually processed via trailing timer"""
+        with tempfile.TemporaryDirectory() as test_dir:
+            topics = {}
+
+            def mock_callback(topic, data):
+                nonlocal topics
+                topic = topic()
+                if topic not in topics:
+                    topics[topic] = []
+                topics[topic].append(data)
+
+            test_fn = "trailing_test.txt"
+            filepath = os.path.join(test_dir, test_fn)
+
+            # Create file first
+            with open(filepath, "w") as f:
+                f.write("initial content")
+
+            metadata = MetadataManager()
+            watcher = FileWatcher(
+                test_dir,
+                metadata,
+                callbacks=[mock_callback],
+                filenames=test_fn,
+                skip_existing=True,
+                debounce_delay=1.0,  # 1 second debounce
+                trailing_delay=3.0,  # 3 second trailing delay
+            )
+
+            watcher.start()
+            time.sleep(0.5)  # Let watcher initialize
+
+            # Make rapid modifications faster than debounce_delay
+            # These should be debounced, but the last one should trigger trailing timer
+            for i in range(5):
+                with open(filepath, "a") as f:
+                    f.write(f"\nmodification {i}")
+                time.sleep(0.2)  # 200ms between modifications (faster than 1s debounce)
+
+            # At this point, most modifications were debounced
+            # Wait for trailing delay to fire (3 seconds + buffer)
+            time.sleep(4.0)
+
+            watcher.stop()
+
+            # The trailing timer should have fired and processed the file
+            measurement_key = metadata.experiment.measurement()
+            self.assertIn(measurement_key, topics)
+            self.assertGreaterEqual(len(topics[measurement_key]), 1)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,16 @@
 import time
-from typing import Any, Optional, Dict
-from leaf.modules.output_modules.output_module import OutputModule
-from leaf.modules.phase_modules.phase import PhaseModule
+from typing import TYPE_CHECKING, Any
+
 from leaf_register.metadata import MetadataManager
 from leaf_register.topic_utilities import topic_utilities
+
 from leaf.error_handler.error_holder import ErrorHolder
+from leaf.modules.output_modules.output_module import OutputModule
+from leaf.modules.phase_modules.phase import PhaseModule
+
+if TYPE_CHECKING:
+    from leaf.adapters.equipment_adapter import AbstractInterpreter
+
 
 class ProcessModule:
     """
@@ -19,8 +25,8 @@ class ProcessModule:
         self,
         output: OutputModule,
         phases: list[PhaseModule],
-        metadata_manager: Optional[MetadataManager] = None,
-        error_holder: Optional[ErrorHolder] = None,
+        metadata_manager: MetadataManager | None = None,
+        error_holder: ErrorHolder | None = None,
     ):
         """
         Initialise the ProcessModule with a collection of phases.
@@ -39,10 +45,10 @@ class ProcessModule:
         self._error_holder = error_holder
         self._metadata_manager = metadata_manager
 
-    def transmit_error(self,error:Dict) -> None:
+    def transmit_error(self, error: dict) -> None:
         error_topic = self._metadata_manager.error()
         self._output.transmit(error_topic, error)
-        
+
     def withdraw(self) -> None:
         """
         Stop all phases by flushing their respective terms if they are complete.
@@ -77,7 +83,7 @@ class ProcessModule:
                         continue
                     self._output.transmit(topic_val, data)
 
-    def set_interpreter(self, interpreter: 'AbstractInterpreter') -> None:
+    def set_interpreter(self, interpreter: "AbstractInterpreter") -> None:
         """
         Set or update the interpreter for all phases within the process.
 

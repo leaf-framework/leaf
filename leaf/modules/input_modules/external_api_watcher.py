@@ -1,15 +1,11 @@
-import logging
-
-from typing import Optional
-from typing import Callable
-from typing import List
-from typing import Dict
+from collections.abc import Callable
 from typing import Any
 
+from leaf_register.metadata import MetadataManager
+
+from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.polling_watcher import PollingWatcher
 from leaf.utility.logger.logger_utils import get_logger
-from leaf.error_handler.error_holder import ErrorHolder
-from leaf_register.metadata import MetadataManager
 
 logger = get_logger(__name__, log_file="input_module.log")
 
@@ -17,7 +13,7 @@ logger = get_logger(__name__, log_file="input_module.log")
 class APIState:
     """
     Tracks the state of a specific API event type
-    (e.g., 'measurement', 'start', 'stop') to avoid 
+    (e.g., 'measurement', 'start', 'stop') to avoid
     redundant callback triggers.
     """
 
@@ -29,9 +25,9 @@ class APIState:
             api_type (str): The API event type this state is tracking.
         """
         self.api_type: str = api_type
-        self.previous_data: Optional[dict] = None
+        self.previous_data: dict | None = None
 
-    def update_if_new(self, data: Optional[dict]) -> Optional[dict]:
+    def update_if_new(self, data: dict | None) -> dict | None:
         """
         Update internal state only if new data differs from the previous one.
 
@@ -58,12 +54,12 @@ class ExternalApiWatcher(PollingWatcher):
     def __init__(
         self,
         metadata_manager: MetadataManager,
-        measurement_fetcher: Callable[[], Optional[dict]],
-        start_fetcher: Optional[Callable[[], Optional[dict]]] = None,
-        stop_fetcher: Optional[Callable[[], Optional[dict]]] = None,
+        measurement_fetcher: Callable[[], dict | None],
+        start_fetcher: Callable[[], dict | None] | None = None,
+        stop_fetcher: Callable[[], dict | None] | None = None,
         interval: int = 60,
-        callbacks: Optional[List[Callable[[str, Any], None]]] = None,
-        error_holder: Optional[ErrorHolder] = None
+        callbacks: list[Callable[[str, Any], None]] | None = None,
+        error_holder: ErrorHolder | None = None,
     ) -> None:
         """
         Initialize ExternalApiWatcher.
@@ -78,36 +74,27 @@ class ExternalApiWatcher(PollingWatcher):
             error_holder (Optional[ErrorHolder]): Error tracking utility.
         """
         super().__init__(
-            interval=interval,
-            metadata_manager=metadata_manager,
-            callbacks=callbacks,
-            error_holder=error_holder
+            interval=interval, metadata_manager=metadata_manager, callbacks=callbacks, error_holder=error_holder
         )
 
-        self._fetchers: Dict[str, Optional[Callable[[], Optional[dict]]]] = {
+        self._fetchers: dict[str, Callable[[], dict | None] | None] = {
             "measurement": measurement_fetcher,
             "start": start_fetcher,
-            "stop": stop_fetcher
+            "stop": stop_fetcher,
         }
 
-        self._api_states: Dict[str, APIState] = {
-            key: APIState(key)
-            for key, fetcher in self._fetchers.items()
-            if fetcher is not None
+        self._api_states: dict[str, APIState] = {
+            key: APIState(key) for key, fetcher in self._fetchers.items() if fetcher is not None
         }
 
-    def _fetch_data(self) -> Dict[str, Optional[dict]]:
+    def _fetch_data(self) -> dict[str, dict | None]:
         """
         Poll all configured fetchers and return new data (if any).
 
         Returns:
             dict: Contains 'measurement', 'start', 'stop' with any new data found.
         """
-        results: Dict[str, Optional[dict]] = {
-            "measurement": None,
-            "start": None,
-            "stop": None
-        }
+        results: dict[str, dict | None] = {"measurement": None, "start": None, "stop": None}
 
         for key, fetcher in self._fetchers.items():
             if fetcher:

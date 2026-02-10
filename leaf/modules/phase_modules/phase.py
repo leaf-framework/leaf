@@ -1,10 +1,12 @@
-from typing import Optional
-from typing import Callable
-from typing import Any
-from typing import List
-from typing import Tuple
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
 from leaf_register.metadata import MetadataManager
+
 from leaf.error_handler.error_holder import ErrorHolder
+
+if TYPE_CHECKING:
+    from leaf.adapters.equipment_adapter import AbstractInterpreter
 
 
 class PhaseModule:
@@ -18,9 +20,9 @@ class PhaseModule:
     def __init__(
         self,
         term_builder: Callable,
-        metadata_manager: Optional[MetadataManager] = None,
-        interpreter: Optional[Any] = None,
-        error_holder: Optional[ErrorHolder] = None,
+        metadata_manager: MetadataManager | None = None,
+        interpreter: Any | None = None,
+        error_holder: ErrorHolder | None = None,
     ) -> None:
         """
         Initialize the PhaseModule with essential components.
@@ -59,7 +61,7 @@ class PhaseModule:
         topic_instance = topic()
         return topic_instance == self._term_builder()
 
-    def set_interpreter(self, interpreter: 'AbstractInterpreter') -> None:
+    def set_interpreter(self, interpreter: "AbstractInterpreter") -> None:
         """
         Set or update the interpreter for the phase.
 
@@ -68,7 +70,7 @@ class PhaseModule:
         """
         self._interpreter = interpreter
 
-    def update(self, data: Optional[Any] = None, **kwargs: Any) -> List[Tuple[str, Any]]:
+    def update(self, data: Any | None = None, **kwargs: Any) -> list[tuple[str, Any]]:
         """
         Builds the topic that is specifically bound to this phase.
 

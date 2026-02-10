@@ -1,28 +1,17 @@
 import json
-import logging
 import time
-from socket import error as socket_error
 from socket import gaierror
-from typing import Literal, Union, Optional, Any
+from typing import Any, Literal
 
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 
 from leaf.error_handler.error_holder import ErrorHolder
-from leaf.error_handler.exceptions import AdapterBuildError, LEAFError
-from leaf.error_handler.exceptions import ClientUnreachableError
-from leaf.error_handler.exceptions import SeverityLevel
+from leaf.error_handler.exceptions import AdapterBuildError, ClientUnreachableError, LEAFError, SeverityLevel
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="output_module.log")
-
-FIRST_RECONNECT_DELAY = 1
-RECONNECT_RATE = 2
-MAX_RECONNECT_COUNT = 12
-MAX_RECONNECT_DELAY = 1
-
-
 
 
 class MQTT(OutputModule):
@@ -41,14 +30,15 @@ class MQTT(OutputModule):
         self,
         broker: str,
         port: int = 1883,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        fallback: Optional[OutputModule] = None,
-        clientid: Optional[str] = None,
+        username: str | None = None,
+        password: str | None = None,
+        fallback: OutputModule | None = None,
+        clientid: str | None = None,
         protocol: Literal["v3", "v5"] = "v3",
         transport: Literal["tcp", "websockets", "unix"] = "tcp",
         tls: bool = False,
-        error_holder: Optional[ErrorHolder] = None,
+        error_holder: ErrorHolder | None = None,
+        name: str | None = None,
     ) -> None:
         """
         Initialise the MQTT adapter with broker details,
@@ -67,7 +57,10 @@ class MQTT(OutputModule):
             error_holder (Optional[ErrorHolder]): An instance of ErrorHolder for tracking errors.
         """
 
-        super().__init__(fallback=fallback, error_holder=error_holder)
+        super().__init__(fallback=fallback, error_holder=error_holder, name=name)
+
+        if not self._name:
+            self._name = f"MQTT({broker}:{port})"
 
         if protocol not in ["v3", "v5"]:
             raise AdapterBuildError(f"Unsupported protocol '{protocol}'.")
@@ -77,28 +70,29 @@ class MQTT(OutputModule):
             raise AdapterBuildError(f"Unsupported transport '{transport}'.")
 
         if not isinstance(broker, str) or not broker:
-            raise AdapterBuildError(
-                "Broker must be a non-empty string representing the MQTT broker address."
-            )
+            raise AdapterBuildError("Broker must be a non-empty string representing the MQTT broker address.")
         if not isinstance(port, int) or not (1 <= port <= 65535):
             raise AdapterBuildError("Port must be an integer between 1 and 65535.")
 
-        self._client_id: Optional[str] = clientid
+        self._client_id: str | None = clientid
         self._broker: str = broker
         self._port: int = port
-        self._username: Optional[str] = username
-        self._password: Optional[str] = password
+        self._username: str | None = username
+        self._password: str | None = password
         self._tls: bool = tls
         self.messages: dict[str, list[str]] = {}
-        self.sending_success: dict[str,bool] = {}
-        self._is_reconnect: bool = False
+        self.sending_success: dict[str, bool] = {}
 
-        self.client = mqtt.Client(
-            callback_api_version=CallbackAPIVersion.VERSION2,
-            client_id=clientid,
-            protocol=self.protocol,
-            transport=transport,
-        )
+        client_kwargs: dict[str, Any] = {
+            "callback_api_version": CallbackAPIVersion.VERSION2,
+            "client_id": clientid,
+            "protocol": self.protocol,
+            "transport": transport,
+        }
+        if self.protocol != mqtt.MQTTv5:
+            client_kwargs["clean_session"] = True
+
+        self.client = mqtt.Client(**client_kwargs)
         self.client.on_connect = self.on_connect
 
         self.client.on_connect_fail = self.on_connect_fail
@@ -111,7 +105,7 @@ class MQTT(OutputModule):
         if username and password:
             self._username = username
             self._password = password
-        
+
         if tls:
             try:
                 self.client.tls_set()
@@ -128,15 +122,11 @@ class MQTT(OutputModule):
         logger.info(f"Connecting to MQTT broker {self._broker}")
         try:
             if self._username and self._password:
-                        self.client.username_pw_set(self._username, self._password)
+                self.client.username_pw_set(self._username, self._password)
             self.client.connect(self._broker, self._port, 60)
             self.client.loop_start()
-        except (socket_error, gaierror, OSError) as e:
-            self._handle_exception(
-                ClientUnreachableError(
-                    f"Error connecting to broker: {e}", output_module=self
-                )
-            )
+        except (gaierror, OSError) as e:
+            self._handle_exception(ClientUnreachableError(f"Error connecting to broker: {e}", output_module=self))
 
     def disconnect(self) -> None:
         """
@@ -144,9 +134,7 @@ class MQTT(OutputModule):
         """
         logger.info(f"Disconnecting from MQTT broker {self._broker}")
         if not self.is_enabled():
-            logger.warning(
-                f"{self.__class__.__name__} - disconnect called with module disabled."
-            )
+            logger.warning(f"{self.__class__.__name__} - disconnect called with module disabled.")
             return
         try:
             if self.client.is_connected():
@@ -156,15 +144,9 @@ class MQTT(OutputModule):
             logger.info("Disconnected from MQTT broker.")
         except Exception as e:
             logger.error(f"Failed to disconnect from MQTT broker: {e}")
-            self._handle_exception(
-                ClientUnreachableError(
-                    "Failed to disconnect from broker.", output_module=self
-                )
-            )
+            self._handle_exception(ClientUnreachableError("Failed to disconnect from broker.", output_module=self))
 
-    def transmit(
-        self, topic: str, data: Optional[Union[str, dict]] = None, retain: bool = False
-    ) -> bool:
+    def transmit(self, topic: str, data: str | dict | None = None, retain: bool = False) -> bool:
         """
         Publish a message to the MQTT broker on a given topic.
 
@@ -177,9 +159,7 @@ class MQTT(OutputModule):
             bool: True if the message was successfully published, False otherwise.
         """
         if not self.is_enabled():
-            logger.warning(
-                f"{self.__class__.__name__} - transmit called with module disabled."
-            )
+            logger.warning(f"{self.__class__.__name__} - transmit called with module disabled.")
             # Call the fallback if available
             if self._fallback is not None:
                 logger.debug("Calling fallback as module is disabled.")
@@ -197,14 +177,10 @@ class MQTT(OutputModule):
             data = json.dumps(data)
 
         try:
-            result = self.client.publish(
-                topic=topic, payload=data, qos=0, retain=retain
-            )
+            result = self.client.publish(topic=topic, payload=data, qos=0, retain=retain)
         except ValueError:
             msg = f"{topic} contains wildcards, likely required instance data missing"
-            exception = ClientUnreachableError(
-                msg, output_module=self, severity=SeverityLevel.ERROR
-            )
+            exception = ClientUnreachableError(msg, output_module=self, severity=SeverityLevel.ERROR)
             self._handle_exception(exception)
             return False
 
@@ -224,22 +200,24 @@ class MQTT(OutputModule):
                     fallback_result = self._fallback.pop(topic)
                     if fallback_result is not None:
                         fallback_topic, fallback_data = fallback_result
-                        logger.info(
-                            f"Fallback data found for topic {fallback_topic}, publishing now."
-                        )
+                        logger.info(f"Fallback data found for topic {fallback_topic}, publishing now.")
                         self.transmit(fallback_topic, fallback_data)
                         # Sleep 0.05 seconds to allow the message to be processed
                         time.sleep(0.05)
                     else:
-                        logger.debug(
-                            f"No fallback data found for topic {topic}, stopping fallback."
-                        )
+                        logger.debug(f"No fallback data found for topic {topic}, stopping fallback.")
                         break
             # Reset the flag after processing fallback data in case new data arrives later
             self.sending_success[topic] = False
 
         # Reset global failure counter only after successful transmission AND fallback processing
         OutputModule.reset_failure_count()
+
+        self.store_latest(topic, data)
+
+        # Transmit to parallel outputs (best-effort, failures don't affect primary result)
+        self.transmit_to_parallels(topic, data)
+
         return True
 
     def flush(self, topic: str) -> None:
@@ -251,24 +229,18 @@ class MQTT(OutputModule):
             topic (str): The topic to clear retained messages for.
         """
         if not self.is_enabled():
-            logger.warning(
-                f"{self.__class__.__name__} - flush called with module disabled."
-            )
+            logger.warning(f"{self.__class__.__name__} - flush called with module disabled.")
             return
         try:
             result = self.client.publish(topic=topic, payload=None, qos=0, retain=True)
             error = self._handle_return_code(result.rc)
             if error is not None:
-                logger.error(
-                    f"Failed to flush retained messages on: {topic} {self._username}@{self._broker}"
-                )
+                logger.error(f"Failed to flush retained messages on: {topic} {self._username}@{self._broker}")
                 self._handle_exception(error)
                 return self.fallback(topic, None)
         except ValueError:
             msg = f"{topic} contains wildcards, likely required instance data missing"
-            exception = ClientUnreachableError(
-                msg, output_module=self, severity=SeverityLevel.CRITICAL
-            )
+            exception = ClientUnreachableError(msg, output_module=self, severity=SeverityLevel.CRITICAL)
             self._handle_exception(exception)
 
     def on_connect(
@@ -277,9 +249,8 @@ class MQTT(OutputModule):
         userdata: Any,
         flags: dict,
         rc: int,
-        metadata: Optional[Any] = None,
+        metadata: Any | None = None,
     ) -> None:
-
         """
         Callback for when the client connects to the broker.
 
@@ -292,17 +263,10 @@ class MQTT(OutputModule):
             metadata (Optional[Any]): Additional metadata (if any).
         """
         if not self.is_enabled():
-            logger.warning(
-                f"{self.__class__.__name__} - on_connect called with module disabled."
-            )
+            logger.warning(f"{self.__class__.__name__} - on_connect called with module disabled.")
             return
-        if self._is_reconnect:
-            logger.info(f"Reconnected to broker {self._username}@{self._broker}")
-            self._is_reconnect = False
-            # Fallback data will be sent in transmit method
-        else:
-            logger.info(f"Connected to broker {self._username}@{self._broker}")
-        
+        logger.info(f"Connected to broker {self._username}@{self._broker}")
+
         if rc != 0:
             error_messages = {
                 1: "Unacceptable protocol version",
@@ -312,11 +276,7 @@ class MQTT(OutputModule):
                 5: "Not authorized",
             }
             message = error_messages.get(rc.value, f"Unknown connection error with code {rc}")
-            self._handle_exception(
-                ClientUnreachableError(
-                    f"Connection refused: {message}", output_module=self
-                )
-            )
+            self._handle_exception(ClientUnreachableError(f"Connection refused: {message}", output_module=self))
 
     def on_connect_fail(
         self,
@@ -341,7 +301,7 @@ class MQTT(OutputModule):
         userdata: Any,
         flags: Any,
         rc: int,
-        properties: Optional[Any] = None,
+        properties: Any | None = None,
     ) -> None:
         """
         Callback for when the client disconnects from the broker.
@@ -355,36 +315,15 @@ class MQTT(OutputModule):
             properties (Optional[Any]): Additional metadata (if any).
         """
         logger.info(f"Disconnected from broker {self._username}@{self._broker}")
-        global MAX_RECONNECT_COUNT
         if not self.is_enabled():
-            logger.warning(
-                f"{self.__class__.__name__} - disconnect called with module disabled."
-            )
+            logger.warning(f"{self.__class__.__name__} - disconnect called with module disabled.")
             return
-        
+
         if rc != mqtt.MQTT_ERR_SUCCESS:
-            reconnect_count, reconnect_delay = 0, FIRST_RECONNECT_DELAY
-            while reconnect_count < MAX_RECONNECT_COUNT:
-                time.sleep(reconnect_delay)
-                try:
-                    self._is_reconnect = True
-                    client.reconnect()
-                    return
-                except Exception as e:
-                    logger.error(f"Reconnect attempt {reconnect_count + 1} failed: {e}")
+            # paho's loop_start() handles automatic reconnection
+            logger.warning(f"Unexpected disconnect (rc={rc}), paho will auto-reconnect")
 
-                    reconnect_delay = min(
-                        reconnect_delay * RECONNECT_RATE, MAX_RECONNECT_DELAY
-                    )
-                    reconnect_count += 1
-            self._handle_exception(
-                ClientUnreachableError("Failed to reconnect.", output_module=self)
-            )
-
-
-    def on_log(
-        self, client: mqtt.Client, userdata: Any, paho_log_level: int, message: str
-    ) -> None:
+    def on_log(self, client: mqtt.Client, userdata: Any, paho_log_level: int, message: str) -> None:
         """
         Callback for logging MQTT client activity.
 
@@ -408,9 +347,7 @@ class MQTT(OutputModule):
         logger.debug(f"{self.__class__.__name__} - is_connected: {connected}")
         return connected
 
-    def on_message(
-        self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage
-    ) -> None:
+    def on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         """
         Callback for when a message is received on a
         subscribed topic.
@@ -481,7 +418,7 @@ class MQTT(OutputModule):
         logger.info(f"{self.__class__.__name__} - disabled")
         return super().disable()
 
-    def pop(self, key: Optional[str] = None) -> Any:
+    def pop(self, key: str | None = None) -> Any:
         """
         Retrieve and remove a stored message from the fallback.
 
@@ -498,7 +435,7 @@ class MQTT(OutputModule):
             return self._fallback.pop(key)
         return None
 
-    def _handle_return_code(self, return_code: int) -> Optional[ClientUnreachableError]:
+    def _handle_return_code(self, return_code: int) -> ClientUnreachableError | None:
         """
         Handle MQTT return codes.
 
@@ -515,6 +452,4 @@ class MQTT(OutputModule):
             mqtt.MQTT_ERR_QUEUE_SIZE: "Message queue size limit reached",
         }.get(return_code, f"Unknown error with return code {return_code}")
 
-        return ClientUnreachableError(
-            message, output_module=self, severity=SeverityLevel.INFO
-        )
+        return ClientUnreachableError(message, output_module=self, severity=SeverityLevel.INFO)
