@@ -1,20 +1,18 @@
-from typing import Optional, Any
-
-from leaf.modules.process_modules.discrete_module import DiscreteProcess
-from leaf.modules.phase_modules.start import StartPhase
-from leaf.modules.phase_modules.stop import StopPhase
-from leaf.modules.phase_modules.measure import MeasurePhase
-from leaf.modules.phase_modules.initialisation import InitialisationPhase
-from leaf.modules.phase_modules.error import ErrorPhase
+from typing import Any
 
 from leaf_register.metadata import MetadataManager
-from leaf.error_handler.error_holder import ErrorHolder
 
+from leaf.adapters.equipment_adapter import AbstractInterpreter, EquipmentAdapter
+from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.event_watcher import EventWatcher
 from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
 from leaf.modules.output_modules.output_module import OutputModule
-
-from leaf.adapters.equipment_adapter import EquipmentAdapter, AbstractInterpreter
+from leaf.modules.phase_modules.error import ErrorPhase
+from leaf.modules.phase_modules.initialisation import InitialisationPhase
+from leaf.modules.phase_modules.measure import MeasurePhase
+from leaf.modules.phase_modules.start import StartPhase
+from leaf.modules.phase_modules.stop import StopPhase
+from leaf.modules.process_modules.discrete_module import DiscreteProcess
 
 
 class DiscreteExperimentAdapter(EquipmentAdapter):
@@ -31,11 +29,11 @@ class DiscreteExperimentAdapter(EquipmentAdapter):
         watcher: EventWatcher,
         output: OutputModule,
         interpreter: AbstractInterpreter,
-        maximum_message_size: Optional[int] = 1,
-        error_holder: Optional[ErrorHolder] = None,
-        metadata_manager: Optional[MetadataManager] = None,
-        experiment_timeout: Optional[int] = None,
-        external_watcher: Optional[ExternalEventWatcher] = None,
+        maximum_message_size: int | None = 1,
+        error_holder: ErrorHolder | None = None,
+        metadata_manager: MetadataManager | None = None,
+        experiment_timeout: int | None = None,
+        external_watcher: ExternalEventWatcher | None = None,
     ):
         """
         Initialise the DiscreteExperimentAdapter.
@@ -54,8 +52,7 @@ class DiscreteExperimentAdapter(EquipmentAdapter):
         # Initialize phase modules
         start_p = StartPhase(metadata_manager)
         stop_p = StopPhase(metadata_manager)
-        measure_p = MeasurePhase(metadata_manager, 
-                                 maximum_message_size=maximum_message_size)
+        measure_p = MeasurePhase(metadata_manager, maximum_message_size=maximum_message_size)
         details_p = InitialisationPhase(metadata_manager)
         error_p = ErrorPhase(metadata_manager)
 
@@ -72,5 +69,5 @@ class DiscreteExperimentAdapter(EquipmentAdapter):
             metadata_manager=metadata_manager,
             error_holder=error_holder,
             experiment_timeout=experiment_timeout,
-            external_watcher=external_watcher
+            external_watcher=external_watcher,
         )

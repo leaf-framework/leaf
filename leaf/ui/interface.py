@@ -3,7 +3,6 @@
 import base64
 import os
 from pathlib import Path
-from typing import Optional
 
 from nicegui import ui
 
@@ -14,12 +13,34 @@ from leaf.ui.tabs.adapters import create_adapters_tab
 from leaf.ui.tabs.configuration import create_configuration_tab
 from leaf.ui.tabs.documentation import create_documentation_tab
 from leaf.ui.tabs.logs import create_logs_tab
+from leaf.ui.tabs.monitoring import create_monitoring_tab
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="interface.log")
 
+# Global startup error storage
+_startup_error: str | None = None
 
-def start_nicegui(port: int = DEFAULT_PORT, config_path: Optional[Path] = None) -> None:
+
+def set_startup_error(error: str) -> None:
+    """Set a startup error to be displayed in the UI."""
+    global _startup_error
+    _startup_error = error
+    logger.error(f"Startup error set: {error}")
+
+
+def get_startup_error() -> str | None:
+    """Get the current startup error, if any."""
+    return _startup_error
+
+
+def clear_startup_error() -> None:
+    """Clear the startup error."""
+    global _startup_error
+    _startup_error = None
+
+
+def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, auto_open_browser: bool = True) -> None:
     """
     Start the LEAF NiceGUI web interface.
 
@@ -29,24 +50,25 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Optional[Path] = None) 
     Args:
         port: Port number to run the web server on (default: 8080)
         config_path: Path to the configuration file (if None, will auto-detect)
+        auto_open_browser: Whether to automatically open browser (default: True)
     """
     # Load markdown content and CSS from files
     curr_dir = Path(os.path.dirname(os.path.realpath(__file__)))
     markdown_dir = curr_dir / "markdown"
 
-    with open(markdown_dir / "configuration_help.md", 'r') as f:
-        config_help_md = f.read()
+    with open(markdown_dir / "configuration_help.md") as f:
+        _config_help_md = f.read()  # noqa: F841
 
-    with open(markdown_dir / "documentation_main.md", 'r') as f:
+    with open(markdown_dir / "documentation_main.md") as f:
         docs_main_md = f.read()
 
-    with open(markdown_dir / "documentation_protips.md", 'r') as f:
+    with open(markdown_dir / "documentation_protips.md") as f:
         docs_protips_md = f.read()
 
-    with open(curr_dir / "styles.css", 'r') as f:
+    with open(curr_dir / "styles.css") as f:
         custom_css = f.read()
 
-    with open(curr_dir / "scripts.js", 'r') as f:
+    with open(curr_dir / "scripts.js") as f:
         custom_js = f.read()
 
     # Load the actual LEAF icon from images/icon.svg
@@ -54,7 +76,7 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Optional[Path] = None) 
     favicon_b64 = "PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTggMTZDOCAxNiAxNiA8IDE2IDhDMTYgOCAyNCAxNiAyNCAxNkMyNCAxNiAxNiAyNCAxNiAyNEMxNiAyNCA4IDE2IDggMTZaIiBmaWxsPSIjNDA5NkZGIiBzdHJva2U9IiMyNTYzRUIiIHN0cm9rZS13aWR0aD0iMiIvPgo8L3N2Zz4K"
 
     if os.path.exists(svg_path):
-        with open(svg_path, 'r') as svg_file:
+        with open(svg_path) as svg_file:
             svg = svg_file.read()
             favicon_b64 = base64.b64encode(svg.encode("utf-8")).decode("utf-8")
 
@@ -68,9 +90,10 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Optional[Path] = None) 
         logger.error(f"Error discovering adapter UI extensions: {e}", exc_info=True)
 
     # Define the main page
-    @ui.page('/')
+    @ui.page("/")
     def index():
         import time
+
         start_time = time.time()
 
         try:
@@ -79,17 +102,17 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Optional[Path] = None) 
 
             # Log client connection
             try:
-                client_ip = ui_context.client.ip if ui_context.client else 'unknown'
+                client_ip = ui_context.client.ip if ui_context.client else "unknown"
                 logger.info(f"Client connected from {client_ip}")
             except Exception as e:
                 logger.info(f"Client connected (could not get IP: {e})")
 
-            logger.info(f"[PERF] Client connection logged: {time.time() - start_time:.3f}s")
+            logger.debug(f"[PERF] Client connection logged: {time.time() - start_time:.3f}s")
 
             # Clean up on disconnect
             def on_disconnect():
                 try:
-                    logger.info(f"Client disconnected")
+                    logger.debug("Client disconnected")
                 except Exception:
                     pass
 
@@ -99,7 +122,7 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Optional[Path] = None) 
                 pass
 
             # Add custom CSS, JS, and LEAF favicon - set title here
-            ui.add_head_html(f'''
+            ui.add_head_html(f"""
                 <title>LEAF - Laboratory Equipment Adapter Framework</title>
                 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{favicon_b64}">
                 <style>
@@ -108,94 +131,115 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Optional[Path] = None) 
                 <script>
                     {custom_js}
                 </script>
-            ''')
+            """)
 
             # Dark mode toggle
             dark = ui.dark_mode()
 
             # Create header
-            logger.info(f"[PERF] Creating header: {time.time() - start_time:.3f}s")
+            logger.debug(f"[PERF] Creating header: {time.time() - start_time:.3f}s")
             create_header(dark, curr_dir)
-            logger.info(f"[PERF] Header created: {time.time() - start_time:.3f}s")
+            logger.debug(f"[PERF] Header created: {time.time() - start_time:.3f}s")
+
+            # Show startup error banner if there's an error
+            startup_error = get_startup_error()
+            if startup_error:
+                with ui.card().classes("w-full bg-red-100 border-2 border-red-500 mb-4"):
+                    with ui.card_section().classes("w-full"):
+                        with ui.row().classes("items-center gap-4 w-full"):
+                            ui.icon("error", color="red", size="2rem")
+                            with ui.column().classes("flex-1"):
+                                ui.label("Configuration Error").classes("text-xl font-bold text-red-700")
+                                ui.label(startup_error).classes("text-red-600")
+                                ui.label(
+                                    "LEAF is running in UI-only mode. Please fix the configuration and restart."
+                                ).classes("text-sm text-red-500 mt-2")
 
             # Enhanced tabs with icons
-            with ui.tabs().classes('w-full leaf-tabs-container border-b').style('background: inherit;') as tabs:
-                config_tab: ui.tab = ui.tab('Configuration', icon='settings').classes(TAB_CLASSES)
-                logs_tab = ui.tab('Logs', icon='article').classes(TAB_CLASSES)
-                docs_tab = ui.tab('Documentation', icon='help').classes(TAB_CLASSES)
-                adapters_tab = ui.tab('Adapters', icon='extension').classes(TAB_CLASSES)
+            with ui.tabs().classes("w-full leaf-tabs-container border-b").style("background: inherit;") as tabs:
+                config_tab: ui.tab = ui.tab("Configuration", icon="settings").classes(TAB_CLASSES)
+                logs_tab = ui.tab("Logs", icon="article").classes(TAB_CLASSES)
+                docs_tab = ui.tab("Documentation", icon="help").classes(TAB_CLASSES)
+                monitor_tab = ui.tab("Monitoring", icon="monitor").classes(TAB_CLASSES)
+                adapters_tab = ui.tab("Adapters", icon="extension").classes(TAB_CLASSES)
 
                 # Dynamically create tabs for adapter UI extensions
                 adapter_tabs = []
                 for ext in adapter_ui_extensions:
-                    ui_config = ext['ui_config']
-                    tab = ui.tab(
-                        ui_config['tab_name'],
-                        icon=ui_config.get('tab_icon', 'extension')
-                    ).classes(TAB_CLASSES)
+                    ui_config = ext["ui_config"]
+                    tab = ui.tab(ui_config["tab_name"], icon=ui_config.get("tab_icon", "extension")).classes(
+                        TAB_CLASSES
+                    )
                     adapter_tabs.append((tab, ext))
                     logger.debug(f"Created tab for adapter: {ext['adapter_code']}")
 
             # Attach event handler to logs tab to scroll to bottom
-            logs_tab.on('click', lambda: ui.run_javascript('scrollLogToBottom()'))
+            logs_tab.on("click", lambda: ui.run_javascript("scrollLogToBottom()"))
 
-            logger.info(f"[PERF] Tabs structure created: {time.time() - start_time:.3f}s")
+            logger.debug(f"[PERF] Tabs structure created: {time.time() - start_time:.3f}s")
 
-            with ui.tab_panels(tabs, value=logs_tab).classes('w-full'):
+            with ui.tab_panels(tabs, value=logs_tab).classes("w-full"):
                 # Create all built-in tab panels
-                logger.info(f"[PERF] Creating configuration tab: {time.time() - start_time:.3f}s")
+                logger.debug(f"[PERF] Creating configuration tab: {time.time() - start_time:.3f}s")
                 create_configuration_tab(config_tab, config_path)
-                logger.info(f"[PERF] Configuration tab done: {time.time() - start_time:.3f}s")
+                logger.debug(f"[PERF] Configuration tab done: {time.time() - start_time:.3f}s")
 
-                logger.info(f"[PERF] Creating logs tab: {time.time() - start_time:.3f}s")
+                logger.debug(f"[PERF] Creating logs tab: {time.time() - start_time:.3f}s")
                 create_logs_tab(logs_tab)
-                logger.info(f"[PERF] Logs tab done: {time.time() - start_time:.3f}s")
+                logger.debug(f"[PERF] Logs tab done: {time.time() - start_time:.3f}s")
 
-                logger.info(f"[PERF] Creating adapters tab: {time.time() - start_time:.3f}s")
+                logger.debug(f"[PERF] Creating adapters tab: {time.time() - start_time:.3f}s")
                 create_adapters_tab(adapters_tab)
-                logger.info(f"[PERF] Adapters tab done: {time.time() - start_time:.3f}s")
+                logger.debug(f"[PERF] Adapters tab done: {time.time() - start_time:.3f}s")
 
-                logger.info(f"[PERF] Creating documentation tab: {time.time() - start_time:.3f}s")
+                logger.debug(f"[PERF] Creating documentation tab: {time.time() - start_time:.3f}s")
                 create_documentation_tab(docs_tab, docs_main_md, docs_protips_md)
-                logger.info(f"[PERF] Documentation tab done: {time.time() - start_time:.3f}s")
+                logger.debug(f"[PERF] Documentation tab done: {time.time() - start_time:.3f}s")
+
+                logger.debug(f"[PERF] Creating monitoring tab: {time.time() - start_time:.3f}s")
+                create_monitoring_tab(monitor_tab=monitor_tab)
+                logger.debug(f"[PERF] Monitoring tab done: {time.time() - start_time:.3f}s")
 
                 # Dynamically create panels for adapter UI extensions
-                logger.info(f"[PERF] Creating {len(adapter_tabs)} adapter extension tabs: {time.time() - start_time:.3f}s")
+                logger.debug(
+                    f"[PERF] Creating {len(adapter_tabs)} adapter extension tabs: {time.time() - start_time:.3f}s"
+                )
+
                 for tab, ext in adapter_tabs:
                     try:
-                        ui_config = ext['ui_config']
-                        create_panel_func = ui_config['create_panel']
+                        ui_config = ext["ui_config"]
+                        create_panel_func = ui_config["create_panel"]
                         create_panel_func(tab)
                         logger.debug(f"Created panel for adapter: {ext['adapter_code']}")
                     except Exception as e:
                         logger.error(f"Error creating UI panel for adapter {ext['adapter_code']}: {e}")
                         # Create a fallback error panel
                         with ui.tab_panel(tab):
-                            ui.label(f"Error loading {ext['adapter_name']} UI").classes('text-red-600')
-                logger.info(f"[PERF] Adapter extension tabs done: {time.time() - start_time:.3f}s")
+                            ui.label(f"Error loading {ext['adapter_name']} UI").classes("text-red-600")
+                logger.debug(f"[PERF] Adapter extension tabs done: {time.time() - start_time:.3f}s")
 
-            logger.info(f"[PERF] LEAF UI page built successfully in {time.time() - start_time:.3f}s")
+            logger.debug(f"[PERF] LEAF UI page built successfully in {time.time() - start_time:.3f}s")
 
         except Exception as e:
             logger.error(f"CRITICAL: UI page handler crashed: {e}", exc_info=True)
             # Try to show error to user
             try:
-                ui.label(f"Error building LEAF UI: {e}").classes('text-red-600 text-xl p-8')
-                ui.label("Check logs for details. Try refreshing the page.").classes('text-body p-4')
-            except:
+                ui.label(f"Error building LEAF UI: {e}").classes("text-red-600 text-xl p-8")
+                ui.label("Check logs for details. Try refreshing the page.").classes("text-body p-4")
+            except Exception:
                 pass
             raise
 
-    logger.info(f"Starting NiceGUI web interface on port {port}...")
+    logger.info(f"Starting web interface on port {port}...")
     logger.info(f"Access the LEAF UI at http://localhost:{port}")
 
     try:
         ui.run(
             reload=False,
             port=port,
-            show=True,
+            show=auto_open_browser,
             title="LEAF - Laboratory Equipment Adapter Framework",
-            reconnect_timeout=10.0  # Give clients 10 seconds to reconnect
+            reconnect_timeout=10.0,  # Give clients 10 seconds to reconnect
         )
         logger.info("NiceGUI web interface stopped normally.")
     except KeyboardInterrupt:

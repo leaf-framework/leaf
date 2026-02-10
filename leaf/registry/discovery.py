@@ -1,17 +1,15 @@
-import logging
-import os
 import importlib.util
 import json
 import os
 from importlib.metadata import entry_points
-from typing import Optional, Type, Any, List
+from typing import Any
 
-from leaf.utility.logger.logger_utils import get_logger
 from leaf.adapters.equipment_adapter import EquipmentAdapter
 from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.registry.loader import load_class_from_file
 from leaf.registry.utils import ADAPTER_ID_KEY
+from leaf.utility.logger.logger_utils import get_logger
 
 # Base directories for discovery
 root_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..")
@@ -24,6 +22,7 @@ output_module_dir = os.path.join(root_dir, "modules", "output_modules")
 input_module_dir = os.path.join(root_dir, "modules", "input_modules")
 
 logger = get_logger(__name__, log_file="discovery.log")
+
 
 def discover_entry_point_equipment(
     needed_codes: set[str] = None,
@@ -55,19 +54,19 @@ def discover_entry_point_equipment(
                     # Switch to using device.yaml
                     device_path = device_yaml_path
 
-            with open(device_path, "r") as f:
+            with open(device_path) as f:
                 if device_path.endswith(".yaml"):
                     import yaml
+
                     device_info = yaml.safe_load(f)
                 else:
                     import json
+
                     device_info = json.load(f)
 
                 adapter_id: str = device_info.get("adapter_id")
 
-                if needed_codes is not None and (
-                    not adapter_id or adapter_id.lower() not in needed_codes
-                ):
+                if needed_codes is not None and (not adapter_id or adapter_id.lower() not in needed_codes):
                     continue
 
                 cls = entry_point.load()
@@ -82,12 +81,12 @@ def discover_entry_point_equipment(
 
 def discover_local_equipment(
     needed_codes: set[str],
-    base_dirs: Optional[list[str]] = None,
-) -> list[tuple[str, Type[EquipmentAdapter], str]]:
+    base_dirs: list[str] | None = None,
+) -> list[tuple[str, type[EquipmentAdapter], str]]:
     """
     Discover and load only the required equipment adapters from local paths.
     """
-    discovered: list[tuple[str, Type[EquipmentAdapter], str]] = []
+    discovered: list[tuple[str, type[EquipmentAdapter], str]] = []
     search_dirs = list(set((base_dirs or []) + default_equipment_locations))
 
     for base in search_dirs:
@@ -100,13 +99,13 @@ def discover_local_equipment(
                 py_fp = os.path.join(root, "adapter.py")
 
                 try:
-                    with open(json_fp, "r") as f:
+                    with open(json_fp) as f:
                         data = json.load(f)
                         code = data.get(ADAPTER_ID_KEY)
 
                     if code and code.lower() in needed_codes:
                         cls = load_class_from_file(py_fp, base_class=EquipmentAdapter)
-                        discovered.append((code, cls, 'local'))
+                        discovered.append((code, cls, "local"))
 
                 except Exception:
                     continue
@@ -116,11 +115,11 @@ def discover_local_equipment(
 
 def discover_output_modules(
     needed_codes: set[str],
-) -> list[tuple[str, Type[OutputModule]]]:
+) -> list[tuple[str, type[OutputModule]]]:
     """
     Discover only the required output modules in the output module directory.
     """
-    discovered: list[tuple[str, Type[OutputModule]]] = []
+    discovered: list[tuple[str, type[OutputModule]]] = []
 
     if not os.path.exists(output_module_dir):
         return discovered
@@ -143,11 +142,11 @@ def discover_output_modules(
 
 def discover_external_inputs(
     needed_codes: set[str],
-) -> list[tuple[str, Type[ExternalEventWatcher]]]:
+) -> list[tuple[str, type[ExternalEventWatcher]]]:
     """
     Discover only the required external input modules in the input module directory.
     """
-    discovered: list[tuple[str, Type[ExternalEventWatcher]]] = []
+    discovered: list[tuple[str, type[ExternalEventWatcher]]] = []
 
     if not os.path.exists(input_module_dir):
         return discovered
@@ -177,12 +176,12 @@ def get_all_adapter_codes() -> list[dict[str, str]]:
     equipment: list[dict[str, str]] = []
     for code, cls, entry_point in available_equipment:
         module = {
-            'code': code,
-            'label': code,
-            'name': entry_point.name,
-            'class': cls,
-            'group': entry_point.group,
-            'module': entry_point.module
+            "code": code,
+            "label": code,
+            "name": entry_point.name,
+            "class": cls,
+            "group": entry_point.group,
+            "module": entry_point.module,
         }
 
         # Group, module, name
@@ -190,7 +189,7 @@ def get_all_adapter_codes() -> list[dict[str, str]]:
         equipment.append(module)
 
     # equipment_codes = [code for code, _, _ in available_equipment]
-    return equipment # equipment_codes
+    return equipment  # equipment_codes
 
 
 def discover_adapter_ui_extensions() -> list[dict[str, Any]]:
@@ -209,18 +208,16 @@ def discover_adapter_ui_extensions() -> list[dict[str, Any]]:
     adapters = get_all_adapter_codes()
 
     for adapter_info in adapters:
-        adapter_class = adapter_info.get('class')
+        adapter_class = adapter_info.get("class")
         if adapter_class:
             ui_config = get_ui_extension(adapter_class)
             if ui_config:
-                ui_extensions.append({
-                    'adapter_code': adapter_info['code'],
-                    'adapter_name': adapter_info['name'],
-                    'ui_config': ui_config
-                })
+                ui_extensions.append(
+                    {"adapter_code": adapter_info["code"], "adapter_name": adapter_info["name"], "ui_config": ui_config}
+                )
 
     # Sort by order field
-    ui_extensions.sort(key=lambda x: x['ui_config'].get('order', 1000))
+    ui_extensions.sort(key=lambda x: x["ui_config"].get("order", 1000))
 
     return ui_extensions
 
@@ -240,7 +237,8 @@ def refresh_adapter_discovery() -> tuple[list[dict[str, str]], list[dict[str, An
         # In Python 3.10+, entry_points returns an EntryPoints object that doesn't cache
         # But we'll trigger a fresh import to ensure we get the latest
         import importlib.metadata
-        if hasattr(importlib.metadata, '_cache'):
+
+        if hasattr(importlib.metadata, "_cache"):
             importlib.metadata._cache.clear()
     except Exception as e:
         logger.debug(f"Could not clear importlib.metadata cache: {e}")

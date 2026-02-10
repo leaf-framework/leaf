@@ -1,28 +1,30 @@
 import os
 import sys
+import tempfile
 import time
 import unittest
-from threading import Thread
-import tempfile
-import yaml
 import uuid
+from threading import Thread
+
+import yaml
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf.modules.output_modules.mqtt import MQTT
-from leaf.modules.input_modules.file_watcher import FileWatcher
+from leaf_register.metadata import MetadataManager
+
 from leaf.adapters.core_adapters.continuous_experiment_adapter import ContinuousExperimentAdapter
 from leaf.adapters.equipment_adapter import AbstractInterpreter
-from leaf_register.metadata import MetadataManager
-from tests.mock_mqtt_client import MockBioreactorClient
 from leaf.error_handler.error_holder import ErrorHolder
+from leaf.modules.input_modules.file_watcher import FileWatcher
+from leaf.modules.output_modules.mqtt import MQTT
+from tests.mock_mqtt_client import MockBioreactorClient
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(curr_dir, "..", "test_config.yaml")
 
-with open(config_path, "r") as file:
+with open(config_path) as file:
     config = yaml.safe_load(file)
 
 broker = config["OUTPUTS"][0]["broker"]
@@ -57,12 +59,11 @@ class MockBioreactorInterpreter(AbstractInterpreter):
 
 
 class MockEquipmentAdapter(ContinuousExperimentAdapter):
-    def __init__(self, instance_data,equipment_data, fp,
-                 experiment_timeout=None):
+    def __init__(self, instance_data, equipment_data, fp, experiment_timeout=None):
         metadata_manager = MetadataManager()
         directory = os.path.dirname(fp)
         filename = os.path.basename(fp)
-        watcher = FileWatcher(directory, metadata_manager,filenames=filename)
+        watcher = FileWatcher(directory, metadata_manager, filenames=filename)
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
         error_holder = ErrorHolder()
         metadata_manager.add_instance_data(instance_data)
@@ -73,26 +74,22 @@ class MockEquipmentAdapter(ContinuousExperimentAdapter):
             MockBioreactorInterpreter(),
             metadata_manager=metadata_manager,
             error_holder=error_holder,
-            experiment_timeout=experiment_timeout)
+            experiment_timeout=experiment_timeout,
+        )
 
 
 class TestEquipmentAdapter(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
 
-    def tearDown(self):
-        self._adapter.stop()
-        self.temp_dir.cleanup()
-        self.mock_client.reset_messages()
-
-    def initialize_experiment(self,**kwargs):
+    def initialize_experiment(self, **kwargs):
         """
         Helper function to initialize a unique MockEquipmentAdapter
         instance with unique file paths and instance data.
         """
 
         unique_instance_id = str(uuid.uuid4())
-        unique_institute = "TestInstitute_" #+ unique_instance_id[:8]
+        unique_institute = "TestInstitute_"  # + unique_instance_id[:8]
 
         unique_file_name = f"TestBioreactor_{unique_instance_id}.txt"
         self.text_watch_file = os.path.join(self.temp_dir.name, unique_file_name)
@@ -101,11 +98,10 @@ class TestEquipmentAdapter(unittest.TestCase):
             "instance_id": unique_instance_id,
             "institute": unique_institute,
         }
-        equipment_data = {"adapter_id" : "TestBioreactor_transmit_" + unique_instance_id}
+        equipment_data = {"adapter_id": "TestBioreactor_transmit_" + unique_instance_id}
         self.mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
 
-        self._adapter = MockEquipmentAdapter(instance_data,equipment_data,
-                                              self.text_watch_file,**kwargs)
+        self._adapter = MockEquipmentAdapter(instance_data, equipment_data, self.text_watch_file, **kwargs)
 
         self.details_topic = self._adapter._metadata_manager.details()
         self.start_topic = self._adapter._metadata_manager.experiment.start()
@@ -121,15 +117,22 @@ class TestEquipmentAdapter(unittest.TestCase):
         time.sleep(0.1)
         self.mock_client.subscribe(self.details_topic)
         time.sleep(2)
-    
-    
+
     def tearDown(self):
         try:
             self._adapter.stop()
         except Exception:
             pass
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
+        try:
+            self.mock_client.reset_messages()
+        except Exception:
+            pass
 
-    def wait_for_adapter_start(self,adapter):
+    def wait_for_adapter_start(self, adapter):
         timeout = 30
         cur_count = 0
         while not adapter.is_running():
@@ -147,7 +150,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         mthread.join()
         time.sleep(2)
         self.assertIn(self.details_topic, self.mock_client.messages)
-        self.assertEqual(len(self.mock_client.messages[self.details_topic]),1)
+        self.assertEqual(len(self.mock_client.messages[self.details_topic]), 1)
 
     def test_running(self):
         self.initialize_experiment()
@@ -160,15 +163,13 @@ class TestEquipmentAdapter(unittest.TestCase):
         self._adapter.stop()
         mthread.join()
 
-
     def test_error_phase(self):
         self.initialize_experiment()
-        text_watch_file = os.path.join(self._adapter._watcher._paths[0],
-                                       self._adapter._watcher._filenames[0])
+        text_watch_file = os.path.join(self._adapter._watcher._paths[0], self._adapter._watcher._filenames[0])
         if os.path.isfile(text_watch_file):
             os.remove(text_watch_file)
         time.sleep(1)
-        
+
         topic = self._adapter._metadata_manager.error
         self.mock_client.subscribe(topic())
         mthread = Thread(target=self._adapter.start)
@@ -176,22 +177,22 @@ class TestEquipmentAdapter(unittest.TestCase):
         self.wait_for_adapter_start(self._adapter)
 
         data = "Mock error string"
-        self._adapter._processes[1].process_input(topic,data)
+        self._adapter._processes[1].process_input(topic, data)
 
         timeout = 10
         cur_count = 0
         while topic() not in self.mock_client.messages:
             time.sleep(1)
-            cur_count +=1
+            cur_count += 1
             if cur_count > timeout:
                 self.fail("Message not recieved.")
         self._adapter.stop()
         mthread.join()
         self.assertIn(topic(), self.mock_client.messages)
         incoming_error = self.mock_client.messages[topic()]
-        self.assertEqual(incoming_error[0]["type"],"HardwareStalledError")
-        self.assertEqual(incoming_error[0]["severity"],"SeverityLevel.WARNING")
-        self.assertIn(data,incoming_error[0]["message"])
+        self.assertEqual(incoming_error[0]["type"], "HardwareStalledError")
+        self.assertEqual(incoming_error[0]["severity"], "SeverityLevel.WARNING")
+        self.assertIn(data, incoming_error[0]["message"])
 
 
 if __name__ == "__main__":

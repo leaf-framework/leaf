@@ -1,21 +1,17 @@
+import inspect
 import threading
 import time
-import logging
-import inspect
-from typing import Any, Optional
+from typing import Any
 
-from leaf.utility.logger.logger_utils import get_logger
 from leaf_register.topic_utilities import topic_utilities
+
+from leaf.adapters.equipment_adapter import EquipmentAdapter
+from leaf.error_handler.error_holder import ErrorHolder
+from leaf.error_handler.exceptions import AdapterBuildError
 from leaf.modules.output_modules.mqtt import MQTT
 from leaf.modules.output_modules.output_module import OutputModule
-from leaf.error_handler.exceptions import AdapterBuildError
-from leaf.error_handler.error_holder import ErrorHolder
-from leaf.adapters.equipment_adapter import EquipmentAdapter
-from leaf.registry.registry import (
-    get_equipment_adapter,
-    get_output_adapter,
-    get_external_input
-)
+from leaf.registry.registry import get_equipment_adapter, get_external_input, get_output_adapter
+from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="global.log", error_log_file="global_error.log")
 
@@ -36,8 +32,7 @@ def handle_disabled_modules(output: OutputModule, timeout: float) -> None:
                 output.disable()
                 return
         output.enable()
-        thread = threading.Thread(target=output_messages,
-                                  args=(output,), daemon=True)
+        thread = threading.Thread(target=output_messages, args=(output,), daemon=True)
         thread.start()
 
 
@@ -47,8 +42,7 @@ def output_messages(output_module: OutputModule) -> None:
         output_module.transmit(topic, message)
 
 
-def get_existing_ids(output_module: OutputModule,
-                     time_to_sleep: float = 5.0) -> list[str]:
+def get_existing_ids(output_module: OutputModule, time_to_sleep: float = 5.0) -> list[str]:
     """Returns instance IDs of equipment already present in the system."""
     if not isinstance(output_module, MQTT):
         return []
@@ -66,50 +60,72 @@ def get_existing_ids(output_module: OutputModule,
     return ids
 
 
-def build_output_module(config: dict[str, Any],
-                        error_holder: ErrorHolder) -> Optional[OutputModule]:
+def build_output_module(config: dict[str, Any], error_holder: ErrorHolder) -> OutputModule | None:
     """Finds, initializes, and connects all output adapters defined in config."""
     outputs = config["OUTPUTS"]
     output_objects = {}
     fallback_codes = set()
+    parallel_codes = set()  # All codes used as parallels (to exclude from primary)
+    logger.debug("Building output module")
 
     for out_data in outputs:
+        logger.debug(f"Building output module for {out_data}")
         output_code = out_data.pop("plugin")
+        logger.debug(f"Building output module for {output_code}")
         fallback_code = out_data.pop("fallback", None)
+        parallel = out_data.pop("parallel", None)
+
+        # Normalize parallel to list
+        if parallel is None:
+            parallel_list = []
+        elif isinstance(parallel, str):
+            parallel_list = [parallel]
+        else:
+            parallel_list = list(parallel)
+
+        parallel_codes.update(parallel_list)
         if fallback_code:
             fallback_codes.add(fallback_code)
+
         output_objects[output_code] = {
             "data": out_data,
             "fallback_code": fallback_code,
-            "output": None
+            "parallel_codes": parallel_list,
+            "output": None,
         }
 
+    # Build all output module instances
     for code, out_data in output_objects.items():
         try:
             adapter_cls = get_output_adapter(code)
-            output_objects[code]["output"] = adapter_cls(
-                fallback=None, error_holder=error_holder,
-                **out_data["data"]
-            )
+            output_objects[code]["output"] = adapter_cls(fallback=None, error_holder=error_holder, **out_data["data"])
         except TypeError as ex:
             raise AdapterBuildError(f"Code '{code}' missing parameters ({ex.args})")
 
+    # Wire up fallbacks
     for code, out_data in output_objects.items():
         if out_data["fallback_code"]:
             fallback_code = out_data["fallback_code"]
             if fallback_code not in output_objects:
-                raise AdapterBuildError(f"Can't find output: {fallback_code}")
+                raise AdapterBuildError(f"Can't find fallback output: {fallback_code}")
             output_objects[code]["output"].set_fallback(output_objects[fallback_code]["output"])
 
+    # Wire up parallels
+    for code, out_data in output_objects.items():
+        for parallel_code in out_data["parallel_codes"]:
+            if parallel_code not in output_objects:
+                raise AdapterBuildError(f"Can't find parallel output: {parallel_code}")
+            output_objects[code]["output"].add_parallel(output_objects[parallel_code]["output"])
+
+    # Return the first output that is not a fallback or parallel (the primary)
     for code in sorted(output_objects):
-        if code not in fallback_codes:
+        if code not in fallback_codes and code not in parallel_codes:
             return output_objects[code]["output"]
 
     return None
 
 
-def process_instance(instance: dict[str, Any],
-                     output: OutputModule) -> EquipmentAdapter:
+def process_instance(instance: dict[str, Any], output: OutputModule) -> EquipmentAdapter:
     """Initializes and validates an equipment adapter from config data."""
     equipment_code = instance.pop("adapter")
     instance_data = instance.pop("data")
@@ -141,7 +157,8 @@ def process_instance(instance: dict[str, Any],
     fixed_params = {"instance_data", "output", "error_holder"}
 
     required_params = {
-        name for name, param in adapter_params.items()
+        name
+        for name, param in adapter_params.items()
         if name not in fixed_params and param.default == inspect.Parameter.empty
     }
 
@@ -173,7 +190,7 @@ def process_instance(instance: dict[str, Any],
             error_holder=error_holder,
             external_watcher=external_watcher,
             **requirements,
-            **instance
+            **instance,
         )
     except ValueError as ex:
         raise AdapterBuildError(f"Error initializing {instance_id}: {ex}")
@@ -184,16 +201,13 @@ def start_all_adapters_in_threads(adapters: list[EquipmentAdapter]) -> list[thre
     threads: list[threading.Thread] = []
     for adapter in adapters:
         logger.info(f"Starting adapter: {adapter}")
-        thread = threading.Thread(target=adapter.start,
-                                  name=f"AdapterThread-{adapter}",
-                                  daemon=True)
+        thread = threading.Thread(target=adapter.start, name=f"AdapterThread-{adapter}", daemon=True)
         thread.start()
         threads.append(thread)
     return threads
 
 
-def run_simulation_in_thread(adapter: EquipmentAdapter,
-                             **kwargs: Any) -> threading.Thread:
+def run_simulation_in_thread(adapter: EquipmentAdapter, **kwargs: Any) -> threading.Thread:
     """Runs the adapter's simulate function in a separate daemon thread."""
     logger.info(f"Running simulation: {adapter}")
 
@@ -205,8 +219,6 @@ def run_simulation_in_thread(adapter: EquipmentAdapter,
         except Exception as e:
             logger.error(f"Simulation failed: {e}", exc_info=True)
 
-    thread = threading.Thread(target=simulation,
-                              name=f"SimThread-{adapter}",
-                              daemon=True)
+    thread = threading.Thread(target=simulation, name=f"SimThread-{adapter}", daemon=True)
     thread.start()
     return thread

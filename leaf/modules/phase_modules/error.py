@@ -1,9 +1,11 @@
-from typing import Optional, Any
+from typing import Any
 
-from leaf.modules.phase_modules.control import ControlPhase
 from leaf_register.metadata import MetadataManager
+
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import HardwareStalledError
+from leaf.modules.phase_modules.control import ControlPhase
+
 
 class ErrorPhase(ControlPhase):
     """
@@ -14,7 +16,7 @@ class ErrorPhase(ControlPhase):
     def __init__(
         self,
         metadata_manager: MetadataManager,
-        error_holder: Optional[ErrorHolder] = None,
+        error_holder: ErrorHolder | None = None,
     ) -> None:
         """
         Initialize the ErrorPhase with metadata manager and error holder.
@@ -24,21 +26,18 @@ class ErrorPhase(ControlPhase):
             error_holder (Optional[ErrorHolder]): Optional, an error holder to manage phase errors.
         """
         term_builder = metadata_manager.error
-        super().__init__(
-            term_builder, metadata_manager=metadata_manager, 
-            error_holder=error_holder
-        )
+        super().__init__(term_builder, metadata_manager=metadata_manager, error_holder=error_holder)
 
     def update(self, data: Any) -> list:
         """
-        Update the ErrorPhase by either adding an error to the holder if 
+        Update the ErrorPhase by either adding an error to the holder if
         its provided else outputting the message normally.
 
         Args:
             data (Any): Data to be transmitted.
 
         Returns:
-            list: A list of tuples containing the action 
+            list: A list of tuples containing the action
             terms and data or None if the error holder is present.
         """
         error = HardwareStalledError(data)

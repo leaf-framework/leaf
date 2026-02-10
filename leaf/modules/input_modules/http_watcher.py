@@ -1,19 +1,13 @@
-import logging
-import requests
-
-from typing import Optional
-from typing import Callable
-from typing import List
-from typing import Dict
+from collections.abc import Callable
 from typing import Any
 
-from requests import Response
-from requests import RequestException
-
+import requests
 from leaf_register.metadata import MetadataManager
+from requests import RequestException, Response
+
+from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.polling_watcher import PollingWatcher
 from leaf.utility.logger.logger_utils import get_logger
-from leaf.error_handler.error_holder import ErrorHolder
 
 logger = get_logger(__name__, log_file="input_module.log")
 
@@ -29,15 +23,15 @@ class URLState:
         Initialize URLState.
 
         Args:
-            url_type (str): Identifier for the 
+            url_type (str): Identifier for the
             type of URL being tracked.
         """
         self.url_type: str = url_type
-        self.etag: Optional[str] = None
-        self.last_modified: Optional[str] = None
-        self.previous_data: Optional[dict] = None
+        self.etag: str | None = None
+        self.last_modified: str | None = None
+        self.previous_data: dict | None = None
 
-    def update_from_response(self, response: Response) -> Optional[dict]:
+    def update_from_response(self, response: Response) -> dict | None:
         """
         Update tracking state if the response represents new data.
 
@@ -75,12 +69,12 @@ class HTTPWatcher(PollingWatcher):
         self,
         metadata_manager: MetadataManager,
         measurement_url: str,
-        start_url: Optional[str] = None,
-        stop_url: Optional[str] = None,
+        start_url: str | None = None,
+        stop_url: str | None = None,
         interval: int = 60,
-        headers: Optional[Dict[str, str]] = None,
-        callbacks: Optional[List[Callable[[str, Any], None]]] = None,
-        error_holder: Optional[ErrorHolder] = None
+        headers: dict[str, str] | None = None,
+        callbacks: list[Callable[[str, Any], None]] | None = None,
+        error_holder: ErrorHolder | None = None,
     ) -> None:
         """
         Initialize the HTTPWatcher.
@@ -96,20 +90,13 @@ class HTTPWatcher(PollingWatcher):
             error_holder (Optional[ErrorHolder]): Optional error management object.
         """
         super().__init__(
-            interval=interval,
-            metadata_manager=metadata_manager,
-            callbacks=callbacks,
-            error_holder=error_holder
+            interval=interval, metadata_manager=metadata_manager, callbacks=callbacks, error_holder=error_holder
         )
 
-        self._headers: Dict[str, str] = headers or {}
+        self._headers: dict[str, str] = headers or {}
 
-        self._urls: Dict[str, str] = {
-            "measurement": measurement_url
-        }
-        self._url_states: Dict[str, URLState] = {
-            "measurement": URLState("measurement")
-        }
+        self._urls: dict[str, str] = {"measurement": measurement_url}
+        self._url_states: dict[str, URLState] = {"measurement": URLState("measurement")}
 
         if start_url:
             self._urls["start"] = start_url
@@ -119,18 +106,14 @@ class HTTPWatcher(PollingWatcher):
             self._urls["stop"] = stop_url
             self._url_states["stop"] = URLState("stop")
 
-    def _fetch_data(self) -> Dict[str, Optional[dict]]:
+    def _fetch_data(self) -> dict[str, dict | None]:
         """
         Fetch data from all configured URLs and detect changes.
 
         Returns:
             Dict[str, Optional[dict]]: Dictionary with new data for each type.
         """
-        result: Dict[str, Optional[dict]] = {
-            "measurement": None,
-            "start": None,
-            "stop": None
-        }
+        result: dict[str, dict | None] = {"measurement": None, "start": None, "stop": None}
 
         for key, url in self._urls.items():
             state = self._url_states[key]

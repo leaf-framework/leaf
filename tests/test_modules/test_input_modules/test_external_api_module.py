@@ -1,14 +1,15 @@
-import unittest
-import sys
 import os
+import sys
+import unittest
 from unittest.mock import Mock
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf.modules.input_modules.external_api_watcher import ExternalApiWatcher
 from leaf_register.metadata import MetadataManager
+
+from leaf.modules.input_modules.external_api_watcher import ExternalApiWatcher
 
 
 class TestExternalApiWatcher(unittest.TestCase):
@@ -18,7 +19,8 @@ class TestExternalApiWatcher(unittest.TestCase):
         self.start_fetcher = Mock(return_value=None)
         self.stop_fetcher = Mock(return_value=None)
 
-        self.watcher = ExternalApiWatcher(self.metadata_manager,
+        self.watcher = ExternalApiWatcher(
+            self.metadata_manager,
             measurement_fetcher=self.measurement_fetcher,
             start_fetcher=self.start_fetcher,
             stop_fetcher=self.stop_fetcher,

@@ -10,16 +10,19 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf.modules.input_modules.opc_watcher import OPCWatcher
 from leaf_register.metadata import MetadataManager
+
+from leaf.modules.input_modules.opc_watcher import OPCWatcher
 
 # Import OPC UA library
 try:
     from opcua import Server
+
     OPCUA_AVAILABLE = True
 except ImportError:
     OPCUA_AVAILABLE = False
     Server = None
+
 
 # Check if OPC server is available
 def is_opc_server_available(host="127.0.0.1", port=4841, timeout=0.5):
@@ -32,6 +35,7 @@ def is_opc_server_available(host="127.0.0.1", port=4841, timeout=0.5):
         return result == 0
     except Exception:
         return False
+
 
 OPC_SERVER_AVAILABLE = is_opc_server_available()
 
@@ -72,18 +76,10 @@ class OPCDemoServer:
         demo_object = objects.add_object(self.idx, "DemoDevice")
 
         # Add variables with explicit string NodeIds
-        self.temperature_node = demo_object.add_variable(
-            ua.NodeId("Temperature", self.idx), "Temperature", 20.0
-        )
-        self.pressure_node = demo_object.add_variable(
-            ua.NodeId("Pressure", self.idx), "Pressure", 101.3
-        )
-        self.status_node = demo_object.add_variable(
-            ua.NodeId("Status", self.idx), "Status", "Running"
-        )
-        self.counter_node = demo_object.add_variable(
-            ua.NodeId("Counter", self.idx), "Counter", 0
-        )
+        self.temperature_node = demo_object.add_variable(ua.NodeId("Temperature", self.idx), "Temperature", 20.0)
+        self.pressure_node = demo_object.add_variable(ua.NodeId("Pressure", self.idx), "Pressure", 101.3)
+        self.status_node = demo_object.add_variable(ua.NodeId("Status", self.idx), "Status", "Running")
+        self.counter_node = demo_object.add_variable(ua.NodeId("Counter", self.idx), "Counter", 0)
 
         # Make variables writable
         self.temperature_node.set_writable()
@@ -120,6 +116,7 @@ class OPCDemoServer:
 
     def start_updating_values(self, interval=1):
         """Start continuously updating values in a background thread"""
+
         def update_loop():
             count = 0
             while self._running:
@@ -173,12 +170,7 @@ class TestOPCWatcher(unittest.TestCase):
         topics = {"Temperature"}
 
         watcher = OPCWatcher(
-            metadata_manager=metadata_manager,
-            host="127.0.0.1",
-            port=4841,
-            topics=topics,
-            exclude_topics=[],
-            interval=1
+            metadata_manager=metadata_manager, host="127.0.0.1", port=4841, topics=topics, exclude_topics=[], interval=1
         )
 
         watcher.start()
@@ -211,7 +203,7 @@ class TestOPCWatcher(unittest.TestCase):
             topics=topics,
             exclude_topics=[],
             interval=1,
-            callbacks=[callback]
+            callbacks=[callback],
         )
 
         watcher.start()
@@ -224,8 +216,7 @@ class TestOPCWatcher(unittest.TestCase):
         watcher.stop()
 
         # Should have received at least initial values
-        self.assertTrue(len(received_messages) > 0,
-                       f"Expected messages but got {len(received_messages)}")
+        self.assertTrue(len(received_messages) > 0, f"Expected messages but got {len(received_messages)}")
 
         # Verify message structure
         for topic, data in received_messages:
@@ -254,7 +245,7 @@ class TestOPCWatcher(unittest.TestCase):
             topics=topics,
             exclude_topics=[],
             interval=1,
-            callbacks=[callback]
+            callbacks=[callback],
         )
 
         watcher.start()
@@ -268,8 +259,7 @@ class TestOPCWatcher(unittest.TestCase):
         watcher.stop()
 
         # Should have received multiple updates (initial + 3 updates)
-        self.assertTrue(len(received_messages) >= 3,
-                       f"Expected at least 3 messages but got {len(received_messages)}")
+        self.assertTrue(len(received_messages) >= 3, f"Expected at least 3 messages but got {len(received_messages)}")
 
     def test_opc_watcher_exclude_topics(self):
         """Test that OPCWatcher excludes specified topics"""
@@ -293,7 +283,7 @@ class TestOPCWatcher(unittest.TestCase):
             topics=topics,
             exclude_topics=exclude_topics,
             interval=1,
-            callbacks=[callback]
+            callbacks=[callback],
         )
 
         watcher.start()
@@ -321,7 +311,7 @@ class TestOPCWatcher(unittest.TestCase):
             port=9999,  # Invalid port
             topics=topics,
             exclude_topics=[],
-            interval=1
+            interval=1,
         )
 
         # Should raise an exception when trying to connect
@@ -338,7 +328,7 @@ class TestOPCWatcher(unittest.TestCase):
             port=4841,
             topics=set(),  # Empty topics
             exclude_topics=[],
-            interval=1
+            interval=1,
         )
 
         # Should raise ValueError when no topics provided

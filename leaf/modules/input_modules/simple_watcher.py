@@ -1,12 +1,10 @@
-from typing import Optional
-from typing import Callable
-from typing import List
-from typing import Dict
+from collections.abc import Callable
 from typing import Any
 
 from leaf_register.metadata import MetadataManager
-from leaf.modules.input_modules.polling_watcher import PollingWatcher
+
 from leaf.error_handler.error_holder import ErrorHolder
+from leaf.modules.input_modules.polling_watcher import PollingWatcher
 
 
 class SimpleWatcher(PollingWatcher):
@@ -21,8 +19,8 @@ class SimpleWatcher(PollingWatcher):
         self,
         metadata_manager: MetadataManager,
         interval: int,
-        callbacks: Optional[List[Callable[[str, Any], None]]] = None,
-        error_holder: Optional[ErrorHolder] = None
+        callbacks: list[Callable[[str, Any], None]] | None = None,
+        error_holder: ErrorHolder | None = None,
     ) -> None:
         """
         Initialize the SimpleWatcher.
@@ -34,16 +32,13 @@ class SimpleWatcher(PollingWatcher):
             error_holder (Optional[ErrorHolder]): Optional error handling instance.
         """
         super().__init__(
-            interval=interval,
-            metadata_manager=metadata_manager,
-            callbacks=callbacks,
-            error_holder=error_holder
+            interval=interval, metadata_manager=metadata_manager, callbacks=callbacks, error_holder=error_holder
         )
 
         self._interval: int = interval
         self._metadata_manager: MetadataManager = metadata_manager
 
-    def _fetch_data(self) -> Dict[str, Optional[dict]]:
+    def _fetch_data(self) -> dict[str, dict | None]:
         """
         Trigger a measurement poll.
 
@@ -56,5 +51,5 @@ class SimpleWatcher(PollingWatcher):
         return {
             "measurement": {},  # Empty trigger - interpreter fetches real data
             "start": None,
-            "stop": None
+            "stop": None,
         }

@@ -1,29 +1,26 @@
-from typing import Optional, Any
-
-from leaf.modules.process_modules.continous_module import ContinousProcess
-from leaf.modules.process_modules.process_module import ProcessModule
-from leaf.modules.phase_modules.start import StartPhase
-from leaf.modules.phase_modules.stop import StopPhase
-from leaf.modules.phase_modules.measure import MeasurePhase
-from leaf.modules.phase_modules.error import ErrorPhase
-from leaf.modules.phase_modules.initialisation import InitialisationPhase
+from typing import Any
 
 from leaf_register.metadata import MetadataManager
-from leaf.error_handler.error_holder import ErrorHolder
 
+from leaf.adapters.equipment_adapter import AbstractInterpreter, EquipmentAdapter
+from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.event_watcher import EventWatcher
 from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
 from leaf.modules.output_modules.output_module import OutputModule
-
-from leaf.adapters.equipment_adapter import EquipmentAdapter
-from leaf.adapters.equipment_adapter import AbstractInterpreter
+from leaf.modules.phase_modules.error import ErrorPhase
+from leaf.modules.phase_modules.initialisation import InitialisationPhase
+from leaf.modules.phase_modules.measure import MeasurePhase
+from leaf.modules.phase_modules.start import StartPhase
+from leaf.modules.phase_modules.stop import StopPhase
+from leaf.modules.process_modules.continous_module import ContinousProcess
+from leaf.modules.process_modules.process_module import ProcessModule
 
 
 class ContinuousExperimentAdapter(EquipmentAdapter):
     """
-    Adapter that implements a continuous process workflow for equipment 
+    Adapter that implements a continuous process workflow for equipment
     without defined experiment start/stop boundaries.
-    
+
     It runs the measurement process continuously and wraps start/stop/details
     in a parallel control process.
     """
@@ -34,11 +31,11 @@ class ContinuousExperimentAdapter(EquipmentAdapter):
         watcher: EventWatcher,
         output: OutputModule,
         interpreter: AbstractInterpreter,
-        maximum_message_size: Optional[int] = 1,
-        error_holder: Optional[ErrorHolder] = None,
-        metadata_manager: Optional[MetadataManager] = None,
-        experiment_timeout: Optional[int] = None,
-        external_watcher: Optional[ExternalEventWatcher] = None,
+        maximum_message_size: int | None = 1,
+        error_holder: ErrorHolder | None = None,
+        metadata_manager: MetadataManager | None = None,
+        experiment_timeout: int | None = None,
+        external_watcher: ExternalEventWatcher | None = None,
     ):
         """
         Initialise the ContinuousExperimentAdapter.
@@ -63,17 +60,11 @@ class ContinuousExperimentAdapter(EquipmentAdapter):
 
         # Set up continuous and control processes
         measurement_process = ContinousProcess(
-            output,
-            measure_p,
-            metadata_manager=metadata_manager,
-            error_holder=error_holder
+            output, measure_p, metadata_manager=metadata_manager, error_holder=error_holder
         )
 
         self._control_process = ProcessModule(
-            output,
-            [start_p, stop_p, details_p, error_p],
-            metadata_manager=metadata_manager,
-            error_holder=error_holder
+            output, [start_p, stop_p, details_p, error_p], metadata_manager=metadata_manager, error_holder=error_holder
         )
 
         processes = [measurement_process, self._control_process]
@@ -87,7 +78,7 @@ class ContinuousExperimentAdapter(EquipmentAdapter):
             metadata_manager=metadata_manager,
             error_holder=error_holder,
             experiment_timeout=experiment_timeout,
-            external_watcher=external_watcher
+            external_watcher=external_watcher,
         )
 
     def start(self) -> None:

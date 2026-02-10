@@ -1,20 +1,17 @@
-from typing import Optional, Any
-
-from leaf.modules.process_modules.upload_module import UploadProcess
-from leaf.modules.phase_modules.start import StartPhase
-from leaf.modules.phase_modules.stop import StopPhase
-from leaf.modules.phase_modules.measure import MeasurePhase
-from leaf.modules.phase_modules.initialisation import InitialisationPhase
-
-from leaf.modules.input_modules.file_watcher import FileWatcher
-from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
-from leaf.modules.output_modules.output_module import OutputModule
+from typing import Any
 
 from leaf_register.metadata import MetadataManager
-from leaf.error_handler.error_holder import ErrorHolder
 
-from leaf.adapters.equipment_adapter import EquipmentAdapter
-from leaf.adapters.equipment_adapter import AbstractInterpreter
+from leaf.adapters.equipment_adapter import AbstractInterpreter, EquipmentAdapter
+from leaf.error_handler.error_holder import ErrorHolder
+from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
+from leaf.modules.input_modules.file_watcher import FileWatcher
+from leaf.modules.output_modules.output_module import OutputModule
+from leaf.modules.phase_modules.initialisation import InitialisationPhase
+from leaf.modules.phase_modules.measure import MeasurePhase
+from leaf.modules.phase_modules.start import StartPhase
+from leaf.modules.phase_modules.stop import StopPhase
+from leaf.modules.process_modules.upload_module import UploadProcess
 
 
 class UploadAdapter(EquipmentAdapter):
@@ -31,12 +28,12 @@ class UploadAdapter(EquipmentAdapter):
         instance_data: dict[str, Any],
         output: OutputModule,
         interpreter: AbstractInterpreter,
-        watch_dir: Optional[str] = None,
-        maximum_message_size: Optional[int] = 1,
-        error_holder: Optional[ErrorHolder] = None,
-        metadata_manager: Optional[MetadataManager] = None,
-        experiment_timeout: Optional[int] = None,
-        external_watcher: Optional[ExternalEventWatcher] = None,
+        watch_dir: str | None = None,
+        maximum_message_size: int | None = 1,
+        error_holder: ErrorHolder | None = None,
+        metadata_manager: MetadataManager | None = None,
+        experiment_timeout: int | None = None,
+        external_watcher: ExternalEventWatcher | None = None,
     ):
         """
         Initialise the UploadAdapter.
@@ -53,14 +50,12 @@ class UploadAdapter(EquipmentAdapter):
             external_watcher (Optional[ExternalEventWatcher]): Optional listener for external inputs.
         """
         # Input module: watches a local directory
-        watcher = FileWatcher(watch_dir, metadata_manager, 
-                              error_holder=error_holder)
+        watcher = FileWatcher(watch_dir, metadata_manager, error_holder=error_holder)
 
         # Initialize discrete phases
         start_p = StartPhase(metadata_manager)
         stop_p = StopPhase(metadata_manager)
-        measure_p = MeasurePhase(metadata_manager, 
-                                 maximum_message_size=maximum_message_size)
+        measure_p = MeasurePhase(metadata_manager, maximum_message_size=maximum_message_size)
         details_p = InitialisationPhase(metadata_manager)
 
         # Combine phases into a process

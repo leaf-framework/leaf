@@ -1,13 +1,12 @@
-import os
 import logging
+import os
 from collections import deque
-from typing import Deque, Optional
 
 log_dir = "logs"
 _global_log_level = logging.INFO
 
 # Shared log buffer for UI display (1000 most recent log messages)
-_log_buffer: Deque[str] = deque(maxlen=1000)
+_log_buffer: deque[str] = deque(maxlen=1000)
 _buffer_handler_attached = False
 
 
@@ -20,6 +19,7 @@ class BufferHandler(logging.Handler):
             _log_buffer.append(msg)
         except Exception:
             self.handleError(record)
+
 
 def _ensure_buffer_handler() -> None:
     """Ensure the buffer handler is attached to the root logger (called once)."""
@@ -36,10 +36,10 @@ def _ensure_buffer_handler() -> None:
         root_logger.addHandler(handler)
         _buffer_handler_attached = True
         # Use a LEAF logger for this message to avoid infinite recursion
-        logging.getLogger('leaf.utility.logger').info("Buffer handler attached to root logger")
+        logging.getLogger("leaf.utility.logger").info("Buffer handler attached to root logger")
 
 
-def get_log_buffer() -> Deque[str]:
+def get_log_buffer() -> deque[str]:
     """Get the shared log buffer containing recent log messages."""
     return _log_buffer
 
@@ -54,9 +54,10 @@ def set_global_log_level(level: int) -> None:
     global _global_log_level
     _global_log_level = level
 
-def get_logger(name: str, log_file: Optional[str] = None,
-               log_level: Optional[int] = None,
-               error_log_file: Optional[str] = None) -> logging.Logger:
+
+def get_logger(
+    name: str, log_file: str | None = None, log_level: int | None = None, error_log_file: str | None = None
+) -> logging.Logger:
     """
     Utility to get a configured logger with optional file logging and custom log level.
     Supports separate log files for different log levels.
@@ -84,7 +85,6 @@ def get_logger(name: str, log_file: Optional[str] = None,
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
-
 
     if log_file:
         os.makedirs(log_dir, exist_ok=True)

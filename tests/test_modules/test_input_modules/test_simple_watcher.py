@@ -1,13 +1,14 @@
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf.modules.input_modules.simple_watcher import SimpleWatcher
 from leaf_register.metadata import MetadataManager
+
+from leaf.modules.input_modules.simple_watcher import SimpleWatcher
 
 
 class TestSimpleWatcher(unittest.TestCase):
@@ -16,10 +17,7 @@ class TestSimpleWatcher(unittest.TestCase):
 
     def test_returns_measurement_trigger(self):
         """Test SimpleWatcher returns measurement trigger on each poll"""
-        watcher = SimpleWatcher(
-            metadata_manager=self.metadata_manager,
-            interval=1
-        )
+        watcher = SimpleWatcher(metadata_manager=self.metadata_manager, interval=1)
 
         # Poll multiple times - should always return measurement trigger
         for _ in range(5):
@@ -30,10 +28,7 @@ class TestSimpleWatcher(unittest.TestCase):
 
     def test_includes_start_stop_keys(self):
         """Test SimpleWatcher returns all required keys"""
-        watcher = SimpleWatcher(
-            metadata_manager=self.metadata_manager,
-            interval=1
-        )
+        watcher = SimpleWatcher(metadata_manager=self.metadata_manager, interval=1)
 
         result = watcher._fetch_data()
 
@@ -48,10 +43,7 @@ class TestSimpleWatcher(unittest.TestCase):
 
     def test_initial_state(self):
         """Test SimpleWatcher initializes with correct interval"""
-        watcher = SimpleWatcher(
-            metadata_manager=self.metadata_manager,
-            interval=5
-        )
+        watcher = SimpleWatcher(metadata_manager=self.metadata_manager, interval=5)
 
         self.assertEqual(watcher._interval, 5)
         self.assertIsNotNone(watcher._metadata_manager)

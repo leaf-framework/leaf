@@ -1,22 +1,24 @@
 import threading
 import traceback
-from typing import Optional, List, Tuple
+
 from leaf.error_handler.exceptions import LEAFError
+
+
 class ErrorHolder:
     """
-    A simplified error manager that stores errors once 
+    A simplified error manager that stores errors once
     and lets you retrieve (and clear) all of them at once.
     """
 
-    def __init__(self, adapter_id: Optional[str] = None):
+    def __init__(self, adapter_id: str | None = None):
         """
         Initialize the ErrorHolder instance.
-        
+
         Args:
-            adapter_id (Optional[str]): Optional identifier 
+            adapter_id (Optional[str]): Optional identifier
                                         for the adapter.
         """
-        self._errors: List[dict] = []
+        self._errors: list[dict] = []
         self.lock = threading.Lock()
         self._adapter_id = adapter_id
 
@@ -31,22 +33,18 @@ class ErrorHolder:
             raise TypeError("ErrorHolder only accepts LEAFError exceptions.")
         with self.lock:
             tb = traceback.format_exc()
-            error_entry = {
-                "error": exc,
-                "traceback": tb
-            }
+            error_entry = {"error": exc, "traceback": tb}
             self._errors.append(error_entry)
 
-    def get_unseen_errors(self) -> List[Tuple[LEAFError, str]]:
+    def get_unseen_errors(self) -> list[tuple[LEAFError, str]]:
         """
         Retrieve all stored errors and clear the list.
 
         Returns:
-            List[Tuple[Exception, str]]: 
+            List[Tuple[Exception, str]]:
                 A list of (exception, traceback) tuples.
         """
         with self.lock:
-            all_errors = [(err["error"], err["traceback"]) 
-                          for err in self._errors]
+            all_errors = [(err["error"], err["traceback"]) for err in self._errors]
             self._errors.clear()
             return all_errors

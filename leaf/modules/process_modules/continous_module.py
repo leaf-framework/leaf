@@ -1,11 +1,10 @@
-from typing import Optional
+from leaf_register.metadata import MetadataManager
 
-from leaf.modules.process_modules.process_module import ProcessModule
+from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterBuildError
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.modules.phase_modules.phase import PhaseModule
-from leaf_register.metadata import MetadataManager
-from leaf.error_handler.error_holder import ErrorHolder
+from leaf.modules.process_modules.process_module import ProcessModule
 
 
 class ContinousProcess(ProcessModule):
@@ -20,8 +19,8 @@ class ContinousProcess(ProcessModule):
         self,
         output: OutputModule,
         phase: PhaseModule,
-        metadata_manager: Optional[MetadataManager] = None,
-        error_holder: Optional[ErrorHolder] = None,
+        metadata_manager: MetadataManager | None = None,
+        error_holder: ErrorHolder | None = None,
     ):
         """
         Initialize the ContinousProcess with a single phase.

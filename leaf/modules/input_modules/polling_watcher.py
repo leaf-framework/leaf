@@ -1,18 +1,14 @@
-from abc import abstractmethod
 import threading
 import time
-import logging
-
-from typing import Optional
-from typing import Callable
-from typing import List
-from typing import Dict
+from abc import abstractmethod
+from collections.abc import Callable
 from typing import Any
 
-from leaf.utility.logger.logger_utils import get_logger
-from leaf.modules.input_modules.event_watcher import EventWatcher
 from leaf_register.metadata import MetadataManager
+
 from leaf.error_handler.error_holder import ErrorHolder
+from leaf.modules.input_modules.event_watcher import EventWatcher
+from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")
 
@@ -29,8 +25,8 @@ class PollingWatcher(EventWatcher):
         self,
         interval: int,
         metadata_manager: MetadataManager,
-        callbacks: Optional[List[Callable[[str, Any], None]]] = None,
-        error_holder: Optional[ErrorHolder] = None
+        callbacks: list[Callable[[str, Any], None]] | None = None,
+        error_holder: ErrorHolder | None = None,
     ) -> None:
         """
         Initialize the PollingWatcher.
@@ -41,16 +37,14 @@ class PollingWatcher(EventWatcher):
             callbacks (Optional[List[Callable]]): List of event callbacks.
             error_holder (Optional[ErrorHolder]): Central error tracker.
         """
-        super().__init__(metadata_manager, 
-                         callbacks=callbacks, 
-                         error_holder=error_holder)
+        super().__init__(metadata_manager, callbacks=callbacks, error_holder=error_holder)
 
         self._interval: int = interval
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._term_map = {
             self.start_message: metadata_manager.experiment.start,
             self.stop_message: metadata_manager.experiment.stop,
-            self.measurement_message: metadata_manager.experiment.measurement
+            self.measurement_message: metadata_manager.experiment.measurement,
         }
 
     def start_message(self, data: Any) -> None:
@@ -66,7 +60,7 @@ class PollingWatcher(EventWatcher):
         self._dispatch_callback(self._term_map[self.measurement_message], data)
 
     @abstractmethod
-    def _fetch_data(self) -> Dict[str, Optional[dict]]:
+    def _fetch_data(self) -> dict[str, dict | None]:
         """
         Abstract method that should be overridden to fetch
         polling data for 'start', 'stop', and 'measurement'.
@@ -103,8 +97,7 @@ class PollingWatcher(EventWatcher):
             return
 
         self._running = True
-        self._thread = threading.Thread(target=self._poll, 
-                                        daemon=True)
+        self._thread = threading.Thread(target=self._poll, daemon=True)
         self._thread.start()
 
         super().start()

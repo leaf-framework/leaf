@@ -1,16 +1,13 @@
 import importlib.util
 import inspect
-from typing import Optional, Type, Any
+from typing import Any
 
-from leaf.registry.utils import inheritance_depth
 from leaf.adapters.equipment_adapter import EquipmentAdapter
 from leaf.error_handler.exceptions import AdapterBuildError
+from leaf.registry.utils import inheritance_depth
 
 
-def load_class_from_file(
-    path: str, class_name: Optional[str] = None, 
-    base_class: Type = EquipmentAdapter
-) -> Type[Any]:
+def load_class_from_file(path: str, class_name: str | None = None, base_class: type = EquipmentAdapter) -> type[Any]:
     """
     Dynamically loads a class from a Python file.
 
@@ -43,9 +40,7 @@ def load_class_from_file(
             cls = getattr(module, class_name)
             if inspect.isclass(cls) and issubclass(cls, base_class):
                 return cls
-            raise AdapterBuildError(
-                f"'{class_name}' is not a subclass of {base_class.__name__}"
-            )
+            raise AdapterBuildError(f"'{class_name}' is not a subclass of {base_class.__name__}")
         raise AdapterBuildError(f"Class '{class_name}' not found in {path}")
 
     # No class_name given, so auto-detect the best subclass of base_class

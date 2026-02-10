@@ -1,19 +1,23 @@
 import json
 import os
-import random
 from typing import Any
-from typing import Optional
-from typing import Union
-from leaf.modules.output_modules.output_module import OutputModule
+
 from leaf.error_handler.error_holder import ErrorHolder
-from leaf.error_handler.exceptions import ClientUnreachableError
-from leaf.error_handler.exceptions import SeverityLevel
+from leaf.error_handler.exceptions import ClientUnreachableError, SeverityLevel
+from leaf.modules.output_modules.output_module import OutputModule
 
 
 class FILE(OutputModule):
-    def __init__(self, filename: str, fallback: Optional[OutputModule] = None, 
-                 error_holder: Optional[ErrorHolder] = None) -> None:
-        super().__init__(fallback=fallback, error_holder=error_holder)
+    def __init__(
+        self,
+        filename: str,
+        fallback: OutputModule | None = None,
+        error_holder: ErrorHolder | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(fallback=fallback, error_holder=error_holder, name=name)
+        if not self._name:
+            self._name = f"FILE({filename.replace('/', '_')})"
         self.filename = filename
 
     def _handle_file_error(self, error) -> None:
@@ -40,11 +44,9 @@ class FILE(OutputModule):
             message = f"Unexpected error in file '{self.filename}': {error}"
             severity = SeverityLevel.WARNING
 
-        self._handle_exception(ClientUnreachableError(message,
-                                                      output_module=self,
-                                                      severity=severity))
+        self._handle_exception(ClientUnreachableError(message, output_module=self, severity=severity))
 
-    def transmit(self, topic: str, data: Optional[Union[str, dict]] = None) -> bool:
+    def transmit(self, topic: str, data: str | dict | None = None) -> bool:
         """
         Transmit data to the file associated with a specific topic.
         Appends a single line with the topic and data in compact JSON format.
@@ -54,21 +56,24 @@ class FILE(OutputModule):
                 return True
 
             # Create a single-line JSON entry
-            line = json.dumps({topic: [data]}, separators=(',', ':'))
+            line = json.dumps({topic: [data]}, separators=(",", ":"))
 
             # Append to file (no reading required)
-            with open(self.filename, 'a') as f:
-                f.write(line + '\n')
+            with open(self.filename, "a") as f:
+                f.write(line + "\n")
 
             # Reset global failure counter on successful transmission
             OutputModule.reset_failure_count()
+            self.store_latest(topic, data)
+            # Transmit to parallel outputs (best-effort)
+            self.transmit_to_parallels(topic, data)
             return True
 
         except (TypeError, ValueError) as e:
             # Handle JSON serialization errors (non-serializable data)
             self._handle_file_error(e)
             return self.fallback(topic, data)
-        except (OSError, IOError) as e:
+        except OSError as e:
             # Handle file I/O errors
             self._handle_file_error(e)
             return self.fallback(topic, data)
@@ -83,7 +88,7 @@ class FILE(OutputModule):
                 return []
 
             results = []
-            with open(self.filename, 'r') as f:
+            with open(self.filename) as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -104,10 +109,10 @@ class FILE(OutputModule):
 
             return results if results else None
 
-        except (OSError, IOError) as e:
+        except OSError as e:
             self._handle_file_error(e)
             return None
-    
+
     def pop(self, key: str = None) -> tuple[str, Any] | None:
         """
         Retrieve and remove the first occurrence of a topic from the file.
@@ -132,7 +137,7 @@ class FILE(OutputModule):
             found_data = None
 
             # Read all lines and find the first matching one
-            with open(self.filename, 'r') as f:
+            with open(self.filename) as f:
                 for line in f:
                     line_content = line.strip()
                     if not line_content:
@@ -165,15 +170,15 @@ class FILE(OutputModule):
                 return None
 
             # Rewrite file without the removed line
-            with open(self.filename, 'w') as f:
+            with open(self.filename, "w") as f:
                 f.writelines(lines)
 
             return found_topic, found_data
 
-        except (OSError, IOError) as e:
+        except OSError as e:
             self._handle_file_error(e)
             return None
-    
+
     def is_connected(self) -> bool:
         """
         Check if the FILE module is always connected.
@@ -182,16 +187,15 @@ class FILE(OutputModule):
             bool: Always returns True.
         """
         return True
-    
+
     def connect(self) -> None:
         """
         Connect method for FILE module (no-op as files are always accessible).
         """
         pass
-        
+
     def disconnect(self) -> None:
         """
         Disconnect method for FILE module (no-op as files are always accessible).
         """
         pass
-

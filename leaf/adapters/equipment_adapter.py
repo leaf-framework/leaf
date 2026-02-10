@@ -2,20 +2,20 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from threading import Event
-from typing import Any, Optional
+from typing import Any
 
 from leaf_register.metadata import MetadataManager
 
 from leaf.error_handler import exceptions
-from leaf.error_handler.exceptions import LEAFError
 from leaf.error_handler.error_holder import ErrorHolder
-
+from leaf.error_handler.exceptions import LEAFError
 from leaf.modules.input_modules.event_watcher import EventWatcher
 from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
 from leaf.modules.output_modules.output_module import OutputModule
-from leaf.utility.logger.logger_utils import get_logger
-from leaf.modules.process_modules.process_module import ProcessModule
 from leaf.modules.process_modules.external_event_process import ExternalEventProcess
+from leaf.modules.process_modules.process_module import ProcessModule
+from leaf.utility.logger.logger_utils import get_logger
+
 
 class AbstractInterpreter(ABC):
     """
@@ -27,7 +27,7 @@ class AbstractInterpreter(ABC):
     input into a standardised structure.
     """
 
-    def __init__(self, error_holder: Optional[ErrorHolder] = None):
+    def __init__(self, error_holder: ErrorHolder | None = None):
         """
         Initialise the interpreter.
 
@@ -45,7 +45,7 @@ class AbstractInterpreter(ABC):
         self._last_measurement = None
         self._is_running = False
 
-    def set_error_holder(self, error_holder: Optional[ErrorHolder]) -> None:
+    def set_error_holder(self, error_holder: ErrorHolder | None) -> None:
         """Assign an ErrorHolder instance to the interpreter."""
         self._error_holder = error_holder
 
@@ -79,7 +79,7 @@ class AbstractInterpreter(ABC):
         self._last_measurement = time.time()
         return data
 
-    def get_last_measurement_time(self) -> Optional[float]:
+    def get_last_measurement_time(self) -> float | None:
         """Return the timestamp of the last successful measurement."""
         return self._last_measurement
 
@@ -93,7 +93,7 @@ class AbstractInterpreter(ABC):
         Returns:
             Any: Forwarded or cleaned-up stop payload.
         """
-        if isinstance(data,dict):
+        if isinstance(data, dict):
             if self.TIMESTAMP_KEY not in data:
                 data[self.TIMESTAMP_KEY] = time.time()
             if self.EXPERIMENT_ID_KEY not in data:
@@ -137,10 +137,10 @@ class EquipmentAdapter(ABC):
         output: OutputModule,
         process_adapters: ProcessModule | list[ProcessModule],
         interpreter: AbstractInterpreter,
-        metadata_manager: Optional[MetadataManager] = None,
-        error_holder: Optional[ErrorHolder] = None,
-        experiment_timeout: Optional[int] = None,
-        external_watcher: Optional[ExternalEventWatcher] = None
+        metadata_manager: MetadataManager | None = None,
+        error_holder: ErrorHolder | None = None,
+        experiment_timeout: int | None = None,
+        external_watcher: ExternalEventWatcher | None = None,
     ):
         """
         Initialise the equipment adapter.
@@ -194,9 +194,7 @@ class EquipmentAdapter(ABC):
         self._external_watcher = external_watcher
         if self._external_watcher is not None:
             self._external_watcher.set_metadata_manager(self._metadata_manager)
-            self._external_process = ExternalEventProcess(
-                output, self._metadata_manager, self._error_holder
-            )
+            self._external_process = ExternalEventProcess(output, self._metadata_manager, self._error_holder)
             self._external_process.set_error_holder(self._error_holder)
             self._external_process.set_interpreter(interpreter)
             self._external_watcher.add_callback(self._external_process.process_input)
@@ -208,9 +206,7 @@ class EquipmentAdapter(ABC):
         Returns:
             bool: True if input/output are active and adapter is not stopped.
         """
-        return (self._watcher.is_running() and 
-                self._output.is_connected() and 
-                not self._stop_event.is_set())
+        return self._watcher.is_running() and self._output.is_connected() and not self._stop_event.is_set()
 
     def start(self) -> None:
         """
@@ -238,8 +234,7 @@ class EquipmentAdapter(ABC):
             self._stop_event.clear()
             # Expose adapter on all channels.
             for process in self._processes:
-                process.process_input(self._metadata_manager.details,
-                                      self._metadata_manager.get_data())
+                process.process_input(self._metadata_manager.details, self._metadata_manager.get_data())
             while not self._stop_event.is_set():
                 time.sleep(1)
                 if not self._error_holder:
@@ -345,8 +340,7 @@ class EquipmentAdapter(ABC):
         errors = errors or self._error_holder.get_unseen_errors()
         for error, _ in errors:
             if not isinstance(error, LEAFError):
-                self._logger.error("Non-LEAF error added to error holder", 
-                                   exc_info=error)
+                self._logger.error("Non-LEAF error added to error holder", exc_info=error)
                 return self.stop()
 
             error_json = error.to_json()

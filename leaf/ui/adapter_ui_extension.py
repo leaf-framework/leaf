@@ -4,7 +4,8 @@ Adapters can optionally provide UI extensions by implementing the get_ui_extensi
 static method that returns a dictionary with the tab configuration.
 """
 
-from typing import Any, Callable, Dict, Optional, Protocol, TypedDict
+from collections.abc import Callable
+from typing import Any, Protocol, TypedDict
 
 
 class UIExtensionConfig(TypedDict):
@@ -16,10 +17,11 @@ class UIExtensionConfig(TypedDict):
         create_panel: Function that creates the UI panel (receives tab object)
         order: Optional ordering hint (lower numbers appear first, default: 1000)
     """
+
     tab_name: str
     tab_icon: str
     create_panel: Callable[[Any], None]
-    order: Optional[int]
+    order: int | None
 
 
 class AdapterUIExtension(Protocol):
@@ -67,13 +69,10 @@ def has_ui_extension(adapter_class: type) -> bool:
     Returns:
         True if the adapter has a get_ui_extension method
     """
-    return (
-        hasattr(adapter_class, 'get_ui_extension') and
-        callable(getattr(adapter_class, 'get_ui_extension'))
-    )
+    return hasattr(adapter_class, "get_ui_extension") and callable(adapter_class.get_ui_extension)
 
 
-def get_ui_extension(adapter_class: type) -> Optional[UIExtensionConfig]:
+def get_ui_extension(adapter_class: type) -> UIExtensionConfig | None:
     """
     Get the UI extension configuration from an adapter class.
 
@@ -87,12 +86,11 @@ def get_ui_extension(adapter_class: type) -> Optional[UIExtensionConfig]:
         try:
             config = adapter_class.get_ui_extension()
             # Set default order if not specified
-            if 'order' not in config:
-                config['order'] = 1000
+            if "order" not in config:
+                config["order"] = 1000
             return config
         except Exception as e:
             import logging
-            logging.getLogger(__name__).error(
-                f"Error getting UI extension from {adapter_class.__name__}: {e}"
-            )
+
+            logging.getLogger(__name__).error(f"Error getting UI extension from {adapter_class.__name__}: {e}")
     return None

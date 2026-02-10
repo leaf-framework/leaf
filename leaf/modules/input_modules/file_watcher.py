@@ -2,43 +2,36 @@ import csv
 import errno
 import fnmatch
 import os
-import sys
 import time
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable
-from typing import List
-from typing import Optional
-from typing import Union
+from threading import Timer
 
 from leaf_register.metadata import MetadataManager
-from watchdog.events import FileSystemEvent
-from watchdog.events import FileSystemEventHandler
+from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 from watchdog.observers.polling import PollingObserver
 
-# Use PollingObserver on macOS when running in forked processes (e.g., pytest)
-# to avoid CoreFoundation fork safety issues with FSEvents
-if sys.platform == 'darwin' and 'pytest' in sys.modules:
-    Observer = PollingObserver
-
 from leaf.error_handler.error_holder import ErrorHolder
-from leaf.error_handler.exceptions import AdapterBuildError
-from leaf.error_handler.exceptions import InputError
+from leaf.error_handler.exceptions import AdapterBuildError, InputError
 from leaf.modules.input_modules.event_watcher import EventWatcher
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")
 
 
-def _read_csv(fp: str, encodings=["utf-8", "latin-1"],
-             delimiters=[";", ",", "\t", "|"]):
-    if not isinstance(delimiters,list):
+def _read_csv(fp: str, encodings=None, delimiters=None):
+    if encodings is None:
+        encodings = ["utf-8", "latin-1"]
+    if delimiters is None:
+        delimiters = [";", ",", "\t", "|"]
+    elif not isinstance(delimiters, list):
         delimiters = [delimiters]
     last_error = None
     for encoding in encodings:
         for delim in delimiters:
             try:
-                with open(fp, "r", encoding=encoding) as f:
+                with open(fp, encoding=encoding) as f:
                     reader = csv.reader(f, delimiter=delim)
                     data = list(reader)
                     if data and len(data[0]) > 1:
@@ -53,8 +46,9 @@ def _read_csv(fp: str, encodings=["utf-8", "latin-1"],
 
 
 def _read_txt(fp: str) -> str:
-    with open(fp, "r", encoding="utf-8") as file:
+    with open(fp, encoding="utf-8") as file:
         return file.read()
+
 
 file_readers = {
     ".csv": lambda fp: _read_csv(fp, delimiters=[";", ",", "\t", "|"]),
@@ -72,13 +66,17 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
 
     def __init__(
         self,
-        paths: Union[str, List[str]],
+        paths: str | list[str],
         metadata_manager: MetadataManager,
-        callbacks: Optional[List[Callable[[str, str], None]]] = None,
-        error_holder: Optional[ErrorHolder] = None,
-        return_data: Optional[bool] = True,
-        filenames: Optional[Union[str, List[str]]] = None,
-        debounce_delay: float = 0.75
+        callbacks: list[Callable[[str, str], None]] | None = None,
+        error_holder: ErrorHolder | None = None,
+        return_data: bool | None = True,
+        filenames: str | list[str] | None = None,
+        debounce_delay: float = 0.75,
+        trailing_delay: float = 10.0,
+        use_polling: bool = True,
+        polling_interval: float = 1.0,
+        skip_existing: bool = False,
     ) -> None:
         """
         Initialise FileWatcher.
@@ -90,6 +88,16 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             error_holder (Optional[ErrorHolder]): Optional error holder for capturing exceptions.
             return_data (Optional[bool]): Returns the data (content of file) is true else, return filename.
             debounce_delay (float): Delay in seconds to debounce file modification events. Defaults to 0.75.
+            trailing_delay (float): Delay in seconds before processing a debounced event if no new events occur.
+                Defaults to 10.0. This ensures the last modification is eventually processed even if debounced.
+            use_polling (bool): Use PollingObserver for cross-platform compatibility. Defaults to True.
+                PollingObserver works reliably on all platforms (Windows, macOS, Linux, Raspberry Pi)
+                and with network drives, but uses slightly more CPU than native observers.
+            polling_interval (float): Interval in seconds between filesystem polls. Defaults to 1.0.
+                Only used when use_polling is True. Lower values = faster detection but more CPU usage.
+            skip_existing (bool): Skip files that already exist in the watched directories on startup.
+                Defaults to False. When False, existing files matching the filename patterns will be
+                processed as if they were newly created.
 
         Raises:
             AdapterBuildError: Raised if the provided file path is invalid.
@@ -110,10 +118,15 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             self._filenames = filenames
         self._return_data = return_data
         self._observing = False
+        self._use_polling = use_polling
+        self._polling_interval = polling_interval
+        self._skip_existing = skip_existing
 
         self._last_created: dict = {}  # Track creation time per file path
         self._last_modified: dict = {}  # Track modification time per file path
         self._debounce_delay: float = debounce_delay
+        self._trailing_delay: float = trailing_delay
+        self._pending_timers: dict = {}  # Track pending trailing timers per file path
 
         self._term_map = {
             self.on_created: metadata_manager.experiment.start,
@@ -133,7 +146,12 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             logger.info("Starting FileWatcher...")
 
         try:
-            self._observer = Observer()
+            if self._use_polling:
+                self._observer = PollingObserver(timeout=self._polling_interval)
+                logger.debug(f"Using PollingObserver with {self._polling_interval}s interval")
+            else:
+                self._observer = Observer()
+                logger.debug("Using native filesystem observer")
             for path in self._paths:
                 logger.debug(f"Watching path: {path}")
                 self._observer.schedule(self, path, recursive=False)
@@ -144,7 +162,10 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             self._observing = True
             self._last_created = {}
             self._last_modified = {}
+            self._pending_timers = {}
             logger.info("FileWatcher started.")
+            if not self._skip_existing:
+                self._process_existing_files()
         except OSError as e:
             self._handle_exception(self._create_input_error(e))
         except Exception as ex:
@@ -160,11 +181,73 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             return
         logger.info("Stopping FileWatcher...")
 
+        # Cancel all pending trailing timers
+        for fp, timer in list(self._pending_timers.items()):
+            timer.cancel()
+        self._pending_timers.clear()
+
         self._observer.stop()
         self._observer.join()
         super().stop()
         self._observing = False
         logger.info("FileWatcher stopped.")
+
+    def _process_existing_files(self) -> None:
+        """
+        Process files that already exist in the watched directories.
+        Files matching the filename patterns will be processed as if they were newly created.
+        """
+        logger.info("Processing existing files in watched directories...")
+        for path in self._paths:
+            if not os.path.isdir(path):
+                logger.warning(f"Path {path} is not a directory, skipping.")
+                continue
+            for filename in os.listdir(path):
+                logger.debug(f"Processing existing file: {path}/{filename}")
+                fp = os.path.join(path, filename)
+                if not os.path.isfile(fp):
+                    logger.debug(f"File {fp} is not a file, skipping.")
+                    continue
+                if not self._matches_filename_pattern(filename):
+                    logger.debug(f"File {fp} does not match filename pattern, skipping.")
+                    continue
+                logger.debug(f"Processing existing file: {fp}")
+                try:
+                    self._last_created[fp] = time.time()
+                    if self._return_data:
+                        data = self._read_file_by_extension(fp)
+                    else:
+                        data = fp
+                    logger.debug(
+                        f"Dispatching creation callback for existing file: {fp} to callbacks {self._callbacks}"
+                    )
+                    self._dispatch_callback(self._term_map[self.on_modified], data)
+                except Exception as e:
+                    try:
+                        self._file_event_exception(e, "existing file processing")
+                    except InputError:
+                        raise
+        logger.info("Finished processing existing files.")
+
+    def _matches_filename_pattern(self, filename: str) -> bool:
+        """
+        Check if a filename matches the configured filename patterns.
+
+        Args:
+            filename (str): The filename to check.
+
+        Returns:
+            bool: True if the filename matches a pattern or no patterns are set.
+        """
+        if not self._filenames:
+            return True
+        for pattern in self._filenames:
+            if pattern.startswith("."):
+                if filename.endswith(pattern):
+                    return True
+            elif fnmatch.fnmatch(filename, pattern):
+                return True
+        return False
 
     def on_created(self, event: FileSystemEvent) -> None:
         """
@@ -208,13 +291,16 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
                 else:
                     # TODO to discuss, should we ever return a directory?
                     # if not self._return_data:
-                        # Return path?
-                        # data = event.src_path
+                    # Return path?
+                    # data = event.src_path
                     logger.debug("Modification event is for a directory. Ignored.")
                 return
             if not self._is_last_modified(fp):
                 logger.debug(f"Modification event ({event}) ignored due to debounce delay.")
+                self._schedule_trailing_modification(fp)
                 return
+            # Event passed debounce - cancel any pending trailing timer
+            self._cancel_trailing_timer(fp)
             if self._return_data:
                 logger.debug("Reading file content...")
                 data = self._read_file_by_extension(fp)
@@ -237,7 +323,7 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             event (FileSystemEvent): Event object indicating a file deletion.
         """
         logger.debug(f"Received file deletion event: {event}")
-        fp = self._get_filepath(event,file_exists=False)
+        fp = self._get_filepath(event, file_exists=False)
         if fp is None:
             return
 
@@ -245,11 +331,9 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             data = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         else:
             data = fp
-        self._dispatch_callback(self._term_map[self.on_deleted], 
-                                data)
+        self._dispatch_callback(self._term_map[self.on_deleted], data)
 
-    def _get_filepath(self, event: FileSystemEvent,
-                      file_exists = True) -> Optional[str]:
+    def _get_filepath(self, event: FileSystemEvent, file_exists=True) -> str | None:
         """
         Retrieve the full file path for the event if it matches the watched file.
 
@@ -294,13 +378,69 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         if fp in self._last_created:
             time_since_creation = current_time - self._last_created[fp]
             if time_since_creation <= creation_debounce:
-                logger.debug(f"File {fp}: ignoring modification (within {creation_debounce}s debounce window after creation)")
+                logger.debug(
+                    f"File {fp}: ignoring modification (within {creation_debounce}s debounce window after creation)"
+                )
                 return False
         # Check if this file was recently modified
         if fp not in self._last_modified or (current_time - self._last_modified[fp]) > self._debounce_delay:
             self._last_modified[fp] = current_time
             return True
         return False
+
+    def _cancel_trailing_timer(self, fp: str) -> None:
+        """
+        Cancel any pending trailing timer for a file.
+
+        Args:
+            fp (str): The file path to cancel the timer for.
+        """
+        if fp in self._pending_timers:
+            self._pending_timers[fp].cancel()
+            del self._pending_timers[fp]
+            logger.debug(f"Cancelled trailing timer for {fp}")
+
+    def _schedule_trailing_modification(self, fp: str) -> None:
+        """
+        Schedule a trailing modification callback for a debounced file.
+        If a timer already exists for this file, it is cancelled and rescheduled.
+
+        Args:
+            fp (str): The file path to schedule the trailing callback for.
+        """
+        # Cancel existing timer if any
+        self._cancel_trailing_timer(fp)
+
+        def trailing_callback():
+            if not self._observing:
+                return
+            # Remove from pending timers
+            if fp in self._pending_timers:
+                del self._pending_timers[fp]
+            logger.debug(f"Trailing timer fired for {fp}")
+            # Process the file
+            try:
+                if not os.path.isfile(fp):
+                    logger.debug(f"File {fp} no longer exists, skipping trailing callback")
+                    return
+                # Update last_modified to allow this through
+                self._last_modified[fp] = time.time()
+                if self._return_data:
+                    data = self._read_file_by_extension(fp)
+                else:
+                    data = fp
+                self._dispatch_callback(self._term_map[self.on_modified], data)
+            except Exception as e:
+                try:
+                    self._file_event_exception(e, "trailing modification")
+                except InputError:
+                    pass
+
+        timer = Timer(self._trailing_delay, trailing_callback)
+        timer.daemon = True
+        self._pending_timers[fp] = timer
+        timer.start()
+        logger.debug(f"Scheduled trailing timer for {fp} in {self._trailing_delay}s")
 
     def _read_file_by_extension(self, fp: str):
         ext = os.path.splitext(fp)[1].lower()
@@ -310,7 +450,7 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
             return reader(fp)
 
         try:
-            with open(fp, "r", encoding="utf-8") as file:
+            with open(fp, encoding="utf-8") as file:
                 return file.read()
         except Exception as e:
             msg = f"Failed to read file '{fp}' as plain text: {e}"
@@ -336,8 +476,6 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         else:
             message = f"Error during {event_type} event: {error}"
         self._handle_exception(InputError(message))
-
-
 
     def _create_input_error(self, e: OSError) -> InputError:
         """

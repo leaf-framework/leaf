@@ -1,13 +1,11 @@
 import json
-
-from typing import Optional, Any
+from typing import Any
 
 import redis
 from redis.typing import ResponseT
 
 from leaf.error_handler.error_holder import ErrorHolder
-from leaf.error_handler.exceptions import ClientUnreachableError
-from leaf.error_handler.exceptions import SeverityLevel
+from leaf.error_handler.exceptions import ClientUnreachableError, SeverityLevel
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.utility.logger.logger_utils import get_logger
 
@@ -27,8 +25,9 @@ class KEYDB(OutputModule):
         host: str,
         port: int = 6379,
         db: int = 0,
-        fallback: Optional[OutputModule] = None,
-        error_holder: Optional[ErrorHolder] = None,
+        fallback: OutputModule | None = None,
+        error_holder: ErrorHolder | None = None,
+        name: str | None = None,
     ) -> None:
         """
         Initialize the KEYDB adapter with KeyDB connection details and
@@ -43,11 +42,13 @@ class KEYDB(OutputModule):
             error_holder (Optional[ErrorHolder]): Optional error holder
                          for tracking errors.
         """
-        super().__init__(fallback=fallback, error_holder=error_holder)
+        super().__init__(fallback=fallback, error_holder=error_holder, name=name)
+        if not self._name:
+            self._name = f"KEYDB({host}:{port})"
         self.host: str = host
         self.port: int = port
         self.db: int = db
-        self._client: Optional[redis.StrictRedis] = None
+        self._client: redis.StrictRedis | None = None
         self.connect()
 
     def _handle_redis_error(self, exception: redis.RedisError) -> None:
@@ -78,9 +79,7 @@ class KEYDB(OutputModule):
             message = f"Redis error for KeyDB: {str(exception)}"
             severity = SeverityLevel.WARNING
 
-        self._handle_exception(
-            ClientUnreachableError(message, output_module=self, severity=severity)
-        )
+        self._handle_exception(ClientUnreachableError(message, output_module=self, severity=severity))
 
     def connect(self) -> None:
         """
@@ -95,7 +94,7 @@ class KEYDB(OutputModule):
         except redis.RedisError as e:
             self._handle_redis_error(e)
 
-    def transmit(self, topic: str, data: Optional[Any] = None) -> bool:
+    def transmit(self, topic: str, data: Any | None = None) -> bool:
         """
         Transmit data to the KeyDB server by appending it to the existing
         value for the given key. The value for each key is always stored
@@ -134,6 +133,9 @@ class KEYDB(OutputModule):
             logger.info(f"Pushed data to key '{topic}' in KeyDB {self._client} with {self._client.llen(topic)} rows.")
             # Reset global failure counter on successful transmission
             OutputModule.reset_failure_count()
+            self.store_latest(topic, data)
+            # Transmit to parallel outputs (best-effort)
+            self.transmit_to_parallels(topic, data)
             return True
         except redis.RedisError as e:
             self._handle_redis_error(e)
@@ -170,7 +172,7 @@ class KEYDB(OutputModule):
         else:
             logger.info("Already disconnected from KeyDB.")
 
-    def pop(self, key: Optional[str] = None) -> Optional[tuple[str, Any]]:
+    def pop(self, key: str | None = None) -> tuple[str, Any] | None:
         """
         Retrieve and remove a record from KeyDB.
         If a specific key is provided, retrieve and remove all values under
@@ -231,9 +233,7 @@ class KEYDB(OutputModule):
             #         self._client.delete(random_key)
             #     return random_key, popped_value
 
-            logger.error(
-                f"Unexpected value type for key '{random_key}'. Deleting key."
-            )
+            logger.error(f"Unexpected value type for key '{random_key}'. Deleting key.")
             self._client.delete(random_key)
             return None
         except redis.RedisError as e:

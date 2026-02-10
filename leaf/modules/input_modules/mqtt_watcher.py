@@ -1,52 +1,42 @@
-import logging
-from uuid import uuid4
-from typing import Optional, List, Callable
-
-import logging
 import time
-from socket import error as socket_error
+from collections.abc import Callable
 from socket import gaierror
-from typing import Literal, Optional, Any
+from typing import Any, Literal
+from uuid import uuid4
 
 import paho.mqtt.client as mqtt
-from paho.mqtt.enums import CallbackAPIVersion
-
-from leaf.modules.input_modules.event_watcher import EventWatcher
-from leaf.utility.logger.logger_utils import get_logger
 from leaf_register.metadata import MetadataManager
 from leaf_register.topic_utilities import topic_utilities
-from leaf.error_handler.error_holder import ErrorHolder
-from leaf.error_handler.exceptions import AdapterBuildError, LEAFError
-from leaf.error_handler.exceptions import ClientUnreachableError
-from leaf.error_handler.exceptions import SeverityLevel
+from paho.mqtt.enums import CallbackAPIVersion
 
-FIRST_RECONNECT_DELAY = 1
-RECONNECT_RATE = 2
-MAX_RECONNECT_COUNT = 12
-MAX_RECONNECT_DELAY = 1
+from leaf.error_handler.error_holder import ErrorHolder
+from leaf.error_handler.exceptions import AdapterBuildError, ClientUnreachableError, LEAFError, SeverityLevel
+from leaf.modules.input_modules.event_watcher import EventWatcher
+from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")
 
-class MQTTEventWatcher(EventWatcher):
-    def __init__(self,
-                 metadata_manager: MetadataManager,
-                 start_topics: Optional[List[str]] = None,
-                 stop_topics: Optional[List[str]] = None,
-                 measurement_topics: Optional[List[str]] = None,
-                 error_topics: Optional[List[str]] = None,
-                 broker: str = None,
-                 port: int = 1883,
-                 username: Optional[str] = None,
-                 password: Optional[str] = None,
-                 clientid: Optional[str] = None,
-                 protocol: Literal["v3", "v5"] = "v3",
-                 transport: Literal["tcp", "websockets", "unix"] = "tcp",
-                 tls: bool = False,
-                 callbacks: Optional[List[Callable]] = None, 
-                 error_holder: Optional[ErrorHolder] = None) -> None:
 
-        super().__init__(metadata_manager, callbacks=callbacks, 
-                         error_holder=error_holder)
+class MQTTEventWatcher(EventWatcher):
+    def __init__(
+        self,
+        metadata_manager: MetadataManager,
+        start_topics: list[str] | None = None,
+        stop_topics: list[str] | None = None,
+        measurement_topics: list[str] | None = None,
+        error_topics: list[str] | None = None,
+        broker: str = None,
+        port: int = 1883,
+        username: str | None = None,
+        password: str | None = None,
+        clientid: str | None = None,
+        protocol: Literal["v3", "v5"] = "v3",
+        transport: Literal["tcp", "websockets", "unix"] = "tcp",
+        tls: bool = False,
+        callbacks: list[Callable] | None = None,
+        error_holder: ErrorHolder | None = None,
+    ) -> None:
+        super().__init__(metadata_manager, callbacks=callbacks, error_holder=error_holder)
 
         if protocol not in ["v3", "v5"]:
             raise AdapterBuildError(f"Unsupported protocol '{protocol}'.")
@@ -75,12 +65,16 @@ class MQTTEventWatcher(EventWatcher):
             self._username = username
             self._password = password
 
-        self.client = mqtt.Client(
-            callback_api_version=CallbackAPIVersion.VERSION2,
-            client_id=clientid,
-            protocol=self._protocol,
-            transport=transport,
-        )
+        client_kwargs: dict[str, Any] = {
+            "callback_api_version": CallbackAPIVersion.VERSION2,
+            "client_id": clientid,
+            "protocol": self._protocol,
+            "transport": transport,
+        }
+        if self._protocol != mqtt.MQTTv5:
+            client_kwargs["clean_session"] = True
+
+        self.client = mqtt.Client(**client_kwargs)
 
         self.client.on_connect = self.on_connect
         self.client.on_connect_fail = self.on_connect_fail
@@ -101,8 +95,7 @@ class MQTTEventWatcher(EventWatcher):
         self._register_topics(stop_topics, metadata_manager.experiment.stop)
         self._register_topics(error_topics, metadata_manager.error)
 
-
-    def _register_topics(self,topics: Optional[List[str]], event: str):
+    def _register_topics(self, topics: list[str] | None, event: str):
         if topics:
             for topic in topics:
                 self._topic_event_map.setdefault(topic, []).append(event)
@@ -114,8 +107,7 @@ class MQTTEventWatcher(EventWatcher):
         super().start()
         try:
             if self._username and self._password:
-                self.client.username_pw_set(self._username, 
-                                            self._password)
+                self.client.username_pw_set(self._username, self._password)
             self.client.connect(self._broker, self._port, 60)
             self.client.loop_start()
             time.sleep(3)
@@ -123,11 +115,10 @@ class MQTTEventWatcher(EventWatcher):
                 self.subscribe(topic)
                 time.sleep(0.1)
 
-        except (socket_error, gaierror, OSError) as e:
+        except (gaierror, OSError) as e:
             self._handle_exception(
-                ClientUnreachableError(
-                    f"Error connecting to broker: {self._broker} {e}",
-                    output_module=self))
+                ClientUnreachableError(f"Error connecting to broker: {self._broker} {e}", output_module=self)
+            )
 
     def stop(self) -> None:
         """
@@ -138,14 +129,10 @@ class MQTTEventWatcher(EventWatcher):
                 self.client.disconnect()
                 time.sleep(0.5)
             self.client.loop_stop()
-        except Exception as e:
-            self._handle_exception(
-                ClientUnreachableError(
-                    "Failed to disconnect from broker.", 
-                    output_module=self))
-            
-    def on_message(self, client: mqtt.Client, 
-                userdata: Any, msg: mqtt.MQTTMessage) -> None:
+        except Exception:
+            self._handle_exception(ClientUnreachableError("Failed to disconnect from broker.", output_module=self))
+
+    def on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         """
         Callback for when a message is received on a
         subscribed topic.
@@ -158,12 +145,10 @@ class MQTTEventWatcher(EventWatcher):
         """
         incoming_topic = msg.topic
         payload = msg.payload.decode()
-        full_payload = {"topic": incoming_topic, 
-                        "payload": payload}
+        full_payload = {"topic": incoming_topic, "payload": payload}
 
         for registered_topic, events in self._topic_event_map.items():
-            if topic_utilities.is_instance(incoming_topic, 
-                                           registered_topic):
+            if topic_utilities.is_instance(incoming_topic, registered_topic):
                 for event in events:
                     for cb in self._callbacks:
                         cb(event, full_payload)
@@ -195,14 +180,14 @@ class MQTTEventWatcher(EventWatcher):
 
         self.client.unsubscribe(topic)
         return topic
-    
+
     def on_connect(
         self,
         client: mqtt.Client,
         userdata: Any,
         flags: dict,
         rc: int,
-        metadata: Optional[Any] = None,
+        metadata: Any | None = None,
     ) -> None:
         """
         Callback for when the client connects to the broker.
@@ -215,6 +200,8 @@ class MQTTEventWatcher(EventWatcher):
             rc (int): The connection result code.
             metadata (Optional[Any]): Additional metadata (if any).
         """
+        logger.info(f"Connected to broker {self._username}@{self._broker}")
+
         if rc != 0:
             error_messages = {
                 1: "Unacceptable protocol version",
@@ -224,11 +211,7 @@ class MQTTEventWatcher(EventWatcher):
                 5: "Not authorized",
             }
             message = error_messages.get(rc.value, f"Unknown connection error with code {rc}")
-            self._handle_exception(
-                ClientUnreachableError(
-                    f"Connection refused: {message}", output_module=self
-                )
-            )
+            self._handle_exception(ClientUnreachableError(f"Connection refused: {message}", output_module=self))
 
     def on_connect_fail(
         self,
@@ -236,7 +219,7 @@ class MQTTEventWatcher(EventWatcher):
         userdata: Any,
         flags: dict,
         rc: int,
-        metadata: Optional[Any] = None,
+        metadata: Any | None = None,
     ) -> None:
         """
         Callback for when the client fails to connect to the broker.
@@ -259,7 +242,7 @@ class MQTTEventWatcher(EventWatcher):
         userdata: Any,
         flags: Any,
         rc: int,
-        properties: Optional[Any] = None,
+        properties: Any | None = None,
     ) -> None:
         """
         Callback for when the client disconnects from the broker.
@@ -272,21 +255,10 @@ class MQTTEventWatcher(EventWatcher):
             rc (int): The disconnection result code.
             properties (Optional[Any]): Additional metadata (if any).
         """
+        logger.info(f"Disconnected from broker {self._username}@{self._broker}")
         if rc != mqtt.MQTT_ERR_SUCCESS:
-            reconnect_count, reconnect_delay = 0, FIRST_RECONNECT_DELAY
-            while reconnect_count < MAX_RECONNECT_COUNT:
-                time.sleep(reconnect_delay)
-                try:
-                    client.reconnect()
-                    return
-                except Exception:
-                    reconnect_delay = min(
-                        reconnect_delay * RECONNECT_RATE, MAX_RECONNECT_DELAY
-                    )
-                    reconnect_count += 1
-            self._handle_exception(
-                ClientUnreachableError("Failed to reconnect.", output_module=self)
-            )
+            # paho's loop_start() handles automatic reconnection
+            logger.warning(f"Unexpected disconnect (rc={rc}), paho will auto-reconnect")
 
     def is_connected(self) -> bool:
         """

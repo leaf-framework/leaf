@@ -1,31 +1,32 @@
-from typing import Type, Any, Literal, Dict, List
+from typing import Any, Literal
 
 from leaf.adapters.equipment_adapter import EquipmentAdapter
-from leaf.modules.output_modules.output_module import OutputModule
-from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
 from leaf.error_handler.exceptions import AdapterBuildError
+from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
+from leaf.modules.output_modules.output_module import OutputModule
 
 PluginType = Literal["equipment", "output", "external_input"]
 
 # Internal registry map
-_registry: Dict[PluginType, Dict[str, Type[Any]]] = {
+_registry: dict[PluginType, dict[str, type[Any]]] = {
     "equipment": {},
     "output": {},
     "external_input": {},
 }
 
 
-def register(plugin_type: PluginType, code: str, cls: Type[Any]) -> None:
+def register(plugin_type: PluginType, code: str, cls: type[Any]) -> None:
     _registry[plugin_type][code.lower()] = cls
 
-def get(plugin_type: PluginType, code: str) -> Type[Any]:
+
+def get(plugin_type: PluginType, code: str) -> type[Any]:
     try:
         return _registry[plugin_type][code.lower()]
     except KeyError:
         raise AdapterBuildError(f"No {plugin_type} class registered for code '{code}'")
 
 
-def get_equipment_adapter(code: str) -> Type[EquipmentAdapter]:
+def get_equipment_adapter(code: str) -> type[EquipmentAdapter]:
     """
     Retrieve an EquipmentAdapter class by code.
     """
@@ -35,7 +36,7 @@ def get_equipment_adapter(code: str) -> Type[EquipmentAdapter]:
     return cls
 
 
-def get_output_adapter(code: str) -> Type[OutputModule]:
+def get_output_adapter(code: str) -> type[OutputModule]:
     """
     Retrieve an OutputModule class by code.
     """
@@ -45,7 +46,7 @@ def get_output_adapter(code: str) -> Type[OutputModule]:
     return cls
 
 
-def get_external_input(code: str) -> Type[ExternalEventWatcher]:
+def get_external_input(code: str) -> type[ExternalEventWatcher]:
     """
     Retrieve an ExternalEventWatcher class by code.
     """
@@ -55,7 +56,7 @@ def get_external_input(code: str) -> Type[ExternalEventWatcher]:
     return cls
 
 
-def all_registered(plugin_type: PluginType) -> Dict[str, Type[Any]]:
+def all_registered(plugin_type: PluginType) -> dict[str, type[Any]]:
     """
     Return all registered classes of a given plugin type.
     """
@@ -69,10 +70,7 @@ def discover_from_config(config: dict[str, Any], external_path: str = None) -> N
     from leaf.registry import discovery
 
     output_codes = _collect_output_codes(config.get("OUTPUTS", []))
-    equipment_codes = {
-        instance["equipment"]["adapter"].lower()
-        for instance in config.get("EQUIPMENT_INSTANCES", [])
-    }
+    equipment_codes = {instance["equipment"]["adapter"].lower() for instance in config.get("EQUIPMENT_INSTANCES", [])}
     ...
     external_input_codes = {
         instance["equipment"]["external_input"]["plugin"].lower()
@@ -80,10 +78,9 @@ def discover_from_config(config: dict[str, Any], external_path: str = None) -> N
         if "external_input" in instance["equipment"]
     }
 
-    discovered_equipment = (
-        discovery.discover_entry_point_equipment(equipment_codes)
-        + discovery.discover_local_equipment(equipment_codes, [external_path] if external_path else [])
-    )
+    discovered_equipment = discovery.discover_entry_point_equipment(
+        equipment_codes
+    ) + discovery.discover_local_equipment(equipment_codes, [external_path] if external_path else [])
     for code, cls, group in discovered_equipment:
         register("equipment", code, cls)
 
@@ -94,8 +91,6 @@ def discover_from_config(config: dict[str, Any], external_path: str = None) -> N
     # Discover and register external inputs
     for code, cls in discovery.discover_external_inputs(external_input_codes):
         register("external_input", code, cls)
-
-
 
 
 def _collect_output_codes(outputs: list[dict]) -> set[str]:
@@ -117,7 +112,7 @@ def _collect_output_codes(outputs: list[dict]) -> set[str]:
     return result
 
 
-def update_equipment_registry(discovered_equipment: list[tuple[str, Type[EquipmentAdapter], Any]]) -> list[str]:
+def update_equipment_registry(discovered_equipment: list[tuple[str, type[EquipmentAdapter], Any]]) -> list[str]:
     """
     Update the equipment registry with newly discovered adapters.
 
@@ -128,6 +123,7 @@ def update_equipment_registry(discovered_equipment: list[tuple[str, Type[Equipme
         List of newly registered adapter codes
     """
     from leaf.utility.logger.logger_utils import get_logger
+
     logger = get_logger(__name__)
 
     newly_registered = []
@@ -155,6 +151,7 @@ def refresh_equipment_from_discovery() -> list[str]:
     """
     from leaf.registry import discovery
     from leaf.utility.logger.logger_utils import get_logger
+
     logger = get_logger(__name__)
 
     logger.info("Refreshing equipment adapter registry...")

@@ -2,22 +2,26 @@ import json
 import logging
 import sqlite3
 from typing import Any
-from typing import Optional
-from typing import Union
-from leaf.modules.output_modules.output_module import OutputModule
+
 from leaf.error_handler.error_holder import ErrorHolder
-from leaf.error_handler.exceptions import ClientUnreachableError
-from leaf.error_handler.exceptions import SeverityLevel
+from leaf.error_handler.exceptions import ClientUnreachableError, SeverityLevel
+from leaf.modules.output_modules.output_module import OutputModule
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="output_module.log")
 
+
 class SQL(OutputModule):
-    def __init__(self,
-                 filename: str = "leaf_messages.db",
-                 fallback: Optional[OutputModule] = None,
-                 error_holder: Optional[ErrorHolder] = None) -> None:
-        super().__init__(fallback=fallback, error_holder=error_holder)
+    def __init__(
+        self,
+        filename: str = "leaf_messages.db",
+        fallback: OutputModule | None = None,
+        error_holder: ErrorHolder | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(fallback=fallback, error_holder=error_holder, name=name)
+        if not self._name:
+            self._name = f"SQL({filename.replace('/', '_')})"
         self.database = filename
         self._connection = None
         self._initialize_database()
@@ -31,18 +35,18 @@ class SQL(OutputModule):
             logger.info(f"Initializing database '{self.database}'")
             conn = sqlite3.connect(self.database)
             cursor = conn.cursor()
-            cursor.execute('''
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     topic TEXT NOT NULL,
                     data TEXT NOT NULL,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
+            """)
             # Create index on topic for fast lookups
-            cursor.execute('''
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_topic ON messages(topic)
-            ''')
+            """)
             conn.commit()
             conn.close()
             logger.info(f"Database '{self.database}' initialized successfully")
@@ -66,11 +70,9 @@ class SQL(OutputModule):
             message = f"Unexpected database error in '{self.database}': {error}"
             severity = SeverityLevel.WARNING
 
-        self._handle_exception(ClientUnreachableError(message,
-                                                      output_module=self,
-                                                      severity=severity))
+        self._handle_exception(ClientUnreachableError(message, output_module=self, severity=severity))
 
-    def transmit(self, topic: str, data: Optional[Union[str, dict]] = None) -> bool:
+    def transmit(self, topic: str, data: str | dict | None = None) -> bool:
         """
         Transmit data to the database associated with a specific topic.
         Each call inserts a new row with the topic and data.
@@ -85,24 +87,25 @@ class SQL(OutputModule):
             # Insert into database
             conn = sqlite3.connect(self.database)
             cursor = conn.cursor()
-            cursor.execute(
-                'INSERT INTO messages (topic, data) VALUES (?, ?)',
-                (topic, data_json)
-            )
+            cursor.execute("INSERT INTO messages (topic, data) VALUES (?, ?)", (topic, data_json))
             conn.commit()
             conn.close()
 
             # Reset global failure counter on successful transmission
             OutputModule.reset_failure_count()
+            self.store_latest(topic, data)
 
             # If debug, count number of messages in database
             if logger.isEnabledFor(logging.DEBUG):  # DEBUG level
                 conn = sqlite3.connect(self.database)
                 cursor = conn.cursor()
-                cursor.execute('SELECT COUNT(*) FROM messages')
+                cursor.execute("SELECT COUNT(*) FROM messages")
                 count = cursor.fetchone()[0]
                 conn.close()
                 logger.debug(f"Message stored. Total messages in database: {count}")
+
+            # Transmit to parallel outputs (best-effort)
+            self.transmit_to_parallels(topic, data)
             return True
 
         except (sqlite3.Error, json.JSONDecodeError) as e:
@@ -120,10 +123,7 @@ class SQL(OutputModule):
             cursor = conn.cursor()
 
             # Get first message with specific topic
-            cursor.execute(
-                'SELECT id, topic, data FROM messages WHERE topic = ? ORDER BY id LIMIT 1',
-                (topic,)
-            )
+            cursor.execute("SELECT id, topic, data FROM messages WHERE topic = ? ORDER BY id LIMIT 1", (topic,))
 
             row = cursor.fetchone()
 
@@ -134,7 +134,7 @@ class SQL(OutputModule):
             message_id, msg_topic, data_json = row
 
             # Delete the message
-            cursor.execute('DELETE FROM messages WHERE id = ?', (message_id,))
+            cursor.execute("DELETE FROM messages WHERE id = ?", (message_id,))
             conn.commit()
             conn.close()
 
@@ -169,15 +169,10 @@ class SQL(OutputModule):
 
             if key is not None:
                 # Get first message with specific topic
-                cursor.execute(
-                    'SELECT id, topic, data FROM messages WHERE topic = ? ORDER BY id LIMIT 1',
-                    (key,)
-                )
+                cursor.execute("SELECT id, topic, data FROM messages WHERE topic = ? ORDER BY id LIMIT 1", (key,))
             else:
                 # Get first message overall
-                cursor.execute(
-                    'SELECT id, topic, data FROM messages ORDER BY id LIMIT 1'
-                )
+                cursor.execute("SELECT id, topic, data FROM messages ORDER BY id LIMIT 1")
 
             row = cursor.fetchone()
 
@@ -188,7 +183,7 @@ class SQL(OutputModule):
             message_id, topic, data_json = row
 
             # Delete the message
-            cursor.execute('DELETE FROM messages WHERE id = ?', (message_id,))
+            cursor.execute("DELETE FROM messages WHERE id = ?", (message_id,))
             conn.commit()
             conn.close()
 

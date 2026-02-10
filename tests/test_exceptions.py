@@ -2,21 +2,19 @@ import errno
 import json
 import os
 import sys
-import time
-import uuid
 import tempfile
+import time
 import unittest
+import uuid
 from csv import Error as csv_error
-from threading import Thread
-from unittest.mock import patch
-from unittest.mock import MagicMock
-from unittest.mock import mock_open
 from pathlib import Path
+from threading import Thread
+from unittest.mock import MagicMock, mock_open, patch
 
 import paho.mqtt.client as mqtt
-from paho.mqtt.client import CONNACK_REFUSED_PROTOCOL_VERSION
 import pytest
 import yaml
+from paho.mqtt.client import CONNACK_REFUSED_PROTOCOL_VERSION
 
 from leaf.modules.output_modules.sql import SQL
 
@@ -24,35 +22,35 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf.adapters.equipment_adapter import EquipmentAdapter
-from leaf.adapters.equipment_adapter import AbstractInterpreter
-from leaf.modules.output_modules.mqtt import MQTT
-from leaf.modules.output_modules.keydb import KEYDB
-from leaf.modules.output_modules.file import FILE
-from leaf.modules.output_modules.output_module import OutputModule
-from leaf.modules.input_modules.file_watcher import FileWatcher
-from leaf.modules.phase_modules.measure import MeasurePhase
-from leaf.modules.phase_modules.control import ControlPhase
-from leaf.modules.process_modules.discrete_module import DiscreteProcess
-from leaf.modules.process_modules.continous_module import ContinousProcess
-from leaf.start import process_instance
-from leaf.utility.running_utilities import build_output_module
-from leaf.start import run_adapters
-from leaf.start import stop_all_adapters
-from leaf import start
 from leaf_register.metadata import MetadataManager
-from leaf.error_handler.exceptions import ClientUnreachableError
-from leaf.error_handler.exceptions import SeverityLevel
-from leaf.error_handler.exceptions import AdapterBuildError
-from leaf.error_handler.exceptions import InputError
-from leaf.error_handler.exceptions import InterpreterError
+
+from leaf import start
+from leaf.adapters.equipment_adapter import AbstractInterpreter, EquipmentAdapter
 from leaf.error_handler.error_holder import ErrorHolder
-from tests.mock_mqtt_client import MockBioreactorClient
+from leaf.error_handler.exceptions import (
+    AdapterBuildError,
+    ClientUnreachableError,
+    InputError,
+    InterpreterError,
+    SeverityLevel,
+)
+from leaf.modules.input_modules.file_watcher import FileWatcher
+from leaf.modules.output_modules.file import FILE
+from leaf.modules.output_modules.keydb import KEYDB
+from leaf.modules.output_modules.mqtt import MQTT
+from leaf.modules.output_modules.output_module import OutputModule
+from leaf.modules.phase_modules.control import ControlPhase
+from leaf.modules.phase_modules.measure import MeasurePhase
+from leaf.modules.process_modules.continous_module import ContinousProcess
+from leaf.modules.process_modules.discrete_module import DiscreteProcess
 from leaf.registry.registry import discover_from_config
+from leaf.start import process_instance, run_adapters, stop_all_adapters
+from leaf.utility.running_utilities import build_output_module
+from tests.mock_mqtt_client import MockBioreactorClient
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 
-with open(os.path.join(curr_dir, "test_config.yaml"), "r") as file:
+with open(os.path.join(curr_dir, "test_config.yaml")) as file:
     config = yaml.safe_load(file)
 
 broker = config["OUTPUTS"][0]["broker"]
@@ -60,7 +58,7 @@ port = int(config["OUTPUTS"][0]["port"])
 try:
     un = config["OUTPUTS"][0]["username"]
     pw = config["OUTPUTS"][0]["password"]
-except:
+except (KeyError, IndexError):
     un = None
     pw = None
 
@@ -72,7 +70,6 @@ measurement_file = os.path.join(test_file_dir, "biolector1_measurement.csv")
 all_data_file = os.path.join(test_file_dir, "biolector1_full.csv")
 text_watch_file = os.path.join("tmp.txt")
 mock_functional_adapter_path = os.path.join(curr_dir, "mock_functional_adapter")
-
 
 
 class MockBioreactorInterpreter(AbstractInterpreter):
@@ -91,22 +88,19 @@ class MockBioreactorInterpreter(AbstractInterpreter):
 
 
 class MockEquipment(EquipmentAdapter):
-    def __init__(self, instance_data,equipment_data,
-                  fp, error_holder=None) -> None:
+    def __init__(self, instance_data, equipment_data, fp, error_holder=None) -> None:
         metadata_manager = MetadataManager()
         directory = os.path.dirname(fp)
         filename = os.path.basename(fp)
-        watcher = FileWatcher(directory, metadata_manager,
-                              error_holder=error_holder,
-                              filenames=filename)
+        watcher = FileWatcher(directory, metadata_manager, error_holder=error_holder, filenames=filename)
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
         start_p = ControlPhase(metadata_manager.experiment.start, metadata_manager)
         stop_p = ControlPhase(metadata_manager.experiment.stop, metadata_manager)
         measure_p = MeasurePhase(metadata_manager)
         details_p = ControlPhase(metadata_manager.details, metadata_manager)
 
-        phase = [start_p, measure_p, stop_p,details_p]
-        mock_process = [DiscreteProcess(output,phase)]
+        phase = [start_p, measure_p, stop_p, details_p]
+        mock_process = [DiscreteProcess(output, phase)]
         metadata_manager.add_instance_data(instance_data)
         super().__init__(
             equipment_data,
@@ -234,24 +228,21 @@ class TestExceptionsInit(unittest.TestCase):
     def test_raise_continous_discrete_process(self) -> None:
         metadata_manager = MetadataManager()
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
-        start_p = ControlPhase(
-            output, metadata_manager.experiment.start, metadata_manager
-        )
-        stop_p = ControlPhase(
-            output, metadata_manager.experiment.stop, metadata_manager
-        )
+        start_p = ControlPhase(output, metadata_manager.experiment.start, metadata_manager)
+        stop_p = ControlPhase(output, metadata_manager.experiment.stop, metadata_manager)
         measure_p = MeasurePhase(metadata_manager)
 
         phase = [start_p, measure_p, stop_p]
 
         def _init_cont_proc() -> None:
-            ContinousProcess(output,phase)
+            ContinousProcess(output, phase)
 
         def _init_disc_proc() -> None:
-            DiscreteProcess(output,[phase[0]])
+            DiscreteProcess(output, [phase[0]])
 
         self.assertRaises(AdapterBuildError, _init_cont_proc)
         self.assertRaises(AdapterBuildError, _init_disc_proc)
+
 
 class TestExceptionsGeneral(unittest.TestCase):
     def setUp(self) -> None:
@@ -262,12 +253,8 @@ class TestExceptionsGeneral(unittest.TestCase):
         self.broker = "test_broker"
         self.port = 1883
         self.host = "localhost"
-        self.mqtt_client = MQTT(
-            broker=self.broker, port=self.port, error_holder=self.error_holder
-        )
-        self.keydb_client = KEYDB(
-            host=self.host, port=self.port, error_holder=self.error_holder
-        )
+        self.mqtt_client = MQTT(broker=self.broker, port=self.port, error_holder=self.error_holder)
+        self.keydb_client = KEYDB(host=self.host, port=self.port, error_holder=self.error_holder)
         self.file_client = FILE(filename="test.json", error_holder=self.error_holder)
 
     def tearDown(self) -> None:
@@ -278,9 +265,7 @@ class TestExceptionsGeneral(unittest.TestCase):
     def test_mqtt_module_cant_connect_init(self, mock_connect: MagicMock) -> None:
         mock_connect.side_effect = ClientUnreachableError("Broker unreachable")
         with self.assertRaises(ClientUnreachableError):
-            self.mqtt_client.__init__(
-                broker=self.broker, port=self.port, error_holder=self.error_holder
-            )
+            self.mqtt_client.__init__(broker=self.broker, port=self.port, error_holder=self.error_holder)
         self.error_holder.add_error.assert_called_once()
 
     @patch("leaf.modules.output_modules.mqtt.MQTT._handle_exception")
@@ -314,9 +299,7 @@ class TestExceptionsGeneral(unittest.TestCase):
     def test_mqtt_module_on_connect_cant_reach_broker(self, mock_connect) -> None:
         mock_connect.side_effect = ClientUnreachableError("Server unavailable")
         with self.assertRaises(ClientUnreachableError):
-            self.mqtt_client.__init__(
-                broker=self.broker, port=self.port, error_holder=self.error_holder
-            )
+            self.mqtt_client.__init__(broker=self.broker, port=self.port, error_holder=self.error_holder)
 
     @patch("leaf.modules.output_modules.keydb.KEYDB._handle_redis_error")
     @patch("leaf.modules.output_modules.keydb.redis.StrictRedis")
@@ -325,12 +308,14 @@ class TestExceptionsGeneral(unittest.TestCase):
         with self.assertRaises(ClientUnreachableError):
             self.keydb_client.connect()
 
-
-    @patch("leaf.modules.output_modules.mqtt.mqtt.Client.on_disconnect")
-    def test_mqtt_module_on_disconnect_reconnect_failure(self, mock_on_disconnect: MagicMock) -> None:
-        mock_on_disconnect.side_effect = ClientUnreachableError("Reconnect failed")
-        self.mqtt_client.on_disconnect(client="test_client",userdata=None,flags=None, rc=2)
-        self.assertEqual(self.error_holder.add_error.call_count, 2)
+    @patch("leaf.modules.output_modules.mqtt.logger")
+    def test_mqtt_module_on_disconnect_logs_warning(self, mock_logger: MagicMock) -> None:
+        """Test that unexpected disconnect logs a warning (paho handles reconnection)."""
+        self.error_holder.reset_mock()
+        self.mqtt_client.on_disconnect(client="test_client", userdata=None, flags=None, rc=2)
+        # Should log a warning about paho auto-reconnecting
+        mock_logger.warning.assert_called_once()
+        self.assertIn("paho will auto-reconnect", mock_logger.warning.call_args[0][0])
 
     @patch("leaf.modules.output_modules.file.open", new_callable=mock_open)
     @patch("leaf.modules.output_modules.file.os.path.exists", return_value=True)
@@ -397,7 +382,6 @@ class TestExceptionsGeneral(unittest.TestCase):
         self.assertEqual(result, [])
         self.error_holder.add_error.assert_called_once()
 
-
     @pytest.mark.timeout(60)
     def test_start_handler_no_fallback(self) -> None:
         # Reset failure counter and temporarily increase threshold for this test
@@ -433,14 +417,10 @@ class TestExceptionsGeneral(unittest.TestCase):
                     }
                 }
             ]
-            discover_from_config({"EQUIPMENT_INSTANCES":ins},
-                                 mock_functional_adapter_path)
+            discover_from_config({"EQUIPMENT_INSTANCES": ins}, mock_functional_adapter_path)
 
             def _start() -> Thread:
-                mthread = Thread(
-                    target=run_adapters,
-                    args=[ins, output, error_holder]
-                )
+                mthread = Thread(target=run_adapters, args=[ins, output, error_holder])
                 mthread.daemon = True
                 mthread.start()
                 return mthread
@@ -457,7 +437,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                         output.disconnect()
                         continue
                     no_op_top = "test/test/"
-                    output.fallback(no_op_top,{})
+                    output.fallback(no_op_top, {})
                     time.sleep(15)
                     output.disconnect()
                     time.sleep(1)
@@ -470,7 +450,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                 {
                     "type": ClientUnreachableError,
                     "severity": SeverityLevel.WARNING,
-                    "message_prefix": "Cannot connect or reach client: Cannot store data, no output mechanisms available."
+                    "message_prefix": "Cannot connect or reach client: Cannot store data, no output mechanisms available.",
                 }
             ]
 
@@ -481,12 +461,17 @@ class TestExceptionsGeneral(unittest.TestCase):
                 exc_type, exc_value, exc_traceback = log.exc_info
                 if exc_value:  # Ensure there's an actual exception
                     message = exc_value.args[0] if exc_value.args else ""
-                    print(f"Checking exception: {exc_type.__name__}, severity: {getattr(exc_value, 'severity', 'N/A')}, message: {message}")
+                    print(
+                        f"Checking exception: {exc_type.__name__}, severity: {getattr(exc_value, 'severity', 'N/A')}, message: {message}"
+                    )
 
                     for expected in expected_exceptions:
-                        if (exc_type == expected["type"] and
-                            hasattr(exc_value, 'severity') and exc_value.severity == expected["severity"] and
-                            message.startswith(expected["message_prefix"])):
+                        if (
+                            exc_type == expected["type"]
+                            and hasattr(exc_value, "severity")
+                            and exc_value.severity == expected["severity"]
+                            and message.startswith(expected["message_prefix"])
+                        ):
                             print(f"Matched expected exception: {expected}")
                             found_exceptions.append(expected)
                             break
@@ -501,7 +486,6 @@ class TestExceptionsGeneral(unittest.TestCase):
             # Restore original threshold
             OutputModule._max_failures_before_reboot = original_threshold
             OutputModule.reset_failure_count()
-
 
     def test_start_handler_no_connection(self) -> None:
         write_dir = Path(os.path.dirname(os.path.realpath(__file__))) / ".." / "testing_data" / str(uuid.uuid4())
@@ -531,8 +515,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                 }
             }
         ]
-        discover_from_config({"EQUIPMENT_INSTANCES":ins},
-                             mock_functional_adapter_path)
+        discover_from_config({"EQUIPMENT_INSTANCES": ins}, mock_functional_adapter_path)
 
         def _start() -> Thread:
             mthread = Thread(
@@ -553,7 +536,7 @@ class TestExceptionsGeneral(unittest.TestCase):
             cur_count = 0
             while output.is_enabled():
                 time.sleep(1)
-                cur_count +=1 
+                cur_count += 1
                 if cur_count > timeout:
                     self.fail()
                 output.transmit("test_topic")
@@ -567,7 +550,7 @@ class TestExceptionsGeneral(unittest.TestCase):
             ),
         ]
         expected_logs = ["Disabling client MQTT."]
-        self.assertIsInstance(output._enabled,type(time.time()))
+        self.assertIsInstance(output._enabled, type(time.time()))
         self.assertTrue(len(logs.records) > 0)
         for log in logs.records:
             exc_type, exc_value, exc_traceback = log.exc_info
@@ -576,16 +559,15 @@ class TestExceptionsGeneral(unittest.TestCase):
                     expected_logs.remove(exp_log)
             for exp_exc in list(expected_exceptions):
                 if (
-                        type(exp_exc) == exc_type
-                        and exp_exc.severity == exc_value.severity
-                        and exp_exc.args == exc_value.args
+                    type(exp_exc) == exc_type
+                    and exp_exc.severity == exc_value.severity
+                    and exp_exc.args == exc_value.args
                 ):
                     expected_exceptions.remove(exp_exc)
 
         # With a fake broker at least one exception is expected?
         self.assertTrue(len(expected_exceptions) <= 1)
         self.assertEqual(len(expected_logs), 0)
-
 
     @pytest.mark.skip(reason="Flaky in CI due to resource contention and timing issues - needs refactoring")
     @pytest.mark.timeout(60)
@@ -631,8 +613,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                 }
             },
         ]
-        discover_from_config({"EQUIPMENT_INSTANCES":ins},
-                             mock_functional_adapter_path)
+        discover_from_config({"EQUIPMENT_INSTANCES": ins}, mock_functional_adapter_path)
 
         def _start() -> None:
             mthread = Thread(target=run_adapters, args=[ins, output, error_holder])
@@ -657,18 +638,16 @@ class TestExceptionsGeneral(unittest.TestCase):
             start_time = time.time()
             found_log = False
             while time.time() - start_time < 10:  # 10-second timeout
-                # Check if the log message is in any of the captured logs   
-                if any("test_multiple_adapter_reset_test_exception" in record.getMessage() 
-                       for record in captured.records):
+                # Check if the log message is in any of the captured logs
+                if any(
+                    "test_multiple_adapter_reset_test_exception" in record.getMessage() for record in captured.records
+                ):
                     found_log = True
                     break
                 time.sleep(0.1)
             _stop(adapter_thread)
 
-        self.assertTrue(
-            found_log,
-            "Timed out waiting for the critical error to be logged."
-        )
+        self.assertTrue(found_log, "Timed out waiting for the critical error to be logged.")
 
         expected_exceptions = [exception]
         self.assertTrue(len(captured.records) > 0)
@@ -676,14 +655,15 @@ class TestExceptionsGeneral(unittest.TestCase):
             exc_type, exc_value, exc_traceback = log.exc_info
             for exp_exc in list(expected_exceptions):
                 if (
-                        type(exp_exc) == exc_type
-                        and exp_exc.severity == exc_value.severity
-                        and exp_exc.args == exc_value.args
+                    type(exp_exc) == exc_type
+                    and exp_exc.severity == exc_value.severity
+                    and exp_exc.args == exc_value.args
                 ):
                     expected_exceptions.remove(exp_exc)
 
         self.assertEqual(len(expected_exceptions), 0)
-         
+
+
 class TestExceptionsAdapterSpecific(unittest.TestCase):
     def setUp(self) -> None:
         # Reset output module failure counter to prevent cross-test contamination
@@ -693,23 +673,19 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
         unique_instance_id = str(uuid.uuid4())
         unique_file_name = f"TestBioreactor_{unique_instance_id}.txt"
 
-        self.file_path  = os.path.join(self.temp_dir.name,
-                                       unique_file_name)
-        with open(self.file_path,"w"):
+        self.file_path = os.path.join(self.temp_dir.name, unique_file_name)
+        with open(self.file_path, "w"):
             pass
 
         self.metadata_manager = MagicMock()
         self.file_watcher = FileWatcher(
-            self.temp_dir.name,
-            metadata_manager=self.metadata_manager,
-            filenames=unique_file_name)
+            self.temp_dir.name, metadata_manager=self.metadata_manager, filenames=unique_file_name, use_polling=False
+        )  # Use Observer (not PollingObserver) so mocks work
 
     @patch("leaf.modules.input_modules.file_watcher.Observer.start")
     def test_file_watcher_start_os_error(self, mock_observer_start) -> None:
         # Simulate an OSError with specific errno (e.g., ENOSPC)
-        mock_observer_start.side_effect = OSError(
-            errno.ENOSPC, "No space left on device"
-        )
+        mock_observer_start.side_effect = OSError(errno.ENOSPC, "No space left on device")
 
         with self.assertRaises(InputError) as context:
             self.file_watcher.start()
@@ -741,10 +717,7 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
         # Setup Watcher and simulate csv.Error during file reading
         directory = os.path.dirname(self.file_path)
         filename = os.path.basename(self.file_path)
-        csv_watcher = FileWatcher(directory,
-                                 metadata_manager=self.metadata_manager,
-                                 filenames=filename
-        )
+        csv_watcher = FileWatcher(directory, metadata_manager=self.metadata_manager, filenames=filename)
         mock_open_file.side_effect = csv_error("CSV parsing failed")
         mock_event = MagicMock()
         mock_event.src_path = self.file_path
@@ -763,9 +736,7 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
         mock_event.is_directory = False
         with self.assertRaises(InputError) as context:
             self.file_watcher.on_modified(mock_event)
-        self.assertIn(
-            "File not found during modification event", str(context.exception)
-        )
+        self.assertIn("File not found during modification event", str(context.exception))
 
     @patch("builtins.open", new_callable=mock_open)
     def test_file_watcher_on_modified_os_error(self, mock_open_file) -> None:
@@ -797,13 +768,11 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
         mock_handle_exception.assert_called_once()
         args = mock_handle_exception.call_args[0][0]
         self.assertIsInstance(args, InputError)
-        self.assertIn(
-            "Permission denied when accessing file during modification event", str(args)
-        )
+        self.assertIn("Permission denied when accessing file during modification event", str(args))
 
     @patch.object(FileWatcher, "_handle_exception")
     def test_io_error(self, mock_handle_exception) -> None:
-        error = IOError("I/O error occurred")
+        error = OSError("I/O error occurred")
         self.file_watcher._file_event_exception(error, "deletion")
 
         mock_handle_exception.assert_called_once()
@@ -871,13 +840,10 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
                 }
             }
         ]
-        discover_from_config({"EQUIPMENT_INSTANCES":ins},
-                             mock_functional_adapter_path)
+        discover_from_config({"EQUIPMENT_INSTANCES": ins}, mock_functional_adapter_path)
 
         def _start() -> Thread:
-            mthread = Thread(
-                target=run_adapters,
-                args=[ins.copy(), output, error_holder])
+            mthread = Thread(target=run_adapters, args=[ins.copy(), output, error_holder])
             mthread.daemon = True
             mthread.start()
             return mthread
@@ -885,14 +851,14 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
         def _stop(thread: Thread) -> None:
             stop_all_adapters()
             time.sleep(10)
-        
-        mock_client = MockBioreactorClient(broker,port,username=un,password=pw)
 
-        mock_client.subscribe(f'{institute}/#')
+        mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
+
+        mock_client.subscribe(f"{institute}/#")
         time.sleep(0.5)
         adapter_thread = _start()
         time.sleep(10)
-        excp = InterpreterError("test1_critical",severity=SeverityLevel.CRITICAL)
+        excp = InterpreterError("test1_critical", severity=SeverityLevel.CRITICAL)
         error_holder.add_error(excp)
 
         excp2 = InterpreterError("test2_critical")
@@ -901,14 +867,14 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
         time.sleep(5)
         _stop(adapter_thread)
 
-        expected_exceptions = [excp.to_json(),excp2.to_json()]
-        
+        expected_exceptions = [excp.to_json(), excp2.to_json()]
+
         error_messages = None
         for mt in mock_client.messages.keys():
             if "error" in mt and institute in mt:
                 error_messages = mock_client.messages[mt]
         for e in expected_exceptions:
-            self.assertIn(e,error_messages)
+            self.assertIn(e, error_messages)
 
 
 def _is_error_seen(exception, error_holder: ErrorHolder) -> bool:

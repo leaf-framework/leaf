@@ -1,17 +1,17 @@
-import sys
 import os
-import unittest
-import tempfile
 import sqlite3
-import time
+import sys
+import tempfile
+import unittest
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf.modules.output_modules.sql import SQL
+from unittest.mock import MagicMock, Mock, patch
+
 from leaf.modules.output_modules.mqtt import MQTT
-from unittest.mock import Mock, MagicMock, patch
+from leaf.modules.output_modules.sql import SQL
 
 
 class TestMQTTSQLFallback(unittest.TestCase):
@@ -22,7 +22,7 @@ class TestMQTTSQLFallback(unittest.TestCase):
 
     def setUp(self):
         # Create a temporary database file for testing
-        self.temp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.database = self.temp_db.name
         self.temp_db.close()
 
@@ -31,7 +31,7 @@ class TestMQTTSQLFallback(unittest.TestCase):
         if os.path.exists(self.database):
             os.remove(self.database)
 
-    @patch('paho.mqtt.client.Client')
+    @patch("paho.mqtt.client.Client")
     def test_fallback_messages_are_deleted_after_successful_transmission(self, mock_mqtt_client_class):
         """
         Test that messages stored in SQL fallback are deleted after
@@ -48,12 +48,7 @@ class TestMQTTSQLFallback(unittest.TestCase):
         mock_client.is_connected.return_value = False
 
         # Create MQTT with SQL fallback
-        mqtt_output = MQTT(
-            broker="localhost",
-            port=1883,
-            fallback=sql_fallback,
-            clientid="test_client"
-        )
+        mqtt_output = MQTT(broker="localhost", port=1883, fallback=sql_fallback, clientid="test_client")
 
         # Try to transmit while disconnected - should go to SQL fallback
         topic = "test/topic"
@@ -68,7 +63,7 @@ class TestMQTTSQLFallback(unittest.TestCase):
         # Verify messages are in SQL
         conn = sqlite3.connect(self.database)
         cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM messages WHERE topic = ?', (topic,))
+        cursor.execute("SELECT COUNT(*) FROM messages WHERE topic = ?", (topic,))
         count_before = cursor.fetchone()[0]
         conn.close()
 
@@ -91,13 +86,13 @@ class TestMQTTSQLFallback(unittest.TestCase):
         # Verify SQL database is now empty for this topic
         conn = sqlite3.connect(self.database)
         cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM messages WHERE topic = ?', (topic,))
+        cursor.execute("SELECT COUNT(*) FROM messages WHERE topic = ?", (topic,))
         count_after = cursor.fetchone()[0]
         conn.close()
 
         self.assertEqual(count_after, 0, "SQL should be empty after successful MQTT transmission")
 
-    @patch('paho.mqtt.client.Client')
+    @patch("paho.mqtt.client.Client")
     def test_fallback_retrieves_one_message_at_a_time(self, mock_mqtt_client_class):
         """
         Test that fallback retrieve() pops one message at a time,
@@ -112,7 +107,7 @@ class TestMQTTSQLFallback(unittest.TestCase):
         # Verify both messages are in DB
         conn = sqlite3.connect(self.database)
         cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM messages WHERE topic = ?', (topic,))
+        cursor.execute("SELECT COUNT(*) FROM messages WHERE topic = ?", (topic,))
         count = cursor.fetchone()[0]
         conn.close()
         self.assertEqual(count, 2)
@@ -128,7 +123,7 @@ class TestMQTTSQLFallback(unittest.TestCase):
         # Verify only 1 message left
         conn = sqlite3.connect(self.database)
         cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM messages WHERE topic = ?', (topic,))
+        cursor.execute("SELECT COUNT(*) FROM messages WHERE topic = ?", (topic,))
         count = cursor.fetchone()[0]
         conn.close()
         self.assertEqual(count, 1)
@@ -141,7 +136,7 @@ class TestMQTTSQLFallback(unittest.TestCase):
         # Verify DB is empty
         conn = sqlite3.connect(self.database)
         cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM messages WHERE topic = ?', (topic,))
+        cursor.execute("SELECT COUNT(*) FROM messages WHERE topic = ?", (topic,))
         count = cursor.fetchone()[0]
         conn.close()
         self.assertEqual(count, 0)

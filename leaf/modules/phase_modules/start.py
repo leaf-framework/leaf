@@ -1,9 +1,11 @@
-from typing import Optional, Any
+from typing import Any
 
-from leaf.modules.phase_modules.control import ControlPhase
 from leaf_register.metadata import MetadataManager
+
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import InterpreterError
+from leaf.modules.phase_modules.control import ControlPhase
+
 
 class StartPhase(ControlPhase):
     """
@@ -15,7 +17,7 @@ class StartPhase(ControlPhase):
     def __init__(
         self,
         metadata_manager: MetadataManager,
-        error_holder: Optional[ErrorHolder] = None,
+        error_holder: ErrorHolder | None = None,
     ) -> None:
         """
         Initialize the StartPhase with metadata manager and error holder.
@@ -25,10 +27,7 @@ class StartPhase(ControlPhase):
             error_holder (Optional[ErrorHolder]): Optional, an error holder to manage phase errors.
         """
         term_builder = metadata_manager.experiment.start
-        super().__init__(
-            term_builder, metadata_manager=metadata_manager, 
-            error_holder=error_holder
-        )
+        super().__init__(term_builder, metadata_manager=metadata_manager, error_holder=error_holder)
 
     def update(self, data: Any) -> list:
         """
@@ -47,7 +46,7 @@ class StartPhase(ControlPhase):
                 leaf_exp = InterpreterError(ex)
                 self._handle_exception(leaf_exp)
                 data = []
-            
+
         data = super().update(data)
         data += [(self._metadata_manager.running(), True)]
         data += [(self._metadata_manager.experiment.stop(), None)]
