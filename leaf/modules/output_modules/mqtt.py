@@ -123,7 +123,7 @@ class MQTT(OutputModule):
         try:
             if self._username and self._password:
                 self.client.username_pw_set(self._username, self._password)
-            self.client.connect(self._broker, self._port, 60)
+            self.client.connect(self._broker, self._port, 20)
             self.client.loop_start()
         except (gaierror, OSError) as e:
             self._handle_exception(ClientUnreachableError(f"Error connecting to broker: {e}", output_module=self))
