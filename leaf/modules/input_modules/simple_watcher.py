@@ -1,10 +1,9 @@
 from collections.abc import Callable
 from typing import Any
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.polling_watcher import PollingWatcher
+from leaf.register.metadata import MetadataManager
 
 
 class SimpleWatcher(PollingWatcher):

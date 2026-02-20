@@ -11,11 +11,10 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.modules.output_modules.file import FILE
 from leaf.modules.output_modules.keydb import KEYDB
 from leaf.modules.output_modules.mqtt import MQTT
+from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
 from leaf.utility.running_utilities import handle_disabled_modules
 from tests.mock_mqtt_client import MockBioreactorClient

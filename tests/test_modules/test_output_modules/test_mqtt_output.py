@@ -9,9 +9,8 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.modules.output_modules.mqtt import MQTT, logger
+from leaf.register.metadata import MetadataManager
 from tests.mock_mqtt_client import MockBioreactorClient
 
 # Current location of this script

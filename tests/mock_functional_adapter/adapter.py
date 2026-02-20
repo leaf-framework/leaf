@@ -1,12 +1,11 @@
 import os
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.core_adapters.discrete_experiment_adapter import DiscreteExperimentAdapter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
 from leaf.modules.input_modules.file_watcher import FileWatcher
 from leaf.modules.output_modules.output_module import OutputModule
+from leaf.register.metadata import MetadataManager
 from tests.mock_functional_adapter.interpreter import MockInterpreter
 
 current_dir = os.path.dirname(os.path.abspath(__file__))

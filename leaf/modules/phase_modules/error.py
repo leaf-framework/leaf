@@ -1,10 +1,9 @@
 from typing import Any
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import HardwareStalledError
 from leaf.modules.phase_modules.control import ControlPhase
+from leaf.register.metadata import MetadataManager
 
 
 class ErrorPhase(ControlPhase):

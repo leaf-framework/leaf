@@ -13,9 +13,8 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.modules.input_modules.file_watcher import FileWatcher
+from leaf.register.metadata import MetadataManager
 
 logger = leaf.utility.logger.logger_utils.get_logger("test_file_watch_modules")
 

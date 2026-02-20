@@ -14,8 +14,6 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.equipment_adapter import AbstractInterpreter, EquipmentAdapter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import HardwareStalledError
@@ -24,6 +22,7 @@ from leaf.modules.output_modules.mqtt import MQTT
 from leaf.modules.phase_modules.control import ControlPhase
 from leaf.modules.phase_modules.measure import MeasurePhase
 from leaf.modules.process_modules.discrete_module import DiscreteProcess
+from leaf.register.metadata import MetadataManager
 from tests.mock_mqtt_client import MockBioreactorClient
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))

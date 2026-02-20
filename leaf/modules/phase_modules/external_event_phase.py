@@ -1,10 +1,9 @@
 from datetime import datetime
 from typing import Any
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.phase_modules.phase import PhaseModule
+from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="external_events.log")

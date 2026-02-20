@@ -14,12 +14,11 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.error_handler.exceptions import InterpreterError
 from leaf.modules.input_modules.mqtt_watcher import MQTTEventWatcher
 from leaf.modules.output_modules.mqtt import MQTT
+from leaf.register.metadata import MetadataManager
 from tests.generic_adapter.adapter import GenericDiscreteAdapter
 from tests.mock_mqtt_client import MockBioreactorClient
 

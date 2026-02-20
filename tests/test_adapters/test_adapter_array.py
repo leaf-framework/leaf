@@ -15,12 +15,11 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.core_adapters.discrete_experiment_adapter import DiscreteExperimentAdapter
 from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.modules.input_modules.file_watcher import FileWatcher
 from leaf.modules.output_modules.mqtt import MQTT
+from leaf.register.metadata import MetadataManager
 from tests.mock_mqtt_client import MockBioreactorClient
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))

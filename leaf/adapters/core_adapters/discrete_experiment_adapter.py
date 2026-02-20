@@ -1,7 +1,5 @@
 from typing import Any
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.equipment_adapter import AbstractInterpreter, EquipmentAdapter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.event_watcher import EventWatcher
@@ -13,6 +11,7 @@ from leaf.modules.phase_modules.measure import MeasurePhase
 from leaf.modules.phase_modules.start import StartPhase
 from leaf.modules.phase_modules.stop import StopPhase
 from leaf.modules.process_modules.discrete_module import DiscreteProcess
+from leaf.register.metadata import MetadataManager
 
 
 class DiscreteExperimentAdapter(EquipmentAdapter):

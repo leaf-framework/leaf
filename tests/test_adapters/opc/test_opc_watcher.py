@@ -6,12 +6,12 @@ from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
 from influxobject import InfluxPoint
-from leaf_register.metadata import MetadataManager
 
 from leaf.adapters.core_adapters.discrete_experiment_adapter import DiscreteExperimentAdapter
 from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.opc_watcher import OPCUA_AVAILABLE, OPCWatcher
+from leaf.register.metadata import MetadataManager
 
 metadata_fn = {
     "adapter_id": "MBPOPC",

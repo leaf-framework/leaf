@@ -15,8 +15,6 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.modules.input_modules.file_watcher import FileWatcher
 from leaf.modules.output_modules.mqtt import MQTT
@@ -25,6 +23,7 @@ from leaf.modules.phase_modules.start import StartPhase
 from leaf.modules.phase_modules.stop import StopPhase
 from leaf.modules.process_modules.continous_module import ContinousProcess
 from leaf.modules.process_modules.discrete_module import DiscreteProcess
+from leaf.register.metadata import MetadataManager
 from tests.mock_mqtt_client import MockBioreactorClient
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))

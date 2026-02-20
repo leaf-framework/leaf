@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from threading import Event
 from typing import Any
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.error_handler import exceptions
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import LEAFError
@@ -14,6 +12,7 @@ from leaf.modules.input_modules.external_event_watcher import ExternalEventWatch
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.modules.process_modules.external_event_process import ExternalEventProcess
 from leaf.modules.process_modules.process_module import ProcessModule
+from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
 
 

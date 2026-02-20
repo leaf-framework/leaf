@@ -1,11 +1,10 @@
 import time
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.modules.phase_modules.phase import PhaseModule
 from leaf.modules.process_modules.discrete_module import DiscreteProcess
+from leaf.register.metadata import MetadataManager
 
 
 class UploadProcess(DiscreteProcess):

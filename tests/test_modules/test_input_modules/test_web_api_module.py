@@ -8,10 +8,10 @@ sys.path.insert(0, os.path.join("..", "..", ".."))
 import unittest
 from unittest.mock import MagicMock, patch
 
-from leaf_register.metadata import MetadataManager
 from requests.models import Response
 
 from leaf.modules.input_modules.http_watcher import HTTPWatcher, URLState
+from leaf.register.metadata import MetadataManager
 
 
 class TestURLState(unittest.TestCase):

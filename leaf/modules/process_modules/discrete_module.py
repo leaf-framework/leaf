@@ -1,10 +1,9 @@
-from leaf_register.metadata import MetadataManager
-
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterBuildError
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.modules.phase_modules.phase import PhaseModule
 from leaf.modules.process_modules.process_module import ProcessModule
+from leaf.register.metadata import MetadataManager
 
 
 class DiscreteProcess(ProcessModule):
