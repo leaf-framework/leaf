@@ -64,7 +64,7 @@ class TestMetadataManager(unittest.TestCase):
         self.assertEqual(parsed.action, "stop")
 
     def test_get_topics(self):
-        mock_md = {"institute": "institute_id", "adapter_id": "adapter_id", "instance_id": "instance_id"}
+        mock_md = {"institute": "institute_id", "department": "dep1", "adapter_id": "adapter_id", "instance_id": "instance_id"}
         md = MetadataManager()
         md.add_equipment_data(mock_md)
 

@@ -94,6 +94,8 @@ class TopicUtility:
         # Strip optional <root>/ prefix from template when root is not provided
         if not placeholders.get("root"):
             template_str = re.sub(r"^<root>/", "", template_str)
+        if not placeholders.get("department"):
+            template_str = re.sub(r"<department>/", "", template_str)
 
         def _replace(m):
             ph_name = m.group(1)

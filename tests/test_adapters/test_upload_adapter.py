@@ -78,6 +78,7 @@ class TestUploadAdapter(unittest.TestCase):
         unique_id = str(uuid.uuid4())
         self.watch_dir = Path(self.temp_dir.name)
         self.instance_data = {
+            "root": f"ROOT_TestUploadAdapter_{unique_id}",
             "instance_id": unique_id,
             "institute": f"TestUploadAdapter_{unique_id}_ins",
         }

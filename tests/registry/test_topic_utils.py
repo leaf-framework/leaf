@@ -21,20 +21,21 @@ class TestTopicUtility(unittest.TestCase):
         self.assertIn("experiment.start", flattened)
         self.assertIn("experiment.stop", flattened)
         self.assertIn("experiment.measurement", flattened)
-        self.assertEqual(flattened["details"], "<root>/<institute>/<adapter_id>/<instance_id>/details")
+        self.assertEqual(flattened["details"], "<root>/<institute>/<department>/<adapter_id>/<instance_id>/details")
         self.assertEqual(
             flattened["experiment.measurement"],
-            "<root>/<institute>/<adapter_id>/<instance_id>/experiment/<experiment_id>/measurement/<measurement>",
+            "<root>/<institute>/<department>/<adapter_id>/<instance_id>/experiment/<experiment_id>/measurement/<measurement>",
         )
 
     def test_parse_topic_valid(self):
         """
         Test parse_topic with a valid topic that should match one of the YAML templates.
         """
-        topic_str = "myUni/eq1/abc/details"
+        topic_str = "myUni/dep2/eq1/abc/details"
         topic_obj = topic_utilities.parse_topic(topic_str)
         self.assertIsInstance(topic_obj, Topic)
         self.assertEqual(topic_obj["institute"], "myUni")
+        self.assertEqual(topic_obj["department"], "dep2")
         self.assertEqual(topic_obj["adapter_id"], "eq1")
         self.assertEqual(topic_obj["instance_id"], "abc")
 
@@ -42,11 +43,12 @@ class TestTopicUtility(unittest.TestCase):
         """
         Test parse_topic with a valid topic that should match one of the YAML templates.
         """
-        topic_str = "rooting/myUni/eq1/abc/details"
+        topic_str = "rooting/myUni/dep1/eq1/abc/details"
         topic_obj = topic_utilities.parse_topic(topic_str)
         self.assertIsInstance(topic_obj, Topic)
         self.assertEqual(topic_obj["root"], "rooting")
         self.assertEqual(topic_obj["institute"], "myUni")
+        self.assertEqual(topic_obj["department"], "dep1")
         self.assertEqual(topic_obj["adapter_id"], "eq1")
         self.assertEqual(topic_obj["instance_id"], "abc")
 
@@ -54,10 +56,11 @@ class TestTopicUtility(unittest.TestCase):
         """
         Test parse_topic with an experiment measurement topic.
         """
-        topic_str = "uniX/eq99/i7/experiment/expABC/measurement/temp"
+        topic_str = "uniX/dep01/eq99/i7/experiment/expABC/measurement/temp"
         topic_obj = topic_utilities.parse_topic(topic_str)
 
         self.assertEqual(topic_obj["institute"], "uniX")
+        self.assertEqual(topic_obj["department"], "dep01")
         self.assertEqual(topic_obj["adapter_id"], "eq99")
         self.assertEqual(topic_obj["instance_id"], "i7")
         self.assertEqual(topic_obj["experiment_id"], "expABC")
@@ -79,7 +82,7 @@ class TestTopicUtility(unittest.TestCase):
         self.assertFalse(topic_utilities.is_complete_topic("myUni/eq/#"))
 
     def test_get_topic_data_metadata_manager(self):
-        mock_md = {"institute": "institute_id", "adapter_id": "adapter_id", "instance_id": "instance_id"}
+        mock_md = {"institute": "institute_id", "adapter_id": "adapter_id", "instance_id": "instance_id", "department": "department_id"}
         md = MetadataManager()
         md.add_equipment_data(mock_md)
 
