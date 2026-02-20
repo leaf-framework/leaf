@@ -1,0 +1,7 @@
+details: <root>/<institute>/<adapter_id>/<instance_id>/details
+running: <root>/<institute>/<adapter_id>/<instance_id>/running
+error: <root>/<institute>/<adapter_id>/<instance_id>/error
+experiment:
+  start: <root>/<institute>/<adapter_id>/<instance_id>/experiment/start
+  stop: <root>/<institute>/<adapter_id>/<instance_id>/experiment/stop
+  measurement: <root>/<institute>/<adapter_id>/<instance_id>/experiment/<experiment_id>/measurement/<measurement>
