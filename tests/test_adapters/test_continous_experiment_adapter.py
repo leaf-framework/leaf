@@ -89,6 +89,7 @@ class TestEquipmentAdapter(unittest.TestCase):
 
         unique_instance_id = str(uuid.uuid4())
         unique_institute = "TestInstitute_"  # + unique_instance_id[:8]
+        unique_department = "TestDepartment_"
 
         unique_file_name = f"TestBioreactor_{unique_instance_id}.txt"
         self.text_watch_file = os.path.join(self.temp_dir.name, unique_file_name)
@@ -96,6 +97,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         instance_data = {
             "instance_id": unique_instance_id,
             "institute": unique_institute,
+            "department": unique_department,
         }
         equipment_data = {"adapter_id": "TestBioreactor_transmit_" + unique_instance_id}
         self.mock_client = MockBioreactorClient(broker, port, username=un, password=pw)

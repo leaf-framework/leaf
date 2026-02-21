@@ -49,6 +49,7 @@ EQUIPMENT_INSTANCES:
       data:
         instance_id: test_device
         institute: test_lab
+        department: test_department
       requirements:
         interval: 60
 

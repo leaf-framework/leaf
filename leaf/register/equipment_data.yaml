@@ -1,3 +1,4 @@
 adapter_id: required
 instance_id: required
 institute: required
+department: required

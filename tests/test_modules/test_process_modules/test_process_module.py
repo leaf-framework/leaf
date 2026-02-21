@@ -105,13 +105,15 @@ class TestContinousProcess(unittest.TestCase):
 
         self.mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
         self.ins_id = "TestContinousProcess_" + str(uuid.uuid4())
+        self.dept_id = "TestContinousProcess_" + str(uuid.uuid4())
         self.adapter_id = str(uuid.uuid4())
         self.instance_id = str(uuid.uuid4())
-        self.mock_client.subscribe(f"{self.ins_id}/{self.adapter_id}/{self.instance_id}/#")
+        self.mock_client.subscribe(f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}/#")
 
         self.metadata_manager = MetadataManager()
         self.metadata_manager.add_equipment_value("adapter_id", self.adapter_id)
         self.metadata_manager.add_instance_value("institute", self.ins_id)
+        self.metadata_manager.add_instance_value("department", self.dept_id)
         self.metadata_manager.add_instance_value("instance_id", self.instance_id)
 
         directory = os.path.dirname(self.text_watch_file)
@@ -152,7 +154,7 @@ class TestContinousProcess(unittest.TestCase):
             time.sleep(1)
         for k, v in self.mock_client.messages.items():
             print(f"Received message on topic {k}: {v}")
-            if k.startswith(f"{self.ins_id}/{self.adapter_id}/{self.instance_id}"):
+            if k.startswith(f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}"):
                 if (
                     self.metadata_manager.experiment.measurement(
                         experiment_id=self._mock_experiment, measurement="unknown"
@@ -176,13 +178,15 @@ class TestDiscreteProcess(unittest.TestCase):
 
         self.mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
         self.ins_id = str(uuid.uuid4())
+        self.dept_id = str(uuid.uuid4())
         self.adapter_id = str(uuid.uuid4())
         self.instance_id = str(uuid.uuid4())
-        self.mock_client.subscribe(f"{self.ins_id}/{self.adapter_id}/{self.instance_id}/#")
+        self.mock_client.subscribe(f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}/#")
 
         self.metadata_manager = MetadataManager()
         self.metadata_manager.add_equipment_value("adapter_id", self.adapter_id)
         self.metadata_manager.add_instance_value("institute", self.ins_id)
+        self.metadata_manager.add_instance_value("department", self.dept_id)
         self.metadata_manager.add_instance_value("instance_id", self.instance_id)
 
         directory = os.path.dirname(self.text_watch_file)
@@ -225,7 +229,7 @@ class TestDiscreteProcess(unittest.TestCase):
 
         for k, v in self.mock_client.messages.items():
             print(f"Received message on topic {k}: {v}")
-            if k.startswith(f"{self.ins_id}/{self.adapter_id}/{self.instance_id}") and k.endswith("start"):
+            if k.startswith(f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}") and k.endswith("start"):
                 if self.metadata_manager.experiment.start() == k:
                     print(f"Start phase message matched: {k}")
                     fail = False
@@ -239,7 +243,7 @@ class TestDiscreteProcess(unittest.TestCase):
         fail = True
         for k, v in self.mock_client.messages.items():
             # These modifications are necessary to match the expected topic structure when running tests in parallel
-            if k.startswith(f"{self.ins_id}/{self.adapter_id}/{self.instance_id}"):
+            if k.startswith(f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}"):
                 if (
                     self.metadata_manager.experiment.measurement(
                         experiment_id=self._mock_experiment, measurement="unknown"
@@ -258,7 +262,7 @@ class TestDiscreteProcess(unittest.TestCase):
         fail = True
 
         for k, v in self.mock_client.messages.items():
-            if k.startswith(f"{self.ins_id}/{self.adapter_id}/{self.instance_id}") and k.endswith("stop"):
+            if k.startswith(f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}") and k.endswith("stop"):
                 if self.metadata_manager.experiment.stop() == k:
                     print(f"Stop phase message matched: {k}")
                     fail = False

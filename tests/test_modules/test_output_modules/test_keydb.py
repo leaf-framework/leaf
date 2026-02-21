@@ -163,10 +163,10 @@ class TestKeyDB(unittest.TestCase):
                             measurement_key = key
 
                     # Assert both expected keys are present
-                    assert details_key == b"keydb_test_instance_institute1/Example/keydb_test_instance/details"
+                    assert details_key == b"keydb_test_instance_institute1/keydb_test_instance_department1/Example/keydb_test_instance/details"
                     assert (
                         measurement_key
-                        == b"keydb_test_instance_institute1/Example/keydb_test_instance/experiment/undefined/measurement/unknown"
+                        == b"keydb_test_instance_institute1/keydb_test_instance_department1/Example/keydb_test_instance/experiment/undefined/measurement/unknown"
                     )
                     self.logger.info("Current keys in KeyDB: %s", keys)
                     # Number of values in the list

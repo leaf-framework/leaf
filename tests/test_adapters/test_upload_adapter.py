@@ -81,6 +81,7 @@ class TestUploadAdapter(unittest.TestCase):
             "root": f"ROOT_TestUploadAdapter_{unique_id}",
             "instance_id": unique_id,
             "institute": f"TestUploadAdapter_{unique_id}_ins",
+            "department": f"TestUploadAdapter_{unique_id}_dep",
         }
         self.equipment_data = {
             "adapter_id": f"TestUploadAdapter_{unique_id}_equipment",

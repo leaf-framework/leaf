@@ -82,7 +82,13 @@ class TestTopicUtility(unittest.TestCase):
         self.assertFalse(topic_utilities.is_complete_topic("myUni/eq/#"))
 
     def test_get_topic_data_metadata_manager(self):
-        mock_md = {"institute": "institute_id", "adapter_id": "adapter_id", "instance_id": "instance_id", "department": "department_id"}
+        mock_md = {
+            "institute": "institute_id",
+            "adapter_id": "adapter_id",
+            "instance_id": "instance_id",
+            "department": "department_id"
+        }
+
         md = MetadataManager()
         md.add_equipment_data(mock_md)
 

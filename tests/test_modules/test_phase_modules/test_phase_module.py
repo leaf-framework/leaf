@@ -48,6 +48,7 @@ class TestMeasurePhase(unittest.TestCase):
         self._metadata_manager = MetadataManager()
         self._metadata_manager.add_equipment_value("adapter_id", "test_transmit")
         self._metadata_manager.add_instance_value("institute", "test_transmit")
+        self._metadata_manager.add_instance_value("department", "test_transmit")
         self._metadata_manager.add_instance_value("instance_id", "test_transmit")
 
         self._module = MeasurePhase(metadata_manager=self._metadata_manager)
@@ -139,6 +140,7 @@ class TestControlPhase(unittest.TestCase):
         self._metadata_manager = MetadataManager()
         self._metadata_manager.add_equipment_value("adapter_id", "test_transmit")
         self._metadata_manager.add_instance_value("institute", "test_transmit")
+        self._metadata_manager.add_instance_value("department", "test_transmit")
         self._metadata_manager.add_instance_value("instance_id", "test_transmit")
         self._module = ControlPhase(self._metadata_manager.experiment.start, metadata_manager=self._metadata_manager)
 

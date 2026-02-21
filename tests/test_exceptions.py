@@ -186,7 +186,11 @@ class TestExceptionsInit(unittest.TestCase):
     def test_startprocess_instance_not_found(self) -> None:
         config = {
             "adapter": "BioLector123",
-            "data": {"instance_id": "biolector_devonshire10", "institute": "NCL"},
+            "data": {
+                "instance_id": "biolector_devonshire10",
+                "institute": "NCL",
+                "department": "XYZ"
+            },
             "requirements": {"write_file": "tmp1.csv"},
         }
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
@@ -196,7 +200,11 @@ class TestExceptionsInit(unittest.TestCase):
     def test_startprocess_instance_no_requirements(self) -> None:
         config = {
             "adapter": "BioLector1",
-            "data": {"instance_id": "biolector_devonshire10", "institute": "NCL"},
+            "data": {
+                "instance_id": "biolector_devonshire10",
+                "institute": "NCL",
+                "department": "XYZ"
+            },
             "requirements": {},
         }
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
@@ -206,7 +214,7 @@ class TestExceptionsInit(unittest.TestCase):
     def test_startprocess_instance_missing_id(self) -> None:
         config = {
             "adapter": "BioLector1",
-            "data": {"institute": "NCL"},
+            "data": {"institute": "NCL", "department": "XYZ"},
             "requirements": {"write_file": "tmp1.csv"},
         }
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
@@ -371,14 +379,16 @@ class TestExceptionsGeneral(unittest.TestCase):
         self.assertIsNone(result)
         self.error_holder.add_error.assert_called_once()
 
-    @patch("json.load", side_effect=json.JSONDecodeError("Invalid JSON", doc="", pos=0))
-    @patch("leaf.modules.output_modules.file.open", new_callable=mock_open)
-    def test_file_retrieve_invalid_json(self, mock_open_file, mock_json_load) -> None:
+    @patch("leaf.modules.output_modules.file.os.path.exists", return_value=True)
+    @patch("leaf.modules.output_modules.file.json.loads", side_effect=json.JSONDecodeError("Invalid JSON", doc="", pos=0))
+    @patch("leaf.modules.output_modules.file.open", new_callable=mock_open, read_data='{"bad": "json"}\n')
+    def test_file_retrieve_invalid_json(self, mock_open_file, mock_json_loads, mock_exists) -> None:
+        self.error_holder.reset_mock()
         # Attempt to retrieve data
         result = self.file_client.retrieve("test_topic")
 
-        # Assert that [] is returned due to error and error is recorded
-        self.assertEqual(result, [])
+        # Assert that None is returned due to error and error is recorded
+        self.assertIsNone(result)
         self.error_holder.add_error.assert_called_once()
 
     @pytest.mark.timeout(60)
@@ -411,6 +421,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                         "data": {
                             "instance_id": f"{uuid.uuid4()}",
                             "institute": f"{uuid.uuid4()}",
+                            "department": f"{uuid.uuid4()}"
                         },
                         "requirements": {"write_file": write_file},
                     }
@@ -509,6 +520,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                     "data": {
                         "instance_id": f"{uuid.uuid4()}",
                         "institute": f"{uuid.uuid4()}",
+                        "department": f"{uuid.uuid4()}",
                     },
                     "requirements": {"write_file": write_file},
                 }
@@ -597,6 +609,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                     "data": {
                         "instance_id": f"{uuid.uuid4()}",
                         "institute": f"{uuid.uuid4()}",
+                        "department": f"{uuid.uuid4()}",
                     },
                     "requirements": {"write_file": write_file1},
                 }
@@ -607,6 +620,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                     "data": {
                         "instance_id": f"{uuid.uuid4()}",
                         "institute": f"{uuid.uuid4()}",
+                        "department": f"{uuid.uuid4()}",
                     },
                     "requirements": {"write_file": write_file2},
                 }
@@ -834,6 +848,7 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
                     "data": {
                         "instance_id": instance_id,
                         "institute": institute,
+                        "department": "dept_xyz",
                     },
                     "requirements": {"write_file": write_file},
                 }

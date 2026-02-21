@@ -180,6 +180,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         instance_data = {
             "instance_id": unique_instance_id,
             "institute": unique_institute,
+            "department": "TestDepartment_"
         }
         equipment_data = {"adapter_id": "TestBioreactor_transmit_" + unique_instance_id}
 
@@ -288,7 +289,11 @@ class TestEquipmentAdapter(unittest.TestCase):
         self.assertIn(exp_tp, self.mock_client.messages)
 
     def test_exceptions(self):
-        instance_data = {"instance_id": "test_exceptions_instance", "institute": "test_exceptions_ins"}
+        instance_data = {
+            "instance_id": "test_exceptions_instance",
+            "institute": "test_exceptions_ins",
+            "department": "test_exceptions_dep"
+        }
         equipment_data = {"adapter_id": "test_exceptions_equip"}
 
         test_exp_tw_watch_file = os.path.join("tmp_exception.txt")
@@ -315,6 +320,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         instance_data = {
             "instance_id": unique_instance_id,
             "institute": unique_institute,
+            "department": "TestDepartment_"
         }
 
         equipment_data = {"adapter_id": "TestBioreactor_transmit_" + unique_instance_id}

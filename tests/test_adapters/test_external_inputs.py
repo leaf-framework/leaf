@@ -114,6 +114,7 @@ class TestEquipmentAdapter(unittest.TestCase):
 
         unique_instance_id = str(uuid.uuid4())
         unique_institute = "TestInstitute_" + unique_instance_id[:8]
+        unique_department = "TestDepartment_" + unique_instance_id[:8]
 
         unique_file_name = f"TestBioreactor_{unique_instance_id}.txt"
         text_watch_file = os.path.join(self.temp_dir.name, unique_file_name)
@@ -121,6 +122,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         instance_data = {
             "instance_id": unique_instance_id,
             "institute": unique_institute,
+            "department": unique_department,
         }
         equipment_data = {"adapter_id": "TestBioreactor_transmit_" + unique_instance_id}
 
@@ -227,6 +229,7 @@ class TestEquipmentAdapter(unittest.TestCase):
                     "data": {
                         "instance_id": f"{uuid.uuid4()}",
                         "institute": f"{uuid.uuid4()}",
+                        "department": f"{uuid.uuid4()}"
                     },
                     "requirements": {"write_file": write_file},
                     "external_input": {

@@ -46,6 +46,7 @@ class TestStart(unittest.TestCase):
         error_holder = ErrorHolder()
         instance_id = f"{uuid.uuid4()}"
         institute = f"{uuid.uuid4()}"
+        department = f"{uuid.uuid4()}"
         ins = [
             {
                 "equipment": {
@@ -53,6 +54,7 @@ class TestStart(unittest.TestCase):
                     "data": {
                         "instance_id": instance_id,
                         "institute": institute,
+                        "department": department,
                     },
                     "requirements": {"write_file": self.file_store_path},
                 }

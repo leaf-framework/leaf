@@ -15,21 +15,28 @@ class TestMetadataManager(unittest.TestCase):
         self.manager = MetadataManager()
 
     def test_add_equipment_data_and_validity(self):
-        self.manager.add_instance_data({"institute": "myInst", "instance_id": "ABC"})
+        self.manager.add_instance_data({
+            "institute": "myInst",
+            "department": "dept",
+            "instance_id": "ABC"
+        })
 
         self.manager.add_equipment_data({"adapter_id": "EQ123"})
         self.assertTrue(self.manager.is_valid())
         self.assertEqual(self.manager.get_instance_id(), "ABC")
 
     def test_missing_metadata(self):
-        self.manager.add_equipment_data({"institute": "myInst"})
+        self.manager.add_equipment_data({"institute": "myInst", "department": "myDept"})
         self.assertFalse(self.manager.is_valid())
 
         missing = self.manager.get_missing_metadata()
         self.assertGreater(len(missing), 0)
 
     def test_dot_based_details_topic(self):
-        self.manager.add_instance_data({"institute": "myInst", "instance_id": "ABC"})
+        self.manager.add_instance_data({
+            "institute": "myInst",
+            "department": "myDept",
+            "instance_id": "ABC"})
 
         self.manager.add_equipment_data({"adapter_id": "EQ123"})
         topic_str = self.manager.details()
@@ -41,7 +48,11 @@ class TestMetadataManager(unittest.TestCase):
         self.assertEqual(parsed.action, "details")
 
     def test_dot_based_experiment_start(self):
-        self.manager.add_equipment_data({"institute": "myInst", "adapter_id": "EQ123", "instance_id": "ABC"})
+        self.manager.add_equipment_data({
+            "institute": "myInst",
+            "department": "myDept",
+            "adapter_id": "EQ123",
+            "instance_id": "ABC"})
 
         topic_str = self.manager.experiment.start()
 
@@ -55,7 +66,11 @@ class TestMetadataManager(unittest.TestCase):
         """
         Demonstrate that we can override a key like 'instance_id' at call time.
         """
-        self.manager.add_equipment_data({"institute": "myInst", "adapter_id": "EQ123", "instance_id": "ABC"})
+        self.manager.add_equipment_data({
+            "institute": "myInst",
+            "department": "myDept",
+            "adapter_id": "EQ123",
+            "instance_id": "ABC"})
 
         topic_str = self.manager.experiment.stop(instance_id="OVERRIDE123")
 
@@ -64,7 +79,11 @@ class TestMetadataManager(unittest.TestCase):
         self.assertEqual(parsed.action, "stop")
 
     def test_get_topics(self):
-        mock_md = {"institute": "institute_id", "department": "dep1", "adapter_id": "adapter_id", "instance_id": "instance_id"}
+        mock_md = {
+            "institute": "institute_id",
+            "department": "department_id",
+            "adapter_id": "adapter_id",
+            "instance_id": "instance_id"}
         md = MetadataManager()
         md.add_equipment_data(mock_md)
 

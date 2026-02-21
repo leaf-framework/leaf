@@ -97,7 +97,11 @@ class TestAdapterArray(unittest.TestCase):
         self.mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
         self.output = MQTT(broker, port, username=un, password=pw)
 
-        instance_data1 = {"instance_id": f"TestAdapterArray_{unique_id1}", "institute": f"Institute_{unique_id1}"}
+        instance_data1 = {
+            "instance_id": f"TestAdapterArray_{unique_id1}",
+            "institute": f"Institute_{unique_id1}",
+            "department": f"Department_{unique_id1}"
+        }
         equipment_data = {
             "adapter_id": f"Equipment_{unique_id1}",
         }
@@ -107,7 +111,11 @@ class TestAdapterArray(unittest.TestCase):
         self._adapter = DiscreteExperimentAdapter(
             instance_data1, watcher1, self.output, MockBioreactorInterpreter(), metadata_manager=metadata_manager1
         )
-        instance_data2 = {"instance_id": f"TestAdapterArray_{unique_id2}", "institute": f"Institute_{unique_id2}"}
+        instance_data2 = {
+            "instance_id": f"TestAdapterArray_{unique_id2}",
+            "institute": f"Institute_{unique_id2}",
+            "department": f"Department_{unique_id2}"}
+
         equipment_data2 = {
             "adapter_id": f"Equipment_{unique_id2}",
         }

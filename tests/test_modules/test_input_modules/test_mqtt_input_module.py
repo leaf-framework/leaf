@@ -562,13 +562,18 @@ class TestMQTTWatcherInAdapter(unittest.TestCase):
         # Constants for test config
         instance_id = "TestMQTTWatcherInAdapter_instance_id"
         institute_id = "TestMQTTWatcherInAdapter_institute_id"
+        department_id = "TestMQTTWatcherInAdapter_department_id"
         experiment_id = "LacZ-Slow-Single-KO"
         sensor_topic_base = f"pioreactor/Worker2-1/{experiment_id}"
         growth_rate_measurement = "growth_rate"
         stop_signal = "interval"
         error_log = "pid_log"
 
-        instance_data = {"instance_id": instance_id, "institute": institute_id}
+        instance_data = {
+            "instance_id": instance_id,
+            "institute": institute_id,
+            "department": department_id
+        }
 
         # Define topics
         start_topics = [sensor_topic_base]
