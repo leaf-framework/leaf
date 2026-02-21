@@ -165,7 +165,7 @@ class TestKeyDB(unittest.TestCase):
                     # Assert both expected keys are present
                     assert (
                         details_key
-                        == b"keydb_test_instance_institute1/keydb_test_instance_department1/Example/keydb_test_instance/details"
+                        == b"keydb_test_instance_institute1/Example/keydb_test_instance/details"
                     )
                     assert (
                         measurement_key
