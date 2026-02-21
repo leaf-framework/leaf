@@ -569,11 +569,7 @@ class TestMQTTWatcherInAdapter(unittest.TestCase):
         stop_signal = "interval"
         error_log = "pid_log"
 
-        instance_data = {
-            "instance_id": instance_id,
-            "institute": institute_id,
-            "department": department_id
-        }
+        instance_data = {"instance_id": instance_id, "institute": institute_id, "department": department_id}
 
         # Define topics
         start_topics = [sensor_topic_base]

@@ -186,11 +186,7 @@ class TestExceptionsInit(unittest.TestCase):
     def test_startprocess_instance_not_found(self) -> None:
         config = {
             "adapter": "BioLector123",
-            "data": {
-                "instance_id": "biolector_devonshire10",
-                "institute": "NCL",
-                "department": "XYZ"
-            },
+            "data": {"instance_id": "biolector_devonshire10", "institute": "NCL", "department": "XYZ"},
             "requirements": {"write_file": "tmp1.csv"},
         }
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
@@ -200,11 +196,7 @@ class TestExceptionsInit(unittest.TestCase):
     def test_startprocess_instance_no_requirements(self) -> None:
         config = {
             "adapter": "BioLector1",
-            "data": {
-                "instance_id": "biolector_devonshire10",
-                "institute": "NCL",
-                "department": "XYZ"
-            },
+            "data": {"instance_id": "biolector_devonshire10", "institute": "NCL", "department": "XYZ"},
             "requirements": {},
         }
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
@@ -380,7 +372,9 @@ class TestExceptionsGeneral(unittest.TestCase):
         self.error_holder.add_error.assert_called_once()
 
     @patch("leaf.modules.output_modules.file.os.path.exists", return_value=True)
-    @patch("leaf.modules.output_modules.file.json.loads", side_effect=json.JSONDecodeError("Invalid JSON", doc="", pos=0))
+    @patch(
+        "leaf.modules.output_modules.file.json.loads", side_effect=json.JSONDecodeError("Invalid JSON", doc="", pos=0)
+    )
     @patch("leaf.modules.output_modules.file.open", new_callable=mock_open, read_data='{"bad": "json"}\n')
     def test_file_retrieve_invalid_json(self, mock_open_file, mock_json_loads, mock_exists) -> None:
         self.error_holder.reset_mock()
@@ -421,7 +415,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                         "data": {
                             "instance_id": f"{uuid.uuid4()}",
                             "institute": f"{uuid.uuid4()}",
-                            "department": f"{uuid.uuid4()}"
+                            "department": f"{uuid.uuid4()}",
                         },
                         "requirements": {"write_file": write_file},
                     }

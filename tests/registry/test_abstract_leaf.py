@@ -53,10 +53,18 @@ class TestTopicUtility(unittest.TestCase):
         measurement_messages = []
 
         def mock_measurement(
-            data, institute=None, department=None, adapter_id=None, instance_id=None, experiment_id=None, measurement=None
+            data,
+            institute=None,
+            department=None,
+            adapter_id=None,
+            instance_id=None,
+            experiment_id=None,
+            measurement=None,
         ):
             nonlocal measurement_messages
-            measurement_messages.append((data, institute, department, adapter_id, instance_id, experiment_id, measurement))
+            measurement_messages.append(
+                (data, institute, department, adapter_id, instance_id, experiment_id, measurement)
+            )
 
         mapping = {topic_utilities.experiment.start(): [mock_start], topic_utilities.experiment.stop: mock_stop}
         abstract_leaf = MockLeafTool(mapping)

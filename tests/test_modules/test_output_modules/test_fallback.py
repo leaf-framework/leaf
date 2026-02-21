@@ -101,7 +101,7 @@ class TestFallbacks(unittest.TestCase):
         time.sleep(2)
         self._keydb.connect()
         institute = "test_pop_all_messages_institute"
-        department =  "test_pop_all_messages_department"
+        department = "test_pop_all_messages_department"
         adapter_id = "test_pop_all_messages_adapter_id"
         instance_id = "test_pop_all_messages_instance_id"
         experiment_id = "test_pop_all_messages_experiment_id"

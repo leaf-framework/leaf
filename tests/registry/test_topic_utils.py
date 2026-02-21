@@ -86,7 +86,7 @@ class TestTopicUtility(unittest.TestCase):
             "institute": "institute_id",
             "adapter_id": "adapter_id",
             "instance_id": "instance_id",
-            "department": "department_id"
+            "department": "department_id",
         }
 
         md = MetadataManager()

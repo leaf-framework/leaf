@@ -229,7 +229,7 @@ class TestEquipmentAdapter(unittest.TestCase):
                     "data": {
                         "instance_id": f"{uuid.uuid4()}",
                         "institute": f"{uuid.uuid4()}",
-                        "department": f"{uuid.uuid4()}"
+                        "department": f"{uuid.uuid4()}",
                     },
                     "requirements": {"write_file": write_file},
                     "external_input": {
