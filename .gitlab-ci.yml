@@ -26,7 +26,7 @@ lint:
 # Job to run tests
 test:
   stage: test
-  image: registry.gitlab.com/labequipmentadapterframework/leaf:runner
+  image: registry.gitlab.com/leaf-framework/leaf:runner
   before_script:
     - mosquitto -d
     - redis-server --daemonize yes
