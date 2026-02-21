@@ -14,8 +14,6 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.equipment_adapter import AbstractInterpreter, EquipmentAdapter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import HardwareStalledError
@@ -24,6 +22,7 @@ from leaf.modules.output_modules.mqtt import MQTT
 from leaf.modules.phase_modules.control import ControlPhase
 from leaf.modules.phase_modules.measure import MeasurePhase
 from leaf.modules.process_modules.discrete_module import DiscreteProcess
+from leaf.register.metadata import MetadataManager
 from tests.mock_mqtt_client import MockBioreactorClient
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
@@ -181,6 +180,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         instance_data = {
             "instance_id": unique_instance_id,
             "institute": unique_institute,
+            "department": "TestDepartment_",
         }
         equipment_data = {"adapter_id": "TestBioreactor_transmit_" + unique_instance_id}
 
@@ -289,7 +289,11 @@ class TestEquipmentAdapter(unittest.TestCase):
         self.assertIn(exp_tp, self.mock_client.messages)
 
     def test_exceptions(self):
-        instance_data = {"instance_id": "test_exceptions_instance", "institute": "test_exceptions_ins"}
+        instance_data = {
+            "instance_id": "test_exceptions_instance",
+            "institute": "test_exceptions_ins",
+            "department": "test_exceptions_dep",
+        }
         equipment_data = {"adapter_id": "test_exceptions_equip"}
 
         test_exp_tw_watch_file = os.path.join("tmp_exception.txt")
@@ -316,6 +320,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         instance_data = {
             "instance_id": unique_instance_id,
             "institute": unique_institute,
+            "department": "TestDepartment_",
         }
 
         equipment_data = {"adapter_id": "TestBioreactor_transmit_" + unique_instance_id}

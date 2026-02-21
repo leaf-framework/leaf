@@ -9,9 +9,8 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.modules.output_modules.mqtt import MQTT, logger
+from leaf.register.metadata import MetadataManager
 from tests.mock_mqtt_client import MockBioreactorClient
 
 # Current location of this script
@@ -43,6 +42,7 @@ class TestMQTT(unittest.TestCase):
         metadata_manager = MetadataManager()
         metadata_manager.add_equipment_value("adapter_id", "test_transmit")
         metadata_manager.add_instance_value("institute", "test_transmit")
+        metadata_manager.add_instance_value("department", "test_transmit")
         metadata_manager.add_instance_value("instance_id", "test_transmit")
 
         self._mock_client.subscribe(metadata_manager.experiment.start())

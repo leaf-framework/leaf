@@ -10,9 +10,8 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.modules.input_modules.opc_watcher import OPCWatcher
+from leaf.register.metadata import MetadataManager
 
 # Import OPC UA library
 try:

@@ -2,8 +2,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from leaf_register.metadata import MetadataManager
-
+from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")

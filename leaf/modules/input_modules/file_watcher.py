@@ -7,7 +7,6 @@ from collections.abc import Callable
 from datetime import datetime
 from threading import Timer
 
-from leaf_register.metadata import MetadataManager
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 from watchdog.observers.polling import PollingObserver
@@ -15,6 +14,7 @@ from watchdog.observers.polling import PollingObserver
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterBuildError, InputError
 from leaf.modules.input_modules.event_watcher import EventWatcher
+from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")

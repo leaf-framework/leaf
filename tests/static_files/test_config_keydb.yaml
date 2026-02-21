@@ -4,6 +4,7 @@ EQUIPMENT_INSTANCES:
       data:
         instance_id: keydb_test_instance
         institute: keydb_test_instance_institute1
+        department: keydb_test_instance_department1
       requirements:
         interval: 1
 

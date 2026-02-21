@@ -1,7 +1,5 @@
 from typing import Any
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.equipment_adapter import AbstractInterpreter, EquipmentAdapter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.event_watcher import EventWatcher
@@ -14,6 +12,7 @@ from leaf.modules.phase_modules.start import StartPhase
 from leaf.modules.phase_modules.stop import StopPhase
 from leaf.modules.process_modules.continous_module import ContinousProcess
 from leaf.modules.process_modules.process_module import ProcessModule
+from leaf.register.metadata import MetadataManager
 
 
 class ContinuousExperimentAdapter(EquipmentAdapter):

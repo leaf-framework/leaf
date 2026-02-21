@@ -10,8 +10,6 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.error_handler.exceptions import LEAFError
 from leaf.modules.phase_modules.control import ControlPhase
@@ -19,6 +17,7 @@ from leaf.modules.phase_modules.initialisation import InitialisationPhase
 from leaf.modules.phase_modules.measure import MeasurePhase
 from leaf.modules.phase_modules.start import StartPhase
 from leaf.modules.phase_modules.stop import StopPhase
+from leaf.register.metadata import MetadataManager
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 config_path = os.path.join(curr_dir, "..", "..", "test_config.yaml")
@@ -49,6 +48,7 @@ class TestMeasurePhase(unittest.TestCase):
         self._metadata_manager = MetadataManager()
         self._metadata_manager.add_equipment_value("adapter_id", "test_transmit")
         self._metadata_manager.add_instance_value("institute", "test_transmit")
+        self._metadata_manager.add_instance_value("department", "test_transmit")
         self._metadata_manager.add_instance_value("instance_id", "test_transmit")
 
         self._module = MeasurePhase(metadata_manager=self._metadata_manager)
@@ -140,6 +140,7 @@ class TestControlPhase(unittest.TestCase):
         self._metadata_manager = MetadataManager()
         self._metadata_manager.add_equipment_value("adapter_id", "test_transmit")
         self._metadata_manager.add_instance_value("institute", "test_transmit")
+        self._metadata_manager.add_instance_value("department", "test_transmit")
         self._metadata_manager.add_instance_value("instance_id", "test_transmit")
         self._module = ControlPhase(self._metadata_manager.experiment.start, metadata_manager=self._metadata_manager)
 

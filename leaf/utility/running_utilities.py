@@ -3,13 +3,12 @@ import threading
 import time
 from typing import Any
 
-from leaf_register.topic_utilities import topic_utilities
-
 from leaf.adapters.equipment_adapter import EquipmentAdapter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterBuildError
 from leaf.modules.output_modules.mqtt import MQTT
 from leaf.modules.output_modules.output_module import OutputModule
+from leaf.register.topic_utilities import topic_utilities
 from leaf.registry.registry import get_equipment_adapter, get_external_input, get_output_adapter
 from leaf.utility.logger.logger_utils import get_logger
 

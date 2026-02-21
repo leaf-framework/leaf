@@ -12,13 +12,12 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.core_adapters.continuous_experiment_adapter import ContinuousExperimentAdapter
 from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.file_watcher import FileWatcher
 from leaf.modules.output_modules.mqtt import MQTT
+from leaf.register.metadata import MetadataManager
 from tests.mock_mqtt_client import MockBioreactorClient
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
@@ -90,6 +89,7 @@ class TestEquipmentAdapter(unittest.TestCase):
 
         unique_instance_id = str(uuid.uuid4())
         unique_institute = "TestInstitute_"  # + unique_instance_id[:8]
+        unique_department = "TestDepartment_"
 
         unique_file_name = f"TestBioreactor_{unique_instance_id}.txt"
         self.text_watch_file = os.path.join(self.temp_dir.name, unique_file_name)
@@ -97,6 +97,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         instance_data = {
             "instance_id": unique_instance_id,
             "institute": unique_institute,
+            "department": unique_department,
         }
         equipment_data = {"adapter_id": "TestBioreactor_transmit_" + unique_instance_id}
         self.mock_client = MockBioreactorClient(broker, port, username=un, password=pw)

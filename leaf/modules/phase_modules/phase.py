@@ -1,9 +1,8 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.error_handler.error_holder import ErrorHolder
+from leaf.register.metadata import MetadataManager
 
 if TYPE_CHECKING:
     from leaf.adapters.equipment_adapter import AbstractInterpreter

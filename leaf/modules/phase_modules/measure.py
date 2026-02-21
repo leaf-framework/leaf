@@ -2,11 +2,11 @@ import time
 from typing import Any
 
 from influxobject import InfluxPoint
-from leaf_register.metadata import MetadataManager
 
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterLogicError, InterpreterError
 from leaf.modules.phase_modules.phase import PhaseModule
+from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="measure.log")

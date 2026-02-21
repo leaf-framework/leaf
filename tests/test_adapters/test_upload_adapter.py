@@ -14,11 +14,10 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.adapters.core_adapters.upload_adapter import UploadAdapter
 from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.modules.output_modules.mqtt import MQTT
+from leaf.register.metadata import MetadataManager
 from tests.mock_mqtt_client import MockBioreactorClient
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
@@ -79,8 +78,10 @@ class TestUploadAdapter(unittest.TestCase):
         unique_id = str(uuid.uuid4())
         self.watch_dir = Path(self.temp_dir.name)
         self.instance_data = {
+            "root": f"ROOT_TestUploadAdapter_{unique_id}",
             "instance_id": unique_id,
             "institute": f"TestUploadAdapter_{unique_id}_ins",
+            "department": f"TestUploadAdapter_{unique_id}_dep",
         }
         self.equipment_data = {
             "adapter_id": f"TestUploadAdapter_{unique_id}_equipment",

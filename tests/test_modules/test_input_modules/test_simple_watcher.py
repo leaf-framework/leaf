@@ -6,9 +6,8 @@ sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
-from leaf_register.metadata import MetadataManager
-
 from leaf.modules.input_modules.simple_watcher import SimpleWatcher
+from leaf.register.metadata import MetadataManager
 
 
 class TestSimpleWatcher(unittest.TestCase):

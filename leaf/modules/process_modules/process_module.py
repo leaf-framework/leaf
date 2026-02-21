@@ -1,12 +1,11 @@
 import time
 from typing import TYPE_CHECKING, Any
 
-from leaf_register.metadata import MetadataManager
-from leaf_register.topic_utilities import topic_utilities
-
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.modules.phase_modules.phase import PhaseModule
+from leaf.register.metadata import MetadataManager
+from leaf.register.topic_utilities import topic_utilities
 
 if TYPE_CHECKING:
     from leaf.adapters.equipment_adapter import AbstractInterpreter

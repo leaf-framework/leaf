@@ -104,6 +104,7 @@ OUTPUTS:
         """Test that substituted YAML can be parsed correctly."""
         os.environ["INSTANCE_ID"] = "test_instance"
         os.environ["INSTITUTE"] = "test_institute"
+        os.environ["DEPARTMENT"] = "test_department"
         content = """
 EQUIPMENT_INSTANCES:
   - equipment:
@@ -111,11 +112,13 @@ EQUIPMENT_INSTANCES:
       data:
         instance_id: ${INSTANCE_ID}
         institute: ${INSTITUTE:default_institute}
+        department: ${DEPARTMENT}
 """
         result = substitute_env_variables(content)
         parsed = yaml.safe_load(result)
         self.assertEqual(parsed["EQUIPMENT_INSTANCES"][0]["equipment"]["data"]["instance_id"], "test_instance")
         self.assertEqual(parsed["EQUIPMENT_INSTANCES"][0]["equipment"]["data"]["institute"], "test_institute")
+        self.assertEqual(parsed["EQUIPMENT_INSTANCES"][0]["equipment"]["data"]["department"], "test_department")
 
     def test_numeric_env_var(self):
         """Test numeric environment variables."""

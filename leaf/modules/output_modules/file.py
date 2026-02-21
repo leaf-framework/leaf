@@ -31,15 +31,15 @@ class FILE(OutputModule):
         elif isinstance(error, PermissionError):
             message = f"Permission denied when accessing '{self.filename}'"
             severity = SeverityLevel.CRITICAL
+        elif isinstance(error, json.JSONDecodeError):
+            message = f"JSON decode error when reading '{self.filename}' "
+            severity = SeverityLevel.WARNING
         elif isinstance(error, (TypeError, ValueError)):
             message = f"JSON serialization error - data not JSON-serializable: {error}"
             severity = SeverityLevel.WARNING
         elif isinstance(error, OSError):
             message = f"I/O error in file '{self.filename}': {error}"
             severity = SeverityLevel.ERROR
-        elif isinstance(error, json.JSONDecodeError):
-            message = f"JSON decode error when reading '{self.filename}' "
-            severity = SeverityLevel.WARNING
         else:
             message = f"Unexpected error in file '{self.filename}': {error}"
             severity = SeverityLevel.WARNING
@@ -103,8 +103,8 @@ class FILE(OutputModule):
                                 results.extend(data)
                             else:
                                 results.append(data)
-                    except json.JSONDecodeError:
-                        # Skip malformed lines
+                    except json.JSONDecodeError as e:
+                        self._handle_file_error(e)
                         continue
 
             return results if results else None
