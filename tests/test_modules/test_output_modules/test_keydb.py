@@ -252,14 +252,14 @@ class TestKeyDB(unittest.TestCase):
                 keys = keydb_client.keys()
                 self.logger.info("Current keys in KeyDB: %s", keys)
                 if (
-                    b"keydb_test_instance_institute1/Example/keydb_test_instance/experiment/undefined/measurement/bioreactor_example"
+                    b"keydb_test_instance_institute1/keydb_test_instance_department1/Example/keydb_test_instance/experiment/undefined/measurement/bioreactor_example"
                     in keys
-                    and b"keydb_test_instance_institute1/HelloWorld/keydb_test_instance/details" in keys
+                    and b"keydb_test_instance_institute1/keydb_test_instance_department1/HelloWorld/keydb_test_instance/details" in keys
                 ):
                     self.logger.info("Current keys in KeyDB: %s", keys)
                     # Number of values in the list
                     size_now = keydb_client.llen(
-                        "keydb_test_instance_institute1/Example/keydb_test_instance/experiment/undefined/measurement/bioreactor_example"
+                        "keydb_test_instance_institute1/keydb_test_instance_department1/Example/keydb_test_instance/experiment/undefined/measurement/bioreactor_example"
                     )
                     self.logger.info("Number of values in the list: %d", size_now)
                     if size_now > 5:
