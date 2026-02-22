@@ -27,7 +27,7 @@ def create_header(dark_mode: ui.dark_mode, curr_dir: Path) -> None:
                         ui.html(f'<img width="32" height="32" src="data:image/svg+xml;base64,{b64}" />', sanitize=False)
 
                 ui.label("LEAF").classes("text-3xl font-bold ml-2")
-                ui.label("Laboratory Equipment Adapter Framework").classes("text-sm opacity-80 ml-4 hidden md:block")
+                ui.label("Lightweight Equipment Adapter Framework").classes("text-sm opacity-80 ml-4 hidden md:block")
 
             with ui.row().classes("items-center"):
                 # Status indicator

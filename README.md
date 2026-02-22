@@ -16,4 +16,4 @@ LEAF automatically shows a **desktop control panel** on desktop systems, making 
 
 ## Documentation
 
-The complete documentation can be found [here](http://leaf.systemsbiology.nl).
+The complete documentation can be found [here](https://leaf-framework.org).

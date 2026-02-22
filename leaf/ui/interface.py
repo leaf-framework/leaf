@@ -123,7 +123,7 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
 
             # Add custom CSS, JS, and LEAF favicon - set title here
             ui.add_head_html(f"""
-                <title>LEAF - Laboratory Equipment Adapter Framework</title>
+                <title>LEAF - Lightweight Equipment Adapter Framework</title>
                 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{favicon_b64}">
                 <style>
                     {custom_css}
@@ -238,7 +238,7 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
             reload=False,
             port=port,
             show=auto_open_browser,
-            title="LEAF - Laboratory Equipment Adapter Framework",
+            title="LEAF - Lightweight Equipment Adapter Framework",
             reconnect_timeout=10.0,  # Give clients 10 seconds to reconnect
         )
         logger.info("NiceGUI web interface stopped normally.")

@@ -75,7 +75,7 @@ class LeafDesktopLauncher:
 
         # Create main window
         self.root = tk.Tk()
-        self.root.title("LEAF - Laboratory Equipment Adapter Framework")
+        self.root.title("LEAF - Lightweight Equipment Adapter Framework")
         self.root.geometry("500x350")
         self.root.resizable(False, False)
 
@@ -164,7 +164,7 @@ class LeafDesktopLauncher:
         subtitle_font = tkfont.Font(family="Helvetica", size=10)
         subtitle_label = tk.Label(
             text_container,
-            text="Laboratory Equipment Adapter Framework",
+            text="Lightweight Equipment Adapter Framework",
             font=subtitle_font,
             bg=header_color,
             fg="#E0E7FF",
