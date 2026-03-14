@@ -1,0 +1,28 @@
+
+EQUIPMENT_INSTANCES:
+  - equipment:
+      adapter: modbus
+      data:
+        instance_id: example_equipment_id1
+        organisation: example_equipment_organisation1
+      requirements:
+          host: 192.168.1.12
+          port: 502
+          device_id: 1
+          interval: 5
+          registers:
+            - name: temperature
+              address: 40301
+              scale: 0.01
+            - name: humidity
+              address: 40317
+              scale: 0.01
+            - name: presence
+              address: 40803
+            - name: last_ir_ts
+              address: 42002
+              count: 2
+
+OUTPUTS:
+  - plugin: JSON
+    filename: local.json
