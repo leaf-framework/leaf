@@ -45,7 +45,7 @@ class TestStart(unittest.TestCase):
     def test_start_no_mqtt(self):
         error_holder = ErrorHolder()
         instance_id = f"{uuid.uuid4()}"
-        institute = f"{uuid.uuid4()}"
+        organisation = f"{uuid.uuid4()}"
         department = f"{uuid.uuid4()}"
         ins = [
             {
@@ -53,7 +53,7 @@ class TestStart(unittest.TestCase):
                     "adapter": "MockFunctionalAdapter",
                     "data": {
                         "instance_id": instance_id,
-                        "institute": institute,
+                        "organisation": organisation,
                         "department": department,
                     },
                     "requirements": {"write_file": self.file_store_path},

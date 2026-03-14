@@ -41,7 +41,7 @@ class TestMQTT(unittest.TestCase):
     def test_transmit(self):
         metadata_manager = MetadataManager()
         metadata_manager.add_equipment_value("adapter_id", "test_transmit")
-        metadata_manager.add_instance_value("institute", "test_transmit")
+        metadata_manager.add_instance_value("organisation", "test_transmit")
         metadata_manager.add_instance_value("department", "test_transmit")
         metadata_manager.add_instance_value("instance_id", "test_transmit")
 

@@ -21,10 +21,10 @@ class TestTopicUtility(unittest.TestCase):
         self.assertIn("experiment.start", flattened)
         self.assertIn("experiment.stop", flattened)
         self.assertIn("experiment.measurement", flattened)
-        self.assertEqual(flattened["details"], "<root>/<institute>/<department>/<adapter_id>/<instance_id>/details")
+        self.assertEqual(flattened["details"], "<root>/<organisation>/<department>/<adapter_id>/<instance_id>/details")
         self.assertEqual(
             flattened["experiment.measurement"],
-            "<root>/<institute>/<department>/<adapter_id>/<instance_id>/experiment/<experiment_id>/measurement/<measurement>",
+            "<root>/<organisation>/<department>/<adapter_id>/<instance_id>/experiment/<experiment_id>/measurement/<measurement>",
         )
 
     def test_parse_topic_valid(self):
@@ -34,7 +34,7 @@ class TestTopicUtility(unittest.TestCase):
         topic_str = "myUni/dep2/eq1/abc/details"
         topic_obj = topic_utilities.parse_topic(topic_str)
         self.assertIsInstance(topic_obj, Topic)
-        self.assertEqual(topic_obj["institute"], "myUni")
+        self.assertEqual(topic_obj["organisation"], "myUni")
         self.assertEqual(topic_obj["department"], "dep2")
         self.assertEqual(topic_obj["adapter_id"], "eq1")
         self.assertEqual(topic_obj["instance_id"], "abc")
@@ -47,7 +47,7 @@ class TestTopicUtility(unittest.TestCase):
         topic_obj = topic_utilities.parse_topic(topic_str)
         self.assertIsInstance(topic_obj, Topic)
         self.assertEqual(topic_obj["root"], "rooting")
-        self.assertEqual(topic_obj["institute"], "myUni")
+        self.assertEqual(topic_obj["organisation"], "myUni")
         self.assertEqual(topic_obj["department"], "dep1")
         self.assertEqual(topic_obj["adapter_id"], "eq1")
         self.assertEqual(topic_obj["instance_id"], "abc")
@@ -59,7 +59,7 @@ class TestTopicUtility(unittest.TestCase):
         topic_str = "uniX/dep01/eq99/i7/experiment/expABC/measurement/temp"
         topic_obj = topic_utilities.parse_topic(topic_str)
 
-        self.assertEqual(topic_obj["institute"], "uniX")
+        self.assertEqual(topic_obj["organisation"], "uniX")
         self.assertEqual(topic_obj["department"], "dep01")
         self.assertEqual(topic_obj["adapter_id"], "eq99")
         self.assertEqual(topic_obj["instance_id"], "i7")
@@ -83,7 +83,7 @@ class TestTopicUtility(unittest.TestCase):
 
     def test_get_topic_data_metadata_manager(self):
         mock_md = {
-            "institute": "institute_id",
+            "organisation": "organisation_id",
             "adapter_id": "adapter_id",
             "instance_id": "instance_id",
             "department": "department_id",
@@ -94,7 +94,7 @@ class TestTopicUtility(unittest.TestCase):
 
         topic = md.details()
         topic_obj = topic_utilities.parse_topic(topic)
-        self.assertEqual(topic_obj.institute, mock_md["institute"])
+        self.assertEqual(topic_obj.organisation, mock_md["organisation"])
         self.assertEqual(topic_obj.adapter_id, mock_md["adapter_id"])
         self.assertEqual(topic_obj.instance_id, mock_md["instance_id"])
         self.assertEqual(topic_obj.action, "details")
@@ -103,7 +103,7 @@ class TestTopicUtility(unittest.TestCase):
 
         topic = md.running()
         topic_obj = topic_utilities.parse_topic(topic)
-        self.assertEqual(topic_obj.institute, mock_md["institute"])
+        self.assertEqual(topic_obj.organisation, mock_md["organisation"])
         self.assertEqual(topic_obj.adapter_id, mock_md["adapter_id"])
         self.assertEqual(topic_obj.instance_id, mock_md["instance_id"])
         self.assertEqual(topic_obj.action, "running")
@@ -112,7 +112,7 @@ class TestTopicUtility(unittest.TestCase):
 
         topic = md.experiment.start()
         topic_obj = topic_utilities.parse_topic(topic)
-        self.assertEqual(topic_obj.institute, mock_md["institute"])
+        self.assertEqual(topic_obj.organisation, mock_md["organisation"])
         self.assertEqual(topic_obj.adapter_id, mock_md["adapter_id"])
         self.assertEqual(topic_obj.instance_id, mock_md["instance_id"])
         self.assertEqual(topic_obj.action, "start")
@@ -121,7 +121,7 @@ class TestTopicUtility(unittest.TestCase):
 
         topic = md.experiment.stop()
         topic_obj = topic_utilities.parse_topic(topic)
-        self.assertEqual(topic_obj.institute, mock_md["institute"])
+        self.assertEqual(topic_obj.organisation, mock_md["organisation"])
         self.assertEqual(topic_obj.adapter_id, mock_md["adapter_id"])
         self.assertEqual(topic_obj.instance_id, mock_md["instance_id"])
         self.assertEqual(topic_obj.action, "stop")
@@ -130,7 +130,7 @@ class TestTopicUtility(unittest.TestCase):
 
         topic = md.experiment.measurement(experiment_id="test_exp", measurement="test_mes")
         topic_obj = topic_utilities.parse_topic(topic)
-        self.assertEqual(topic_obj.institute, mock_md["institute"])
+        self.assertEqual(topic_obj.organisation, mock_md["organisation"])
         self.assertEqual(topic_obj.adapter_id, mock_md["adapter_id"])
         self.assertEqual(topic_obj.instance_id, mock_md["instance_id"])
         self.assertEqual(topic_obj.action, "measurement")
@@ -140,7 +140,7 @@ class TestTopicUtility(unittest.TestCase):
     def test_get_topic_data_template(self):
         topic = topic_utilities.details()
         topic_obj = topic_utilities.parse_topic(topic)
-        self.assertEqual(topic_obj.institute, "+")
+        self.assertEqual(topic_obj.organisation, "+")
         self.assertEqual(topic_obj.adapter_id, "+")
         self.assertEqual(topic_obj.instance_id, "+")
         self.assertEqual(topic_obj.action, "details")
@@ -149,7 +149,7 @@ class TestTopicUtility(unittest.TestCase):
 
         topic = topic_utilities.running()
         topic_obj = topic_utilities.parse_topic(topic)
-        self.assertEqual(topic_obj.institute, "+")
+        self.assertEqual(topic_obj.organisation, "+")
         self.assertEqual(topic_obj.adapter_id, "+")
         self.assertEqual(topic_obj.instance_id, "+")
         self.assertEqual(topic_obj.action, "running")
@@ -158,7 +158,7 @@ class TestTopicUtility(unittest.TestCase):
 
         topic = topic_utilities.experiment.start()
         topic_obj = topic_utilities.parse_topic(topic)
-        self.assertEqual(topic_obj.institute, "+")
+        self.assertEqual(topic_obj.organisation, "+")
         self.assertEqual(topic_obj.adapter_id, "+")
         self.assertEqual(topic_obj.instance_id, "+")
         self.assertEqual(topic_obj.action, "start")
@@ -167,7 +167,7 @@ class TestTopicUtility(unittest.TestCase):
 
         topic = topic_utilities.experiment.stop()
         topic_obj = topic_utilities.parse_topic(topic)
-        self.assertEqual(topic_obj.institute, "+")
+        self.assertEqual(topic_obj.organisation, "+")
         self.assertEqual(topic_obj.adapter_id, "+")
         self.assertEqual(topic_obj.instance_id, "+")
         self.assertEqual(topic_obj.action, "stop")
@@ -176,7 +176,7 @@ class TestTopicUtility(unittest.TestCase):
 
         topic = topic_utilities.experiment.measurement(experiment_id="test_exp", measurement="test_mes")
         topic_obj = topic_utilities.parse_topic(topic)
-        self.assertEqual(topic_obj.institute, "+")
+        self.assertEqual(topic_obj.organisation, "+")
         self.assertEqual(topic_obj.adapter_id, "+")
         self.assertEqual(topic_obj.instance_id, "+")
         self.assertEqual(topic_obj.action, "measurement")

@@ -3,7 +3,7 @@ EQUIPMENT_INSTANCES:
       adapter: Example
       data:
         instance_id: demo_device
-        institute: university_lab
+        organisation: university_lab
         department: research
       requirements:
         interval: 1

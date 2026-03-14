@@ -100,7 +100,7 @@ class TestFallbacks(unittest.TestCase):
         self._mock_client.subscribe(mock_topic)
         time.sleep(2)
         self._keydb.connect()
-        institute = "test_pop_all_messages_institute"
+        organisation = "test_pop_all_messages_organisation"
         department = "test_pop_all_messages_department"
         adapter_id = "test_pop_all_messages_adapter_id"
         instance_id = "test_pop_all_messages_instance_id"
@@ -109,7 +109,7 @@ class TestFallbacks(unittest.TestCase):
 
         manager = MetadataManager()
         manager.add_equipment_value("adapter_id", adapter_id)
-        manager.add_instance_value("institute", institute)
+        manager.add_instance_value("organisation", organisation)
         manager.add_instance_value("department", department)
         manager.add_instance_value("instance_id", instance_id)
 
@@ -160,7 +160,7 @@ class TestFallbacks(unittest.TestCase):
         time.sleep(2)
 
         self._keydb.connect()
-        institute = "test_pop_all_messages_institute"
+        organisation = "test_pop_all_messages_organisation"
         department = "test_pop_all_messages_department"
         adapter_id = "test_pop_all_messages_adapter_id"
         instance_id = "test_pop_all_messages_instance_id"
@@ -169,7 +169,7 @@ class TestFallbacks(unittest.TestCase):
 
         manager = MetadataManager()
         manager.add_equipment_value("adapter_id", adapter_id)
-        manager.add_instance_value("institute", institute)
+        manager.add_instance_value("organisation", organisation)
         manager.add_instance_value("department", department)
         manager.add_instance_value("instance_id", instance_id)
 

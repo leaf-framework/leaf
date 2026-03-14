@@ -15,40 +15,40 @@ class TestMetadataManager(unittest.TestCase):
         self.manager = MetadataManager()
 
     def test_add_equipment_data_and_validity(self):
-        self.manager.add_instance_data({"institute": "myInst", "department": "dept", "instance_id": "ABC"})
+        self.manager.add_instance_data({"organisation": "myInst", "department": "dept", "instance_id": "ABC"})
 
         self.manager.add_equipment_data({"adapter_id": "EQ123"})
         self.assertTrue(self.manager.is_valid())
         self.assertEqual(self.manager.get_instance_id(), "ABC")
 
     def test_missing_metadata(self):
-        self.manager.add_equipment_data({"institute": "myInst", "department": "myDept"})
+        self.manager.add_equipment_data({"organisation": "myInst", "department": "myDept"})
         self.assertFalse(self.manager.is_valid())
 
         missing = self.manager.get_missing_metadata()
         self.assertGreater(len(missing), 0)
 
     def test_dot_based_details_topic(self):
-        self.manager.add_instance_data({"institute": "myInst", "department": "myDept", "instance_id": "ABC"})
+        self.manager.add_instance_data({"organisation": "myInst", "department": "myDept", "instance_id": "ABC"})
 
         self.manager.add_equipment_data({"adapter_id": "EQ123"})
         topic_str = self.manager.details()
         print(topic_str)
         parsed = topic_utilities.parse_topic(topic_str)
-        self.assertEqual(parsed.institute, "myInst")
+        self.assertEqual(parsed.organisation, "myInst")
         self.assertEqual(parsed.adapter_id, "EQ123")
         self.assertEqual(parsed.instance_id, "ABC")
         self.assertEqual(parsed.action, "details")
 
     def test_dot_based_experiment_start(self):
         self.manager.add_equipment_data(
-            {"institute": "myInst", "department": "myDept", "adapter_id": "EQ123", "instance_id": "ABC"}
+            {"organisation": "myInst", "department": "myDept", "adapter_id": "EQ123", "instance_id": "ABC"}
         )
 
         topic_str = self.manager.experiment.start()
 
         parsed = topic_utilities.parse_topic(topic_str)
-        self.assertEqual(parsed.institute, "myInst")
+        self.assertEqual(parsed.organisation, "myInst")
         self.assertEqual(parsed.adapter_id, "EQ123")
         self.assertEqual(parsed.instance_id, "ABC")
         self.assertEqual(parsed.action, "start")
@@ -58,7 +58,7 @@ class TestMetadataManager(unittest.TestCase):
         Demonstrate that we can override a key like 'instance_id' at call time.
         """
         self.manager.add_equipment_data(
-            {"institute": "myInst", "department": "myDept", "adapter_id": "EQ123", "instance_id": "ABC"}
+            {"organisation": "myInst", "department": "myDept", "adapter_id": "EQ123", "instance_id": "ABC"}
         )
 
         topic_str = self.manager.experiment.stop(instance_id="OVERRIDE123")
@@ -69,7 +69,7 @@ class TestMetadataManager(unittest.TestCase):
 
     def test_get_topics(self):
         mock_md = {
-            "institute": "institute_id",
+            "organisation": "organisation_id",
             "department": "department_id",
             "adapter_id": "adapter_id",
             "instance_id": "instance_id",

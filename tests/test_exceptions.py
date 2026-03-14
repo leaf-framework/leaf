@@ -186,7 +186,7 @@ class TestExceptionsInit(unittest.TestCase):
     def test_startprocess_instance_not_found(self) -> None:
         config = {
             "adapter": "BioLector123",
-            "data": {"instance_id": "biolector_devonshire10", "institute": "NCL", "department": "XYZ"},
+            "data": {"instance_id": "biolector_devonshire10", "organisation": "NCL", "department": "XYZ"},
             "requirements": {"write_file": "tmp1.csv"},
         }
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
@@ -196,7 +196,7 @@ class TestExceptionsInit(unittest.TestCase):
     def test_startprocess_instance_no_requirements(self) -> None:
         config = {
             "adapter": "BioLector1",
-            "data": {"instance_id": "biolector_devonshire10", "institute": "NCL", "department": "XYZ"},
+            "data": {"instance_id": "biolector_devonshire10", "organisation": "NCL", "department": "XYZ"},
             "requirements": {},
         }
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
@@ -206,7 +206,7 @@ class TestExceptionsInit(unittest.TestCase):
     def test_startprocess_instance_missing_id(self) -> None:
         config = {
             "adapter": "BioLector1",
-            "data": {"institute": "NCL", "department": "XYZ"},
+            "data": {"organisation": "NCL", "department": "XYZ"},
             "requirements": {"write_file": "tmp1.csv"},
         }
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
@@ -414,7 +414,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                         "adapter": "MockFunctionalAdapter",
                         "data": {
                             "instance_id": f"{uuid.uuid4()}",
-                            "institute": f"{uuid.uuid4()}",
+                            "organisation": f"{uuid.uuid4()}",
                             "department": f"{uuid.uuid4()}",
                         },
                         "requirements": {"write_file": write_file},
@@ -513,7 +513,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                     "adapter": "MockFunctionalAdapter",
                     "data": {
                         "instance_id": f"{uuid.uuid4()}",
-                        "institute": f"{uuid.uuid4()}",
+                        "organisation": f"{uuid.uuid4()}",
                         "department": f"{uuid.uuid4()}",
                     },
                     "requirements": {"write_file": write_file},
@@ -602,7 +602,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                     "adapter": "MockFunctionalAdapter",
                     "data": {
                         "instance_id": f"{uuid.uuid4()}",
-                        "institute": f"{uuid.uuid4()}",
+                        "organisation": f"{uuid.uuid4()}",
                         "department": f"{uuid.uuid4()}",
                     },
                     "requirements": {"write_file": write_file1},
@@ -613,7 +613,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                     "adapter": "MockFunctionalAdapter",
                     "data": {
                         "instance_id": f"{uuid.uuid4()}",
-                        "institute": f"{uuid.uuid4()}",
+                        "organisation": f"{uuid.uuid4()}",
                         "department": f"{uuid.uuid4()}",
                     },
                     "requirements": {"write_file": write_file2},
@@ -834,14 +834,14 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
             error_holder=error_holder,
         )
         instance_id = f"{uuid.uuid4()}"
-        institute = f"{uuid.uuid4()}"
+        organisation = f"{uuid.uuid4()}"
         ins = [
             {
                 "equipment": {
                     "adapter": "MockFunctionalAdapter",
                     "data": {
                         "instance_id": instance_id,
-                        "institute": institute,
+                        "organisation": organisation,
                         "department": "dept_xyz",
                     },
                     "requirements": {"write_file": write_file},
@@ -862,7 +862,7 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
 
         mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
 
-        mock_client.subscribe(f"{institute}/#")
+        mock_client.subscribe(f"{organisation}/#")
         time.sleep(0.5)
         adapter_thread = _start()
         time.sleep(10)
@@ -879,7 +879,7 @@ class TestExceptionsAdapterSpecific(unittest.TestCase):
 
         error_messages = None
         for mt in mock_client.messages.keys():
-            if "error" in mt and institute in mt:
+            if "error" in mt and organisation in mt:
                 error_messages = mock_client.messages[mt]
         for e in expected_exceptions:
             self.assertIn(e, error_messages)

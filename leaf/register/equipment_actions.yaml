@@ -1,7 +1,7 @@
-details: <root>/<institute>/<department>/<adapter_id>/<instance_id>/details
-running: <root>/<institute>/<department>/<adapter_id>/<instance_id>/running
-error: <root>/<institute>/<department>/<adapter_id>/<instance_id>/error
+details: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/details
+running: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/running
+error: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/error
 experiment:
-  start: <root>/<institute>/<department>/<adapter_id>/<instance_id>/experiment/start
-  stop: <root>/<institute>/<department>/<adapter_id>/<instance_id>/experiment/stop
-  measurement: <root>/<institute>/<department>/<adapter_id>/<instance_id>/experiment/<experiment_id>/measurement/<measurement>
+  start: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/experiment/start
+  stop: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/experiment/stop
+  measurement: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/experiment/<experiment_id>/measurement/<measurement>

@@ -152,7 +152,7 @@ def create_configuration_tab(config_tab: ui.tab, config_path: Path | None) -> No
 ```
 
 **Note:** This is the official example from the `{selected}` adapter.
-Adjust values like `instance_id`, `institute`, etc. to match your setup.
+Adjust values like `instance_id`, `organisation`, etc. to match your setup.
 
 **Path:** `{example_yaml_path}`
 """
@@ -173,7 +173,7 @@ EQUIPMENT_INSTANCES:
       adapter: {selected}
       data:
         instance_id: my_device_001
-        institute: my_lab
+        organisation: my_lab
         experiment_id: experiment_123
       requirements:
         interval: 1

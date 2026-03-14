@@ -4,7 +4,7 @@ EQUIPMENT_INSTANCES:
       adapter: BioLector1
       data:
         instance_id: example_equipment_id1
-        institute: example_equipment_institute1
+        organisation: example_equipment_organisation1
       requirements:
         write_file: test/tmp123.csv
 

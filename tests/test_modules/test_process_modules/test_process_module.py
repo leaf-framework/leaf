@@ -112,7 +112,7 @@ class TestContinousProcess(unittest.TestCase):
 
         self.metadata_manager = MetadataManager()
         self.metadata_manager.add_equipment_value("adapter_id", self.adapter_id)
-        self.metadata_manager.add_instance_value("institute", self.ins_id)
+        self.metadata_manager.add_instance_value("organisation", self.ins_id)
         self.metadata_manager.add_instance_value("department", self.dept_id)
         self.metadata_manager.add_instance_value("instance_id", self.instance_id)
 
@@ -185,7 +185,7 @@ class TestDiscreteProcess(unittest.TestCase):
 
         self.metadata_manager = MetadataManager()
         self.metadata_manager.add_equipment_value("adapter_id", self.adapter_id)
-        self.metadata_manager.add_instance_value("institute", self.ins_id)
+        self.metadata_manager.add_instance_value("organisation", self.ins_id)
         self.metadata_manager.add_instance_value("department", self.dept_id)
         self.metadata_manager.add_instance_value("instance_id", self.instance_id)
 

@@ -14,7 +14,7 @@ from leaf.register.topic_utilities import _TemplateGroup, topic_utilities
 
 class MetadataManager:
     """
-    Manages your equipment metadata (e.g., institute, equipment_id, instance_id)
+    Manages your equipment metadata (e.g., organisation, equipment_id, instance_id)
     and delegates template generation to a TopicUtility instance.
     """
 

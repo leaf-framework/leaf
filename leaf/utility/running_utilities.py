@@ -128,6 +128,9 @@ def process_instance(instance: dict[str, Any], output: OutputModule) -> Equipmen
     """Initializes and validates an equipment adapter from config data."""
     equipment_code = instance.pop("adapter")
     instance_data = instance.pop("data")
+    for alias in ("institute", "organization"):
+        if alias in instance_data:
+            instance_data["organisation"] = instance_data.pop(alias)
     # See if requirements can become optional
     requirements = None
     if "requirements" in instance:

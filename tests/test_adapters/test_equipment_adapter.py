@@ -172,14 +172,14 @@ class TestEquipmentAdapter(unittest.TestCase):
         """
 
         unique_instance_id = str(uuid.uuid4())
-        unique_institute = "TestInstitute_"  # + unique_instance_id[:8]
+        unique_organisation = "TestInstitute_"  # + unique_instance_id[:8]
 
         unique_file_name = f"TestBioreactor_{unique_instance_id}.txt"
         text_watch_file = os.path.join(self.temp_dir.name, unique_file_name)
 
         instance_data = {
             "instance_id": unique_instance_id,
-            "institute": unique_institute,
+            "organisation": unique_organisation,
             "department": "TestDepartment_",
         }
         equipment_data = {"adapter_id": "TestBioreactor_transmit_" + unique_instance_id}
@@ -291,7 +291,7 @@ class TestEquipmentAdapter(unittest.TestCase):
     def test_exceptions(self):
         instance_data = {
             "instance_id": "test_exceptions_instance",
-            "institute": "test_exceptions_ins",
+            "organisation": "test_exceptions_ins",
             "department": "test_exceptions_dep",
         }
         equipment_data = {"adapter_id": "test_exceptions_equip"}
@@ -312,14 +312,14 @@ class TestEquipmentAdapter(unittest.TestCase):
     def test_experiment_timeout(self):
         exp_timeout = 4
         unique_instance_id = str(uuid.uuid4())
-        unique_institute = "TestInstitute_"
+        unique_organisation = "TestInstitute_"
 
         unique_file_name = f"TestBioreactor_{unique_instance_id}.txt"
         text_watch_file = os.path.join(self.temp_dir.name, unique_file_name)
 
         instance_data = {
             "instance_id": unique_instance_id,
-            "institute": unique_institute,
+            "organisation": unique_organisation,
             "department": "TestDepartment_",
         }
 

@@ -29,7 +29,7 @@ EQUIPMENT_INSTANCES:
       adapter: HelloWorld
       data:
         instance_id: my_bioreactor_01
-        institute: university_lab
+        organisation: university_lab
       requirements:
         interval: 30  # seconds
 ```

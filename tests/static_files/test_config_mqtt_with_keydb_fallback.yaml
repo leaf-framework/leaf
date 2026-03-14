@@ -3,7 +3,7 @@ EQUIPMENT_INSTANCES:
       adapter: HelloWorld
       data:
         instance_id: keydb_test_instance
-        institute: keydb_test_instance_institute1
+        organisation: keydb_test_instance_organisation1
       requirements:
         interval: 1
 

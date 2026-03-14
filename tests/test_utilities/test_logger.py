@@ -48,7 +48,7 @@ EQUIPMENT_INSTANCES:
       adapter: Example
       data:
         instance_id: test_device
-        institute: test_lab
+        organisation: test_lab
         department: test_department
       requirements:
         interval: 60

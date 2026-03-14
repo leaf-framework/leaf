@@ -99,7 +99,7 @@ class TestAdapterArray(unittest.TestCase):
 
         instance_data1 = {
             "instance_id": f"TestAdapterArray_{unique_id1}",
-            "institute": f"Institute_{unique_id1}",
+            "organisation": f"Institute_{unique_id1}",
             "department": f"Department_{unique_id1}",
         }
         equipment_data = {
@@ -113,7 +113,7 @@ class TestAdapterArray(unittest.TestCase):
         )
         instance_data2 = {
             "instance_id": f"TestAdapterArray_{unique_id2}",
-            "institute": f"Institute_{unique_id2}",
+            "organisation": f"Institute_{unique_id2}",
             "department": f"Department_{unique_id2}",
         }
 

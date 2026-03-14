@@ -88,7 +88,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         """
 
         unique_instance_id = str(uuid.uuid4())
-        unique_institute = "TestInstitute_"  # + unique_instance_id[:8]
+        unique_organisation = "TestInstitute_"  # + unique_instance_id[:8]
         unique_department = "TestDepartment_"
 
         unique_file_name = f"TestBioreactor_{unique_instance_id}.txt"
@@ -96,7 +96,7 @@ class TestEquipmentAdapter(unittest.TestCase):
 
         instance_data = {
             "instance_id": unique_instance_id,
-            "institute": unique_institute,
+            "organisation": unique_organisation,
             "department": unique_department,
         }
         equipment_data = {"adapter_id": "TestBioreactor_transmit_" + unique_instance_id}

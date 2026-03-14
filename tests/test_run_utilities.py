@@ -58,7 +58,7 @@ class TestRunUtilities(unittest.TestCase):
         self._keydb._client.flushall()
 
         timeout = 2
-        institute = "test_pop_all_messages_institute"
+        organisation = "test_pop_all_messages_organisation"
         adapter_id = "test_pop_all_messages_adapter_id"
         instance_id = "test_pop_all_messages_instance_id"
         experiment_id = "test_pop_all_messages_experiment_id"
@@ -66,7 +66,7 @@ class TestRunUtilities(unittest.TestCase):
 
         manager = MetadataManager()
         manager.add_equipment_value("adapter_id", adapter_id)
-        manager.add_instance_value("institute", institute)
+        manager.add_instance_value("organisation", organisation)
         manager.add_instance_value("instance_id", instance_id)
 
         measurement_topic = manager.experiment.measurement(experiment_id=experiment_id, measurement=measurement_id)
@@ -90,7 +90,7 @@ class TestRunUtilities(unittest.TestCase):
         time.sleep(1)
         for k, v in self._mock_client.messages.items():
             # Skip other topics for parallel tests
-            if not k.startswith(institute):
+            if not k.startswith(organisation):
                 continue
             self.assertIn(k, inp_messages)
             # Invert the list to match the order of messages
@@ -130,7 +130,7 @@ class TestRunUtilities(unittest.TestCase):
                     "adapter": "MockFunctionalAdapter",
                     "data": {
                         "instance_id": f"{uuid.uuid4()}",
-                        "institute": f"{uuid.uuid4()}",
+                        "organisation": f"{uuid.uuid4()}",
                     },
                     "requirements": {"write_file": write_file},
                 }
