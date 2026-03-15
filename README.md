@@ -1,6 +1,6 @@
 # Adapter Framework for Equipment Monitoring and Control
 
-The Lab Equipment Adapter Framework (LEAF) implements an **Adapter Architecture** designed to monitor and control various equipment types (e.g., bioreactors). The core principle of LEAF is to reduce the barrier to entry as much as possible to develop and deploy adapters for new equipment. The **EquipmentAdapters** are the functional equipment monitors composed of the rest of the **modules** (ProcessModules, PhaseModules, etc.) that perform specific tasks such as event monitoring, data processing, and output transmission.
+The Lightweight Equipment Adapter Framework (LEAF) implements an **Adapter Architecture** designed to monitor and control various equipment types (e.g., bioreactors). The core principle of LEAF is to reduce the barrier to entry as much as possible to develop and deploy adapters for new equipment. The **EquipmentAdapters** are the functional equipment monitors composed of the rest of the **modules** (ProcessModules, PhaseModules, etc.) that perform specific tasks such as event monitoring, data processing, and output transmission.
 
 ## Quick Start
 
