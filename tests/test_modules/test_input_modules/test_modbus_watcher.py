@@ -16,9 +16,9 @@ from leaf.modules.input_modules.modbus_watcher import ModbusWatcher
 from leaf.register.metadata import MetadataManager
 
 # Read test_modbus_config.yaml
-with open(f"{os.path.dirname(__file__)}/test_modbus_config.yaml", "r") as stream:
+with open(f"{os.path.dirname(__file__)}/test_modbus_config.yaml") as stream:
     CONFIG = yaml.safe_load(stream)
-    MODBUS_CONFIG = CONFIG["EQUIPMENT_INSTANCES"][0]['equipment']['requirements']
+    MODBUS_CONFIG = CONFIG["EQUIPMENT_INSTANCES"][0]["equipment"]["requirements"]
     logging.info(MODBUS_CONFIG)
     print(MODBUS_CONFIG)
 
@@ -263,6 +263,7 @@ DEVICE_REACHABLE = _device_reachable(_HOST, _PORT)
 
 
 from leaf.modules.input_modules.modbus_watcher import MODBUS_AVAILABLE
+
 
 @unittest.skipUnless(MODBUS_AVAILABLE, "pymodbus not installed")
 @unittest.skipUnless(DEVICE_REACHABLE, f"Modbus device not reachable at {_HOST}:{_PORT}")

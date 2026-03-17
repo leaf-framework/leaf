@@ -131,6 +131,10 @@ def process_instance(instance: dict[str, Any], output: OutputModule) -> Equipmen
     for alias in ("institute", "organization"):
         if alias in instance_data:
             instance_data["organisation"] = instance_data.pop(alias)
+    # Keep backward-compatible alias so older leaf_register versions (which require
+    # 'institute') still pass metadata validation alongside the new 'organisation' key.
+    if "organisation" in instance_data and "institute" not in instance_data:
+        instance_data["institute"] = instance_data["organisation"]
     # See if requirements can become optional
     requirements = None
     if "requirements" in instance:

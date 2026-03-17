@@ -1166,36 +1166,6 @@ MarkupSafe = ">=2.0"
 i18n = ["Babel (>=2.7)"]
 
 [[package]]
-name = "leaf-example"
-version = "0.1.1"
-description = "Leaf Adapter with a basic example function. Creating a measurement message every x interval."
-optional = false
-python-versions = "<4.0,>=3.12"
-groups = ["main"]
-files = [
-    {file = "leaf_example-0.1.1-py3-none-any.whl", hash = "sha256:f3bb946b6c1a312cd9857305024a4118b50e886163aeae6ecb4834c98597768e"},
-    {file = "leaf_example-0.1.1.tar.gz", hash = "sha256:3715484100b3b5acbdcf8d76a188d07f3060b106debcb4882d2300b87529f2c7"},
-]
-
-[package.dependencies]
-leaf-framework = "*"
-
-[[package]]
-name = "leaf-register"
-version = "0.1.3"
-description = "Registry system for the LEAF framework"
-optional = false
-python-versions = "<4.0,>=3.12"
-groups = ["main"]
-files = [
-    {file = "leaf_register-0.1.3-py3-none-any.whl", hash = "sha256:da336dc2d8b0a4a2fc38c1b8efbf540eb74c221b137e3d86dbe239aa209d63a1"},
-    {file = "leaf_register-0.1.3.tar.gz", hash = "sha256:4652ebac4eb55cdbaaff716364aaff3c7facb3493eaad6aa5270af3583a85dfd"},
-]
-
-[package.dependencies]
-pyyaml = ">=6.0.3,<7.0.0"
-
-[[package]]
 name = "librt"
 version = "0.8.1"
 description = "Mypyc runtime library"
@@ -3674,4 +3644,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "b8bdd8001ffc15a877510f24d01ff28ae1119bc913f49a608067050f98afb7fd"
+content-hash = "271d964defce5c13528826ea087a638ac7c36f01ae309e06a66347b030e200de"
