@@ -1,3 +1,4 @@
+import threading
 import time
 from collections.abc import Callable
 from typing import Any
@@ -23,6 +24,11 @@ except ImportError:
 
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.event_watcher import EventWatcher
+
+FIRST_RECONNECT_DELAY = 1
+RECONNECT_RATE = 2
+MAX_RECONNECT_DELAY = 60
+KEEPALIVE_INTERVAL = 10
 
 
 class OPCWatcher(EventWatcher):
@@ -65,7 +71,8 @@ class OPCWatcher(EventWatcher):
         self.logger = get_logger(__name__, log_file="input_module.log")
         if host is None or port is None:
             raise ValueError("Host and port must be specified.")
-        self._client = Client(f"opc.tcp://{host}:{port}")
+        self._client: Client | None = None
+        self._thread: threading.Thread | None = None
 
     def datachange_notification(self, node: Node, val: int | str | float, data: DataChangeNotification) -> None:
         self.logger.debug(f"OPC datachange_notification: node={node.nodeid.Identifier}, value={val}")
@@ -81,28 +88,94 @@ class OPCWatcher(EventWatcher):
 
     def start(self) -> None:
         """
-        Start the OPCWatcher
+        Start the OPCWatcher in a background thread with automatic reconnection.
         """
         if not OPCUA_AVAILABLE:
             raise Exception("OPC UA library is not available. Cannot start OPCWatcher.")
 
-        self.logger.info(f"Starting OPCWatcher on {self._host}:{self._port}")
-        self._client.connect()
+        if self._thread and self._thread.is_alive():
+            self.logger.warning("OPCWatcher already running.")
+            return
 
-        root = self._client.get_root_node()
-        _objects_node = root.get_child(["0:Objects"])  # noqa: F841
-        # Automatically browse and read nodes to obtain topics user could provide a list of topics.
-        # subscribe_to_topics = set()
-        if self._topics is None or len(self._topics) == 0:
-            logger.info("No topics provided. Will list all topics.")
-            self._all_topics = self._browse_and_read(root)
-            for topic in self._all_topics:
-                self.logger.info(f"Found topic: {topic}")
-            logger.info("Finished listing topics.")
-            raise ValueError("No topics provided. Please provide a list of topics to subscribe to.")
+        super().start()
+        self._thread = threading.Thread(target=self._connection_loop, daemon=True)
+        self._thread.start()
+        self.logger.info(f"OPCWatcher started for {self._host}:{self._port}")
 
-        # Subscribe to topics
-        self._subscribe_to_topics()
+    def _connection_loop(self) -> None:
+        """
+        Main connection loop with automatic reconnection on failure.
+
+        Mirrors the BLE watcher pattern: connect, subscribe, keepalive,
+        and retry with exponential backoff if anything goes wrong.
+        """
+        reconnect_delay = FIRST_RECONNECT_DELAY
+
+        while self._running:
+            self.logger.info(f"Connecting to OPC UA server {self._host}:{self._port}...")
+            try:
+                self._client = Client(f"opc.tcp://{self._host}:{self._port}")
+                self._client.connect()
+
+                root = self._client.get_root_node()
+                if not self._topics:
+                    self.logger.info("No topics provided. Browsing all topics.")
+                    self._all_topics = self._browse_and_read(root)
+                    for topic in self._all_topics:
+                        self.logger.info(f"Found topic: {topic}")
+                    raise ValueError("No topics provided. Please provide a list of topics to subscribe to.")
+
+                self._subscribe_to_topics()
+
+                # Reset backoff on successful connection
+                reconnect_delay = FIRST_RECONNECT_DELAY
+                self.logger.info("OPC UA connected and subscribed. Monitoring...")
+
+                # Keepalive loop — detect silent disconnections
+                while self._running:
+                    time.sleep(KEEPALIVE_INTERVAL)
+                    try:
+                        self._client.get_root_node().get_browse_name()
+                    except Exception as e:
+                        self.logger.warning(f"OPC UA keepalive failed, reconnecting: {e}")
+                        break  # exit keepalive loop → triggers reconnect
+
+            except Exception as e:
+                self.logger.error(f"OPC UA connection error: {e}")
+
+            finally:
+                self._cleanup_connection()
+
+            if not self._running:
+                break
+
+            self.logger.info(f"Reconnecting in {reconnect_delay}s...")
+            time.sleep(reconnect_delay)
+            reconnect_delay = min(reconnect_delay * RECONNECT_RATE, MAX_RECONNECT_DELAY)
+
+    def _cleanup_connection(self) -> None:
+        """Unsubscribe and disconnect cleanly."""
+        if self._sub and self._handles:
+            try:
+                for handle in self._handles:
+                    self._sub.unsubscribe(handle)
+                self._handles.clear()
+            except Exception as e:
+                self.logger.debug(f"Error unsubscribing: {e}")
+
+        if self._sub:
+            try:
+                self._sub.delete()
+            except Exception as e:
+                self.logger.debug(f"Error deleting subscription: {e}")
+            self._sub = None
+
+        if self._client:
+            try:
+                self._client.disconnect()
+            except Exception as e:
+                self.logger.debug(f"Error disconnecting: {e}")
+            self._client = None
 
     def _browse_and_read(self, node: Node) -> set[str]:
         """
@@ -139,82 +212,51 @@ class OPCWatcher(EventWatcher):
         if not self._client:
             self.logger.warning("Client is not connected.")
             return
-        try:
-            self._sub = self._client.create_subscription(self._interval * 1000, self)  # second interval converted to ms
-            # When no topics are provided, report all topics but subscribe to none
-            # if not self._topics:
-            #     self._topics = self._all_topics
 
-            for topic in self._topics:
-                if topic in self._exclude_topics:
-                    self.logger.info(f"Excluded topic: {topic}")
-                    continue
-                try:
-                    # Support both full NodeId format (ns=2;s=topic) and simple topic names
-                    if topic.startswith("ns=") or topic.startswith("i="):
-                        # Full NodeId format provided
-                        logger.debug(f"Full NodeId format provided: {topic}")
-                        node = self._client.get_node(topic)
-                    else:
-                        # Simple topic name, assume ns=2;s= format
-                        logger.debug(f"Simple topic name provided, subscribing to ns=2;s={topic}")
-                        node = self._client.get_node(f"ns=2;s={topic}")
+        self._sub = self._client.create_subscription(self._interval * 1000, self)  # second interval converted to ms
 
-                    handle = self._sub.subscribe_data_change(node)
-                    self._handles.append(handle)
-                    self.logger.info(f"Subscribed to: {node.nodeid.to_string()}")
-                    # Send a dummy value to trigger the callback
-                    self._dispatch_callback(
-                        self._metadata_manager.experiment.measurement,
-                        {
-                            "node": node.nodeid.Identifier,
-                            "value": node.get_value(),
-                            "timestamp": time.time(),
-                            "data": None,  # Are we using this object in the opc measurement adapter?
-                        },
-                    )
+        for topic in self._topics:
+            if topic in self._exclude_topics:
+                self.logger.info(f"Excluded topic: {topic}")
+                continue
+            try:
+                # Support both full NodeId format (ns=2;s=topic) and simple topic names
+                if topic.startswith("ns=") or topic.startswith("i="):
+                    logger.debug(f"Full NodeId format provided: {topic}")
+                    node = self._client.get_node(topic)
+                else:
+                    logger.debug(f"Simple topic name provided, subscribing to ns=2;s={topic}")
+                    node = self._client.get_node(f"ns=2;s={topic}")
 
-                except Exception as e:
-                    self.logger.error(f"Failed to subscribe to {topic}: {e}")
-                    if "ServiceFault" in str(e):
-                        self.logger.info("Retrying in 5 seconds...")
-                        time.sleep(5)
-                        continue  # Try the next topic
-        except Exception as e:
-            self.logger.info(f"Failed to create subscription: {e}")
+                handle = self._sub.subscribe_data_change(node)
+                self._handles.append(handle)
+                self.logger.info(f"Subscribed to: {node.nodeid.to_string()}")
+                # Send a dummy value to trigger the callback
+                self._dispatch_callback(
+                    self._metadata_manager.experiment.measurement,
+                    {
+                        "node": node.nodeid.Identifier,
+                        "value": node.get_value(),
+                        "timestamp": time.time(),
+                        "data": None,
+                    },
+                )
+
+            except Exception as e:
+                self.logger.error(f"Failed to subscribe to {topic}: {e}")
+                if "ServiceFault" in str(e):
+                    self.logger.info("Retrying in 5 seconds...")
+                    time.sleep(5)
+                    continue  # Try the next topic
 
     def stop(self) -> None:
         """
         Stop the OPCWatcher and disconnect from the OPC UA server.
         """
         self.logger.info("Stopping OPCWatcher")
+        super().stop()  # sets _running = False, exits connection loop
 
-        # Call parent stop to set _running flag
-        super().stop()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5.0)
 
-        # Unsubscribe from all handles
-        if self._sub and self._handles:
-            try:
-                for handle in self._handles:
-                    self._sub.unsubscribe(handle)
-                self._handles.clear()
-                self.logger.debug("Unsubscribed from all topics")
-            except Exception as e:
-                self.logger.error(f"Error unsubscribing: {e}")
-
-        # Delete subscription
-        if self._sub:
-            try:
-                self._sub.delete()
-                self._sub = None
-                self.logger.debug("Deleted subscription")
-            except Exception as e:
-                self.logger.error(f"Error deleting subscription: {e}")
-
-        # Disconnect client
-        if self._client:
-            try:
-                self._client.disconnect()
-                self.logger.info("Disconnected from OPC UA server")
-            except Exception as e:
-                self.logger.error(f"Error disconnecting client: {e}")
+        self._cleanup_connection()
