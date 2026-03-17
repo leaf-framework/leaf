@@ -111,7 +111,7 @@ EQUIPMENT_INSTANCES:
       adapter: HelloWorld
       data:
         instance_id: ${INSTANCE_ID}
-        organisation: ${INSTITUTE:default_organisation}
+        organisation: ${ORGANISATION:default_organisation}
         department: ${DEPARTMENT}
 """
         result = substitute_env_variables(content)
