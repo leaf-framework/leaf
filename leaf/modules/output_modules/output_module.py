@@ -1,4 +1,3 @@
-import os
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Optional
@@ -15,9 +14,15 @@ class OutputModule(ABC):
     Supports fallback behavior and connection management.
     """
 
-    # Class-level failure tracking across all output modules
-    _global_failure_count = 0
-    _max_failures_before_reboot = int(os.getenv("LEAF_MAX_FAILURES_BEFORE_REBOOT", "5"))
+    # Exponential-backoff logging when all outputs are unavailable
+    _FAILURE_LOG_MIN_DELAY: float = 1.0  # seconds before first repeat log
+    _FAILURE_LOG_MAX_DELAY: float = 60.0  # cap
+    _FAILURE_LOG_RATE: float = 2.0  # multiplier
+
+    _exit_triggered: bool = False  # True while in "waiting for reconnect" state
+    _failure_log_delay: float = _FAILURE_LOG_MIN_DELAY
+    _last_failure_log_time: float | None = None
+
     _gui_mode = False
     _global_topic_store: TopicStore = TopicStore()
 
@@ -141,58 +146,61 @@ class OutputModule(ABC):
     def _handle_no_fallback_available(self) -> None:
         """
         Handle the case when no fallback output mechanisms are available.
-        Increments failure counter and triggers app reboot if threshold is exceeded.
+
+        The first call logs a ClientUnreachableError and a warning, then enters
+        a backoff mode.  Subsequent calls log a status update only once the
+        backoff interval has elapsed (1 → 2 → 4 → … → 60 s), so the log stays
+        readable during extended outages.  Normal logging resumes as soon as any
+        output module reports a successful transmit (reset_failure_count).
         """
-        OutputModule._global_failure_count += 1
+        now = time.monotonic()
 
-        error_msg = (
-            f"Cannot store data, no output mechanisms available. "
-            f"Failure count: {OutputModule._global_failure_count}/"
-            f"{OutputModule._max_failures_before_reboot}"
-        )
-
-        self._handle_exception(ClientUnreachableError(error_msg))
-
-        if OutputModule._global_failure_count >= OutputModule._max_failures_before_reboot:
+        if not OutputModule._exit_triggered:
+            # First failure — report immediately through the error holder so
+            # upstream handlers (e.g. leaf.start) see it, then enter backoff mode.
+            self._handle_exception(ClientUnreachableError("Cannot store data, no output mechanisms available."))
+            OutputModule._exit_triggered = True
+            OutputModule._last_failure_log_time = now
+            OutputModule._failure_log_delay = OutputModule._FAILURE_LOG_MIN_DELAY
             from leaf.utility.logger.logger_utils import get_logger
 
-            logger = get_logger(__name__)
-            logger.critical(
-                f"Maximum failures ({OutputModule._max_failures_before_reboot}) reached. "
-                "All output mechanisms have failed. Triggering application exit."
+            get_logger(__name__).warning(
+                "All output mechanisms have failed. "
+                "Reconnection is being attempted in the background. "
+                f"Next status update in {int(OutputModule._FAILURE_LOG_MIN_DELAY)}s."
             )
-            self._trigger_exit()
-
-    def _trigger_exit(self) -> None:
-        """
-        Trigger application exit by exiting the process.
-        The application should be managed by a process supervisor that will restart it.
-        In GUI mode, the exit is skipped to allow the user to see the error and fix the config.
-        """
-        from leaf.utility.logger.logger_utils import get_logger
-
-        logger = get_logger(__name__)
-        logger.critical("Initiating application exit due to complete output failure.")
-
-        # Reset the failure counter for next restart
-        OutputModule._global_failure_count = 0
-
-        # Don't exit if running in GUI mode - let user see the error
-        if OutputModule._gui_mode:
-            logger.warning("GUI mode active - not exiting. Please check configuration.")
             return
 
-        # Exit with code 1 to indicate an error condition
-        # This should trigger a restart if running under a process supervisor
-        os._exit(1)
+        # Already in backoff mode — only log when the current interval has elapsed.
+        if OutputModule._last_failure_log_time is None or (
+            now - OutputModule._last_failure_log_time >= OutputModule._failure_log_delay
+        ):
+            OutputModule._last_failure_log_time = now
+            OutputModule._failure_log_delay = min(
+                OutputModule._failure_log_delay * OutputModule._FAILURE_LOG_RATE,
+                OutputModule._FAILURE_LOG_MAX_DELAY,
+            )
+            from leaf.utility.logger.logger_utils import get_logger
+
+            get_logger(__name__).warning(
+                "Still no output connection. "
+                "Reconnection is being attempted in the background. "
+                f"Next status update in {int(OutputModule._failure_log_delay)}s."
+            )
 
     @classmethod
     def reset_failure_count(cls) -> None:
         """
-        Reset the global failure counter.
+        Reset the failure-backoff state.
         Should be called when any output module successfully transmits data.
         """
-        cls._global_failure_count = 0
+        if cls._exit_triggered:
+            from leaf.utility.logger.logger_utils import get_logger
+
+            get_logger(__name__).info("Output connection restored — resuming normal data flow.")
+        cls._exit_triggered = False
+        cls._failure_log_delay = cls._FAILURE_LOG_MIN_DELAY
+        cls._last_failure_log_time = None
 
     @classmethod
     def get_global_topic_store(cls) -> TopicStore:

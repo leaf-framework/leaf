@@ -387,10 +387,7 @@ class TestExceptionsGeneral(unittest.TestCase):
 
     @pytest.mark.timeout(60)
     def test_start_handler_no_fallback(self) -> None:
-        # Reset failure counter and temporarily increase threshold for this test
         OutputModule.reset_failure_count()
-        original_threshold = OutputModule._max_failures_before_reboot
-        OutputModule._max_failures_before_reboot = 100
 
         try:
             error_holder = ErrorHolder()
@@ -487,8 +484,6 @@ class TestExceptionsGeneral(unittest.TestCase):
             missing_exceptions = expected_unique - unique_found
             self.assertEqual(len(missing_exceptions), 0, f"Missing expected exceptions: {missing_exceptions}")
         finally:
-            # Restore original threshold
-            OutputModule._max_failures_before_reboot = original_threshold
             OutputModule.reset_failure_count()
 
     def test_start_handler_no_connection(self) -> None:

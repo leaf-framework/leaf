@@ -97,15 +97,15 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
         start_time = time.time()
 
         try:
-            logger.info("UI index page handler called - starting to build page")
+            logger.debug("UI index page handler called - starting to build page")
             from nicegui import context as ui_context
 
             # Log client connection
             try:
                 client_ip = ui_context.client.ip if ui_context.client else "unknown"
-                logger.info(f"Client connected from {client_ip}")
+                logger.debug(f"Client connected from {client_ip}")
             except Exception as e:
-                logger.info(f"Client connected (could not get IP: {e})")
+                logger.debug(f"Client connected (could not get IP: {e})")
 
             logger.debug(f"[PERF] Client connection logged: {time.time() - start_time:.3f}s")
 

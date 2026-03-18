@@ -1,3 +1,4 @@
+import threading
 import time
 from collections.abc import Callable
 from socket import gaierror
@@ -95,6 +96,9 @@ class MQTTEventWatcher(EventWatcher):
         self._register_topics(stop_topics, metadata_manager.experiment.stop)
         self._register_topics(error_topics, metadata_manager.error)
 
+        # Set when on_connect fires so start() can block until subscriptions are active
+        self._connected_event = threading.Event()
+
     def _register_topics(self, topics: list[str] | None, event: str):
         if topics:
             for topic in topics:
@@ -103,6 +107,9 @@ class MQTTEventWatcher(EventWatcher):
     def start(self):
         """
         Connects to the MQTT broker and sets a thread looping.
+        Blocks until on_connect fires and subscriptions are active, so callers
+        can publish immediately after start() returns.  On reconnects after a
+        broker restart, on_connect re-subscribes automatically.
         """
         super().start()
         try:
@@ -110,11 +117,7 @@ class MQTTEventWatcher(EventWatcher):
                 self.client.username_pw_set(self._username, self._password)
             self.client.connect(self._broker, self._port, 60)
             self.client.loop_start()
-            time.sleep(3)
-            for topic in self._topic_event_map.keys():
-                self.subscribe(topic)
-                time.sleep(0.1)
-
+            self._connected_event.wait(timeout=10)
         except (gaierror, OSError) as e:
             self._handle_exception(
                 ClientUnreachableError(f"Error connecting to broker: {self._broker} {e}", output_module=self)
@@ -191,6 +194,9 @@ class MQTTEventWatcher(EventWatcher):
     ) -> None:
         """
         Callback for when the client connects to the broker.
+        Subscribes to all registered topics here so subscriptions are
+        restored automatically after a reconnect (paho reconnects the
+        TCP session but does not re-subscribe on clean_session=True).
 
         Args:
             client (mqtt.Client): The MQTT client instance.
@@ -212,6 +218,12 @@ class MQTTEventWatcher(EventWatcher):
             }
             message = error_messages.get(rc.value, f"Unknown connection error with code {rc}")
             self._handle_exception(ClientUnreachableError(f"Connection refused: {message}", output_module=self))
+            return
+
+        for topic in self._topic_event_map.keys():
+            self.subscribe(topic)
+
+        self._connected_event.set()
 
     def on_connect_fail(
         self,

@@ -7,7 +7,7 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 
 from leaf.error_handler.error_holder import ErrorHolder
-from leaf.error_handler.exceptions import AdapterBuildError, ClientUnreachableError, LEAFError, SeverityLevel
+from leaf.error_handler.exceptions import AdapterBuildError, ClientUnreachableError, SeverityLevel
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.utility.logger.logger_utils import get_logger
 
@@ -123,6 +123,7 @@ class MQTT(OutputModule):
         try:
             if self._username and self._password:
                 self.client.username_pw_set(self._username, self._password)
+            self.client.reconnect_delay_set(min_delay=1, max_delay=60)
             self.client.connect(self._broker, self._port, 20)
             self.client.loop_start()
         except (gaierror, OSError) as e:
@@ -285,15 +286,15 @@ class MQTT(OutputModule):
     ) -> None:
         """
         Callback for when the client fails to connect to the broker.
+        Only logs — must not raise, as this runs on paho's network thread
+        and an unhandled exception would kill the reconnect loop.
 
         Args:
             client (mqtt.Client): The MQTT client instance.
             userdata (Any): The private user data as set in
                             Client() or userdata_set().
         """
-        logger.error("Connection failed")
-        leaf_error = LEAFError("Failed to connect", SeverityLevel.CRITICAL)
-        self._handle_exception(leaf_error)
+        logger.warning(f"Connection to {self._broker}:{self._port} failed, paho will retry")
 
     def on_disconnect(
         self,
