@@ -38,7 +38,7 @@ def create_configuration_tab(config_tab: ui.tab, config_path: Path | None) -> No
         else:
             configuration_path = config_path
 
-        logger.info(f"Configuration tab using file: {configuration_path}")
+        logger.debug(f"Configuration tab using file: {configuration_path}")
         if os.path.exists(configuration_path):
             with open(configuration_path) as file:
                 config_yaml = file.read()
