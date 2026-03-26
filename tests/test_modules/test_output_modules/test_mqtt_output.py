@@ -67,6 +67,25 @@ class TestMQTT(unittest.TestCase):
         self.assertIn(test_topic, self._mock_client.messages)
         self.assertEqual(self._mock_client.messages[test_topic], [{}])
 
+    def test_heartbeat(self):
+        interval = 2.0
+        heartbeat_topic = "leaf/test_org/test_dept/test_adapter/test_instance/heartbeat"
+        adapter = MQTT(
+            self._adapter._broker,
+            self._adapter._port,
+            heartbeat_topic=heartbeat_topic,
+            heartbeat_interval=interval,
+        )
+        self._mock_client.subscribe(heartbeat_topic)
+        time.sleep(interval + 1)
+        adapter.disconnect()
+
+        self.assertIn(heartbeat_topic, self._mock_client.messages)
+        msgs = self._mock_client.messages[heartbeat_topic]
+        self.assertGreaterEqual(len(msgs), 1)
+        self.assertEqual(msgs[0]["status"], "alive")
+        self.assertIn("timestamp", msgs[0])
+
 
 if __name__ == "__main__":
     unittest.main()

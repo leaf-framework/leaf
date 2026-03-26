@@ -26,7 +26,9 @@ class ModbusWatcher(ExternalEventWatcher):
 
     Each entry in `registers` may contain:
         name    (str):   Key used in the output payload.
-        address (int):   Modbus holding register address in 4xxxx notation (e.g. 40301).
+        address (int):   Modbus holding register address. Accepts either 4xxxx notation
+                         (e.g. 40301, offset subtracted automatically) or 0-based protocol
+                         address (e.g. 300).
         count   (int):   Number of consecutive registers to read (default 1).
         scale   (float): Multiply the raw value by this factor (default 1.0).
                          Applied only when count == 1.
@@ -118,8 +120,10 @@ class ModbusWatcher(ExternalEventWatcher):
                 logger.warning(f"Skipping register entry with missing name or address: {reg}")
                 continue
 
+            raw_address = int(address)
+            protocol_address = raw_address - 40001 if raw_address >= 40001 else raw_address
             result = self._client.read_holding_registers(
-                address=int(address) - 40001,
+                address=protocol_address,
                 count=count,
                 device_id=self._device_id,
             )

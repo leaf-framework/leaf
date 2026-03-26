@@ -229,6 +229,7 @@ class EquipmentAdapter(ABC):
             self._watcher.start()
             if self._external_watcher:
                 self._external_watcher.start()
+            self._output.on_adapter_ready(self._metadata_manager)
 
             self._stop_event.clear()
             # Expose adapter on all channels.
@@ -311,6 +312,7 @@ class EquipmentAdapter(ABC):
         Stop the adapter and all associated processes and watchers.
         """
         self._stop_event.set()
+        self._output.on_adapter_stop()
         if self._watcher.is_running():
             self._watcher.stop()
 
