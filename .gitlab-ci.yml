@@ -65,15 +65,27 @@ publish:
     - poetry config pypi-token.pypi "$PYPI_TOKEN"
   script:
     - latest_tag=$(git describe --tags --abbrev=0)
-    - commit_count=$(git rev-list ${latest_tag}..HEAD --count)
     - base_version=${latest_tag#v}
-    - new_version="${base_version}.${commit_count}"
+    - major=$(echo $base_version | cut -d. -f1)
+    - minor=$(echo $base_version | cut -d. -f2)
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        new_minor=$((minor + 1))
+        new_version="${major}.${new_minor}.0"
+        # Tag the release via GitLab API so dev builds count commits from this point
+        curl --silent --fail --request POST \
+          --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+          --data "tag_name=v${major}.${new_minor}&ref=${CI_COMMIT_SHA}" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags"
+      else
+        commit_count=$(git rev-list ${latest_tag}..HEAD --count)
+        new_version="${base_version}.${commit_count}"
+      fi
     - echo "New version $new_version"
     # update version in pyproject.toml without committing or tagging
     - sed -i -E "s/^(version\s*=\s*\")0\.0\.0(\".*)$/\1${new_version}\2/" pyproject.toml
     - head -n 10 pyproject.toml
     # And publish
-    - poetry config virtualenvs.create false
     - poetry build
     - ls -l dist/
     - poetry publish

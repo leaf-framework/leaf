@@ -358,6 +358,18 @@ class OutputModule(ABC):
         """
         return self._topic_store
 
+    def on_adapter_ready(self, metadata_manager: Any) -> None:  # noqa: B027
+        """
+        Called by EquipmentAdapter once instance metadata is available.
+        Output modules that need instance identity (e.g. MQTT heartbeat) override this.
+        """
+
+    def on_adapter_stop(self) -> None:  # noqa: B027
+        """
+        Called by EquipmentAdapter when the adapter is stopping.
+        Output modules that started background tasks in on_adapter_ready override this.
+        """
+
     @property
     def name(self) -> str:
         """

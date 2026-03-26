@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 from socket import gaierror
 from typing import Any, Literal
@@ -39,6 +40,10 @@ class MQTT(OutputModule):
         tls: bool = False,
         error_holder: ErrorHolder | None = None,
         name: str | None = None,
+        # Heartbeat
+        heartbeat_topic: str | None = None,
+        heartbeat_interval: float = 30.0,
+        heartbeat_payload: str | dict | None = None,
     ) -> None:
         """
         Initialise the MQTT adapter with broker details,
@@ -55,6 +60,12 @@ class MQTT(OutputModule):
             transport (Literal['tcp', 'websockets', 'unix']): The transport method, either TCP, WebSockets, or Unix socket.
             tls (bool): Boolean flag to enable or disable TLS encryption.
             error_holder (Optional[ErrorHolder]): An instance of ErrorHolder for tracking errors.
+            heartbeat_topic (Optional[str]): Topic to publish heartbeat messages on. If not set,
+                heartbeat and LWT are disabled.
+            heartbeat_interval (float): Seconds between heartbeat publishes. Defaults to 30.
+                Set to 0 to disable.
+            heartbeat_payload (Optional[str | dict]): Payload for heartbeat messages. Defaults to
+                ``{"status": "alive", "timestamp": <epoch>, "datetime": <datetime>}`` with the timestamp filled in at publish time.
         """
 
         super().__init__(fallback=fallback, error_holder=error_holder, name=name)
@@ -82,6 +93,13 @@ class MQTT(OutputModule):
         self._tls: bool = tls
         self.messages: dict[str, list[str]] = {}
         self.sending_success: dict[str, bool] = {}
+
+        self._heartbeat_topic: str | None = heartbeat_topic
+
+        self._heartbeat_interval: float = heartbeat_interval
+        self._heartbeat_payload: str | dict | None = heartbeat_payload
+        self._heartbeat_stop: threading.Event = threading.Event()
+        self._heartbeat_thread: threading.Thread | None = None
 
         client_kwargs: dict[str, Any] = {
             "callback_api_version": CallbackAPIVersion.VERSION2,
@@ -113,6 +131,12 @@ class MQTT(OutputModule):
             except Exception as e:
                 raise AdapterBuildError(f"Failed to set up TLS: {e}")
 
+        if self._heartbeat_topic:
+            self.client.will_set(
+                self._heartbeat_topic, payload=json.dumps({"status": "disconnected"}), qos=1, retain=True
+            )
+            logger.info(f"LWT registered on '{self._heartbeat_topic}'")
+
         self.connect()
 
     def connect(self) -> None:
@@ -126,6 +150,8 @@ class MQTT(OutputModule):
             self.client.reconnect_delay_set(min_delay=1, max_delay=60)
             self.client.connect(self._broker, self._port, 20)
             self.client.loop_start()
+            if self._heartbeat_topic and self._heartbeat_interval > 0:
+                self._start_heartbeat()
         except (gaierror, OSError) as e:
             self._handle_exception(ClientUnreachableError(f"Error connecting to broker: {e}", output_module=self))
 
@@ -137,6 +163,7 @@ class MQTT(OutputModule):
         if not self.is_enabled():
             logger.warning(f"{self.__class__.__name__} - disconnect called with module disabled.")
             return
+        self._stop_heartbeat()
         try:
             if self.client.is_connected():
                 self.client.disconnect()
@@ -435,6 +462,39 @@ class MQTT(OutputModule):
         if self._fallback is not None:
             return self._fallback.pop(key)
         return None
+
+    def _start_heartbeat(self) -> None:
+        """Start the background heartbeat thread."""
+        self._heartbeat_stop.clear()
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop, name=f"HeartbeatThread-{self._name}", daemon=True
+        )
+        self._heartbeat_thread.start()
+        logger.info(f"Heartbeat started on '{self._heartbeat_topic}' every {self._heartbeat_interval}s")
+
+    def _stop_heartbeat(self) -> None:
+        """Signal the heartbeat thread to stop and wait for it to exit."""
+        if self._heartbeat_thread is not None and self._heartbeat_thread.is_alive():
+            self._heartbeat_stop.set()
+            self._heartbeat_thread.join(timeout=self._heartbeat_interval + 1)
+            self._heartbeat_thread = None
+            logger.info("Heartbeat stopped.")
+
+    def _heartbeat_loop(self) -> None:
+        """Publish a heartbeat message at regular intervals until stopped."""
+        while True:
+            if self._heartbeat_payload is not None:
+                payload = self._heartbeat_payload
+            else:
+                payload = {
+                    "status": "alive",
+                    "timestamp": time.time(),
+                    "datetime": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+                }
+            logger.info(f"Publishing heartbeat to '{self._heartbeat_topic}': {payload}")
+            self.transmit(self._heartbeat_topic, payload)
+            if self._heartbeat_stop.wait(self._heartbeat_interval):
+                break
 
     def _handle_return_code(self, return_code: int) -> ClientUnreachableError | None:
         """
