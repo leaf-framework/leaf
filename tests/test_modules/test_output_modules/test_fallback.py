@@ -37,6 +37,21 @@ db_host = "localhost"
 
 
 class TestFallbacks(unittest.TestCase):
+    def tearDown(self) -> None:
+        try:
+            self._module.disconnect()
+        except Exception:
+            pass
+        try:
+            self._mock_client.disconnect()
+        except Exception:
+            pass
+        try:
+            self._keydb.disconnect()
+        except Exception:
+            pass
+        self.temp_dir.cleanup()
+
     def setUp(self) -> None:
         mock_topic = "test_fallback/"
 

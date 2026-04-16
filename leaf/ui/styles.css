@@ -1,12 +1,94 @@
+/* ============================================
+   LEFT SIDEBAR NAVIGATION
+   ============================================ */
+
+/* Sidebar drawer background */
+.q-drawer .bg-gray-50 {
+    background-color: #f9fafb;
+}
+
+/* Vertical tabs container inside sidebar */
+.leaf-sidebar-tabs.q-tabs--vertical {
+    background: transparent !important;
+    width: 100%;
+}
+
+/* Each sidebar tab item */
+.leaf-sidebar-tabs .q-tab {
+    justify-content: flex-start !important;
+    padding: 10px 16px !important;
+    border-radius: 8px !important;
+    margin: 2px 8px !important;
+    width: calc(100% - 16px) !important;
+    min-height: 44px !important;
+    color: #6b7280 !important;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.leaf-sidebar-tabs .q-tab:hover {
+    background: #f3f4f6 !important;
+    color: #374151 !important;
+}
+
+/* Active tab */
+.leaf-sidebar-tabs .q-tab--active {
+    background: #fff4f0 !important;
+    color: #f15b25 !important;
+}
+
+.leaf-sidebar-tabs .q-tab--active .q-tab__icon,
+.leaf-sidebar-tabs .q-tab--active .q-tab__label {
+    color: #f15b25 !important;
+}
+
+/* Hide the default Quasar vertical indicator bar */
+.leaf-sidebar-tabs .q-tab__indicator {
+    display: none !important;
+}
+
+/* Tab label alignment */
+.leaf-sidebar-tabs .q-tab__content {
+    flex-direction: row !important;
+    gap: 10px;
+    align-items: center;
+}
+
+.leaf-sidebar-tabs .q-tab__label {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* Dark mode sidebar */
+.dark .q-drawer {
+    background-color: #1f2937 !important;
+}
+
+.dark .leaf-sidebar-tabs .q-tab {
+    color: #9ca3af !important;
+}
+
+.dark .leaf-sidebar-tabs .q-tab:hover {
+    background: #374151 !important;
+    color: #e5e7eb !important;
+}
+
+.dark .leaf-sidebar-tabs .q-tab--active {
+    background: rgba(241, 91, 37, 0.15) !important;
+    color: #f15b25 !important;
+}
+
+.dark .leaf-sidebar-tabs .q-tab--active .q-tab__icon,
+.dark .leaf-sidebar-tabs .q-tab--active .q-tab__label {
+    color: #f15b25 !important;
+}
+
+/* ============================================
+   END SIDEBAR NAVIGATION
+   ============================================ */
+
 /* Light mode styles */
 .leaf-gradient {
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-}
-.leaf-tabs-container,
-.leaf-tabs-container .q-tabs,
-.leaf-tabs-container .q-tabs__content,
-.leaf-tabs-container .q-tabs--horizontal {
-    background: linear-gradient(to right, #f9fafb, #ffffff) !important;
+    background: linear-gradient(135deg, #f15b25 0%, #d14e1e 100%);
 }
 .leaf-card,
 .q-card.leaf-card,
@@ -30,7 +112,7 @@
     background-color: transparent !important;
 }
 .leaf-header {
-    background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+    background: #1c1c1c;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 .leaf-tab {
@@ -48,21 +130,11 @@
     margin-right: 8px;
     animation: pulse 2s infinite;
 }
-.status-online { background-color: #6b7280; }
-.status-offline { background-color: #9ca3af; }
-.status-warning { background-color: #d1d5db; }
+.status-online { background-color: #10b981; }
+.status-offline { background-color: #ef4444; }
+.status-warning { background-color: #f59e0b; }
 
 /* Dark mode styles */
-.dark .leaf-tabs-container,
-.dark .leaf-tabs-container .q-tabs,
-.dark .leaf-tabs-container .q-tabs__content,
-.dark .leaf-tabs-container .q-tabs--horizontal,
-.dark .leaf-tabs-container > *,
-.dark .q-tabs.leaf-tabs-container,
-.dark .q-tabs.leaf-tabs-container .q-tabs__content {
-    background: linear-gradient(to right, #1f2937, #111827) !important;
-    background-color: #1f2937 !important;
-}
 .dark .leaf-card,
 .dark .q-card.leaf-card,
 .dark .nicegui-card.leaf-card {
@@ -84,7 +156,7 @@
     background-color: transparent !important;
 }
 .dark .leaf-header {
-    background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+    background: #1c1c1c;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 .dark .leaf-tab:hover {
@@ -98,21 +170,6 @@
     100% { opacity: 1; }
 }
 
-/* Dark mode tab styling - more specific selectors */
-.dark .q-tabs,
-.dark .q-tabs__content,
-.dark .q-tabs .q-tabs__content {
-    background: linear-gradient(to right, #1f2937, #111827) !important;
-}
-.dark .q-tab {
-    color: #d1d5db !important;
-}
-.dark .q-tab--active {
-    color: #f3f4f6 !important;
-}
-.dark .q-tab__indicator {
-    background-color: #60a5fa !important;
-}
 
 /* Dark mode button styling */
 .dark .bg-gray-50 {
@@ -207,26 +264,6 @@
     border-color: #374151 !important;
 }
 
-/* Additional tab bar fixes - nuclear option with multiple selectors */
-.dark .q-tabs--horizontal,
-.dark div.q-tabs,
-.dark [role="tablist"] {
-    background: linear-gradient(to right, #1f2937, #111827) !important;
-}
-.dark .q-tabs .q-tab__label {
-    color: #d1d5db !important;
-}
-.dark .q-tabs .q-tab--active .q-tab__label {
-    color: #f3f4f6 !important;
-}
-/* Force remove any white background from tabs container */
-.dark .w-full.bg-gradient-to-r {
-    background: linear-gradient(to right, #1f2937, #111827) !important;
-}
-/* Override any Tailwind utility classes */
-.dark [class*="bg-gradient"] {
-    background: linear-gradient(to right, #1f2937, #111827) !important;
-}
 
 /* Dark mode CodeMirror editor */
 .dark .cm-editor {
@@ -333,17 +370,17 @@ body:not(.dark) .text-green-400 {
 
 /* Button Styles */
 .btn-primary {
-    background-color: #2563eb;
+    background-color: #f15b25;
     color: white;
 }
 .btn-primary:hover {
-    background-color: #1d4ed8;
+    background-color: #d14e1e;
 }
 .dark .btn-primary {
-    background-color: #3b82f6 !important;
+    background-color: #f15b25 !important;
 }
 .dark .btn-primary:hover {
-    background-color: #2563eb !important;
+    background-color: #d14e1e !important;
 }
 
 .btn-secondary {
