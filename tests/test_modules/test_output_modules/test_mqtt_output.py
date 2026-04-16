@@ -36,7 +36,8 @@ class TestMQTT(unittest.TestCase):
         self._mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
 
     def tearDown(self):
-        pass
+        self._adapter.disconnect()
+        self._mock_client.disconnect()
 
     def test_transmit(self):
         metadata_manager = MetadataManager()
@@ -70,13 +71,14 @@ class TestMQTT(unittest.TestCase):
     def test_heartbeat(self):
         interval = 2.0
         heartbeat_topic = "leaf/test_org/test_dept/test_adapter/test_instance/heartbeat"
+        self._mock_client.subscribe(heartbeat_topic)
+        time.sleep(0.5)
         adapter = MQTT(
             self._adapter._broker,
             self._adapter._port,
             heartbeat_topic=heartbeat_topic,
             heartbeat_interval=interval,
         )
-        self._mock_client.subscribe(heartbeat_topic)
         time.sleep(interval + 1)
         adapter.disconnect()
 

@@ -80,10 +80,10 @@ class MockInterpreter(AbstractInterpreter):
         self.id = experiment_id
 
     def metadata(self, data):
-        return [{"message": data}] if isinstance(data, (str, int, float, bool)) else [data]
+        return [{"message": data}] if isinstance(data, str | int | float | bool) else [data]
 
     def measurement(self, data):
-        return [{"message": data}] if isinstance(data, (str, int, float, bool)) else [data]
+        return [{"message": data}] if isinstance(data, str | int | float | bool) else [data]
 
     def simulate(self):
         return super().simulate()
@@ -223,7 +223,14 @@ class TestDiscreteProcess(unittest.TestCase):
         _run_change(_modify_file, self.text_watch_file)
         time.sleep(1)
         _run_change(_delete_file, self.text_watch_file)
-        time.sleep(1)
+
+        # Poll until the stop message arrives (last of the three expected), up to 5 seconds
+        prefix = f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}"
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            if any(k.startswith(prefix) and k.endswith("stop") for k in self.mock_client.messages):
+                break
+            time.sleep(0.5)
 
         fail = True
 

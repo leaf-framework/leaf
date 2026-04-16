@@ -133,12 +133,38 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
                 </script>
             """)
 
+            # Apply portal color theme
+            ui.colors(primary="#f15b25", secondary="#6fd3f2")
+
             # Dark mode toggle
             dark = ui.dark_mode()
 
-            # Create header
+            # Create left sidebar with vertical tabs
+            drawer = ui.left_drawer(value=True).classes("bg-gray-50 border-r border-gray-200 pt-4")
+            with drawer:
+                with ui.tabs(value=None).props("vertical").classes("w-full leaf-sidebar-tabs") as tabs:
+                    config_tab: ui.tab = ui.tab("Configuration", icon="settings").classes(TAB_CLASSES)
+                    logs_tab = ui.tab("Logs", icon="article").classes(TAB_CLASSES)
+                    docs_tab = ui.tab("Documentation", icon="help").classes(TAB_CLASSES)
+                    monitor_tab = ui.tab("Monitoring", icon="monitor").classes(TAB_CLASSES)
+                    adapters_tab = ui.tab("Adapters", icon="extension").classes(TAB_CLASSES)
+
+                    # Dynamically create tabs for adapter UI extensions
+                    adapter_tabs = []
+                    for ext in adapter_ui_extensions:
+                        ui_config = ext["ui_config"]
+                        tab = ui.tab(ui_config["tab_name"], icon=ui_config.get("tab_icon", "extension")).classes(
+                            TAB_CLASSES
+                        )
+                        adapter_tabs.append((tab, ext))
+                        logger.debug(f"Created tab for adapter: {ext['adapter_code']}")
+
+            # Attach event handler to logs tab to scroll to bottom
+            logs_tab.on("click", lambda: ui.run_javascript("scrollLogToBottom()"))
+
+            # Create header with drawer toggle
             logger.debug(f"[PERF] Creating header: {time.time() - start_time:.3f}s")
-            create_header(dark, curr_dir)
+            create_header(dark, curr_dir, drawer)
             logger.debug(f"[PERF] Header created: {time.time() - start_time:.3f}s")
 
             # Show startup error banner if there's an error
@@ -154,27 +180,6 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
                                 ui.label(
                                     "LEAF is running in UI-only mode. Please fix the configuration and restart."
                                 ).classes("text-sm text-red-500 mt-2")
-
-            # Enhanced tabs with icons
-            with ui.tabs().classes("w-full leaf-tabs-container border-b").style("background: inherit;") as tabs:
-                config_tab: ui.tab = ui.tab("Configuration", icon="settings").classes(TAB_CLASSES)
-                logs_tab = ui.tab("Logs", icon="article").classes(TAB_CLASSES)
-                docs_tab = ui.tab("Documentation", icon="help").classes(TAB_CLASSES)
-                monitor_tab = ui.tab("Monitoring", icon="monitor").classes(TAB_CLASSES)
-                adapters_tab = ui.tab("Adapters", icon="extension").classes(TAB_CLASSES)
-
-                # Dynamically create tabs for adapter UI extensions
-                adapter_tabs = []
-                for ext in adapter_ui_extensions:
-                    ui_config = ext["ui_config"]
-                    tab = ui.tab(ui_config["tab_name"], icon=ui_config.get("tab_icon", "extension")).classes(
-                        TAB_CLASSES
-                    )
-                    adapter_tabs.append((tab, ext))
-                    logger.debug(f"Created tab for adapter: {ext['adapter_code']}")
-
-            # Attach event handler to logs tab to scroll to bottom
-            logs_tab.on("click", lambda: ui.run_javascript("scrollLogToBottom()"))
 
             logger.debug(f"[PERF] Tabs structure created: {time.time() - start_time:.3f}s")
 

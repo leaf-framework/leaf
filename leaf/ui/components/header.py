@@ -7,17 +7,20 @@ from pathlib import Path
 from nicegui import ui
 
 
-def create_header(dark_mode: ui.dark_mode, curr_dir: Path) -> None:
+def create_header(dark_mode: ui.dark_mode, curr_dir: Path, drawer=None) -> None:
     """
     Create the LEAF application header with branding and dark mode toggle.
 
     Args:
         dark_mode: NiceGUI dark mode instance
         curr_dir: Current directory path for loading assets
+        drawer: Optional left drawer to toggle via hamburger menu button
     """
     with ui.header().classes("leaf-header").style("padding: 16px; color: white;"):
         with ui.row().classes("justify-between items-center w-full"):
             with ui.row().classes("items-center"):
+                if drawer is not None:
+                    ui.button(icon="menu", on_click=drawer.toggle).props("flat round dense color=white").classes("mr-2")
                 # Load SVG from images/icon.svg
                 svg_path: Path = curr_dir / "images" / "icon.svg"
                 if os.path.exists(svg_path):
