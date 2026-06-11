@@ -26,9 +26,15 @@ class ModbusWatcher(ExternalEventWatcher):
 
     Each entry in `registers` may contain:
         name    (str):   Key used in the output payload.
-        address (int):   Modbus holding register address. Accepts either 4xxxx notation
-                         (e.g. 40301, offset subtracted automatically) or 0-based protocol
-                         address (e.g. 300).
+        address (int):   Modbus register address. Accepts 4xxxx notation for holding
+                         registers (e.g. 40301, offset subtracted automatically), 3xxxx
+                         notation for input registers (e.g. 30009, offset subtracted
+                         automatically), or a 0-based protocol address (e.g. 300).
+        register_type (str): "holding" (default) or "input". Only needed when `address`
+                         is a 0-based protocol address, since that notation does not
+                         indicate which register bank to read from. Ignored when
+                         `address` is given in 3xxxx/4xxxx notation, which determines
+                         the register bank automatically.
         count   (int):   Number of consecutive registers to read (default 1).
         scale   (float): Multiply the raw value by this factor (default 1.0).
                          Applied only when count == 1.
@@ -53,6 +59,9 @@ class ModbusWatcher(ExternalEventWatcher):
             - name: last_ir_ts
               address: 42002
               count: 2
+            - name: h2_flow_rate
+              address: 30009
+              scale: 0.1
     """
 
     def __init__(
@@ -121,8 +130,20 @@ class ModbusWatcher(ExternalEventWatcher):
                 continue
 
             raw_address = int(address)
-            protocol_address = raw_address - 40001 if raw_address >= 40001 else raw_address
-            result = self._client.read_holding_registers(
+            if raw_address >= 40001:
+                protocol_address = raw_address - 40001
+                register_type = "holding"
+            elif raw_address >= 30001:
+                protocol_address = raw_address - 30001
+                register_type = "input"
+            else:
+                protocol_address = raw_address
+                register_type = reg.get("register_type", "holding")
+
+            read_fn = (
+                self._client.read_input_registers if register_type == "input" else self._client.read_holding_registers
+            )
+            result = read_fn(
                 address=protocol_address,
                 count=count,
                 device_id=self._device_id,

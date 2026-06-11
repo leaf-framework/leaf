@@ -143,6 +143,48 @@ class TestModbusWatcherReadRegisters(unittest.TestCase):
         self.assertEqual(data, {})
 
 
+class TestModbusWatcherInputRegisters(unittest.TestCase):
+    """Unit tests for reading 3xxxx-style input registers (function code 04)."""
+
+    def setUp(self):
+        self.watcher = ModbusWatcher(host="192.168.1.12", interval=5, registers=[])
+        self.mock_client = MagicMock()
+        self.watcher._client = self.mock_client
+
+    def test_3xxxx_address_uses_read_input_registers_with_offset(self):
+        """A 30009-style address is read via read_input_registers at protocol address 8."""
+        self.watcher._registers = [{"name": "h2_flow_rate", "address": 30009, "scale": 0.1}]
+        self.mock_client.read_input_registers.return_value = make_register_result([42])
+
+        data = self.watcher._read_registers()
+
+        self.mock_client.read_input_registers.assert_called_once_with(address=8, count=1, device_id=1)
+        self.mock_client.read_holding_registers.assert_not_called()
+        self.assertAlmostEqual(data["h2_flow_rate"], 4.2)
+
+    def test_register_type_input_with_protocol_address(self):
+        """A 0-based protocol address with register_type 'input' is read via read_input_registers."""
+        self.watcher._registers = [{"name": "h2_flow_rate", "address": 1008, "register_type": "input"}]
+        self.mock_client.read_input_registers.return_value = make_register_result([100])
+
+        data = self.watcher._read_registers()
+
+        self.mock_client.read_input_registers.assert_called_once_with(address=1008, count=1, device_id=1)
+        self.mock_client.read_holding_registers.assert_not_called()
+        self.assertEqual(data["h2_flow_rate"], 100)
+
+    def test_protocol_address_defaults_to_holding_register(self):
+        """A 0-based protocol address with no register_type defaults to read_holding_registers."""
+        self.watcher._registers = [{"name": "temperature", "address": 300, "scale": 0.01}]
+        self.mock_client.read_holding_registers.return_value = make_register_result([2350])
+
+        data = self.watcher._read_registers()
+
+        self.mock_client.read_holding_registers.assert_called_once_with(address=300, count=1, device_id=1)
+        self.mock_client.read_input_registers.assert_not_called()
+        self.assertAlmostEqual(data["temperature"], 23.50)
+
+
 class TestModbusWatcherEmit(unittest.TestCase):
     def test_emit_uses_metadata_manager_topic(self):
         metadata_manager = MetadataManager()

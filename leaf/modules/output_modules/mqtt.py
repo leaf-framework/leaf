@@ -8,7 +8,7 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 
 from leaf.error_handler.error_holder import ErrorHolder
-from leaf.error_handler.exceptions import AdapterBuildError, ClientUnreachableError, SeverityLevel
+from leaf.error_handler.exceptions import AdapterBuildError, ClientUnreachableError, LEAFError, SeverityLevel
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.utility.logger.logger_utils import get_logger
 
@@ -491,8 +491,14 @@ class MQTT(OutputModule):
                     "timestamp": time.time(),
                     "datetime": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
                 }
-            logger.info(f"Publishing heartbeat to '{self._heartbeat_topic}': {payload}")
-            self.transmit(self._heartbeat_topic, payload)
+            logger.debug(f"Publishing heartbeat to '{self._heartbeat_topic}': {payload}")
+            try:
+                self.transmit(self._heartbeat_topic, payload)
+            except LEAFError as e:
+                # Must not propagate - an unhandled exception here (e.g. the broker
+                # connection not being fully up yet) would silently kill this daemon
+                # thread and stop all future heartbeats.
+                logger.debug(f"Heartbeat publish failed, will retry next interval: {e}")
             if self._heartbeat_stop.wait(self._heartbeat_interval):
                 break
 

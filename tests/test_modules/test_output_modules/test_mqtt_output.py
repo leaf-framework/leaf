@@ -79,7 +79,15 @@ class TestMQTT(unittest.TestCase):
             heartbeat_topic=heartbeat_topic,
             heartbeat_interval=interval,
         )
-        time.sleep(interval + 1)
+
+        # Poll until the heartbeat message arrives, allowing extra time on
+        # slower/parallel CI runners for the connection and first publish.
+        deadline = time.time() + interval * 3 + 5
+        while time.time() < deadline:
+            if heartbeat_topic in self._mock_client.messages:
+                break
+            time.sleep(0.5)
+
         adapter.disconnect()
 
         self.assertIn(heartbeat_topic, self._mock_client.messages)
