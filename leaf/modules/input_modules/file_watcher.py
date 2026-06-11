@@ -77,6 +77,7 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         use_polling: bool = True,
         polling_interval: float = 1.0,
         skip_existing: bool = False,
+        recursive: bool = False,
     ) -> None:
         """
         Initialise FileWatcher.
@@ -121,6 +122,7 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         self._use_polling = use_polling
         self._polling_interval = polling_interval
         self._skip_existing = skip_existing
+        self._recursive = recursive
 
         self._last_created: dict = {}  # Track creation time per file path
         self._last_modified: dict = {}  # Track modification time per file path
@@ -154,7 +156,7 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
                 logger.debug("Using native filesystem observer")
             for path in self._paths:
                 logger.debug(f"Watching path: {path}")
-                self._observer.schedule(self, path, recursive=False)
+                self._observer.schedule(self, path, recursive=self._recursive)
             if not self._observer.is_alive():
                 logger.debug("Starting observer thread...")
                 self._observer.start()
