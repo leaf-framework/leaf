@@ -1,4 +1,6 @@
 import inspect
+import os
+import tempfile
 import threading
 import time
 from typing import Any
@@ -6,6 +8,7 @@ from typing import Any
 from leaf.adapters.equipment_adapter import EquipmentAdapter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterBuildError
+from leaf.modules.output_modules.file import FILE
 from leaf.modules.output_modules.mqtt import MQTT
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.register.topic_utilities import topic_utilities
@@ -108,6 +111,12 @@ def build_output_module(config: dict[str, Any], error_holder: ErrorHolder) -> Ou
             if fallback_code not in output_objects:
                 raise AdapterBuildError(f"Can't find fallback output: {fallback_code}")
             output_objects[code]["output"].set_fallback(output_objects[fallback_code]["output"])
+        elif code not in fallback_codes and code not in parallel_codes:
+            leaf_tmp_dir = os.path.join(tempfile.gettempdir(), "leaf")
+            os.makedirs(leaf_tmp_dir, exist_ok=True)
+            tmp_path = os.path.join(leaf_tmp_dir, f"{code}_fallback.json")
+            output_objects[code]["output"].set_fallback(FILE(filename=tmp_path, error_holder=error_holder))
+            logger.warning(f"No fallback configured for '{code}', defaulting to {tmp_path}")
 
     # Wire up parallels
     for code, out_data in output_objects.items():
