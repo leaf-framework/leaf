@@ -9,6 +9,11 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+packaging/launcher/python-runtime-*.tar.gz
+packaging/launcher/python-runtime-*.zip
+packaging/launcher/leaf-framework.version
+packaging/launcher/wheelhouse/
+packaging/windows/Output/
 develop-eggs/
 dist/
 downloads/
@@ -31,6 +36,7 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+!packaging/launcher/leaf_launcher.spec
 
 # Installer logs
 pip-log.txt

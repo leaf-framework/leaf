@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LEAF
+Comment=Lightweight Equipment Adapter Framework
+Exec=LEAF
+Icon=icon
+Categories=Utility;Science;
+Terminal=false
