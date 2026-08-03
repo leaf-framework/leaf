@@ -30,14 +30,49 @@ DIST_DIR="dist"
 APP_PATH="$DIST_DIR/LEAF.app"
 CONTENTS_MACOS="$APP_PATH/Contents/MacOS"
 
+# Apple's bundled /usr/bin/python3 links against an ancient Tcl/Tk (8.5.x)
+# with a known infinite-loop bug computing wrapped-text label geometry on
+# Retina displays -- PyInstaller bakes whichever Tcl/Tk its build-time
+# Python is linked against into the frozen launcher, so building with the
+# wrong python3 here ships a launcher that hangs at 100% CPU on first
+# launch, on every Retina Mac, regardless of quarantine/network state.
+# `python3` alone is not reliable enough to pick the right one: shell
+# executor CI runners (esp. a launchd-managed gitlab-runner service, which
+# gets launchd's minimal PATH, not the interactive shell's) can easily
+# resolve it to /usr/bin/python3 ahead of a real install. Find one with a
+# modern Tcl/Tk explicitly instead of trusting PATH order.
+find_good_python3() {
+    for candidate in python3 /opt/homebrew/bin/python3 /usr/local/bin/python3; do
+        command -v "$candidate" >/dev/null 2>&1 || continue
+        patchlevel=$("$candidate" -c 'import tkinter; print(tkinter.Tcl().eval("info patchlevel"))' 2>/dev/null) || continue
+        major=${patchlevel%%.*}
+        minor=$(echo "$patchlevel" | cut -d. -f2)
+        if [ "$major" -gt 8 ] || { [ "$major" -eq 8 ] && [ "$minor" -ge 6 ]; }; then
+            command -v "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
 echo "==> Building launcher with PyInstaller"
 if [ -x ".venv/bin/pyinstaller" ]; then
     PYINSTALLER_CMD=(".venv/bin/pyinstaller")
 else
+    GOOD_PYTHON3="$(find_good_python3)" || {
+        echo "ERROR: no python3 with Tcl/Tk >= 8.6 found (checked python3, /opt/homebrew/bin/python3, /usr/local/bin/python3)." >&2
+        echo "Building with an older Tcl/Tk would ship a launcher that hangs on first launch on Retina displays." >&2
+        exit 1
+    }
+    echo "==> Using $GOOD_PYTHON3 for PyInstaller (Tcl/Tk $("$GOOD_PYTHON3" -c 'import tkinter; print(tkinter.Tcl().eval("info patchlevel"))'))"
+    # Installed here (into the same interpreter picked above), not as a
+    # separate CI step against bare `python3` -- that could silently
+    # target a *different* python3 than the one actually used below.
+    "$GOOD_PYTHON3" -m pip install --quiet "pyinstaller~=6.19"
     # Bare `pyinstaller` relies on its console-script shim being on PATH,
     # which pip doesn't guarantee (e.g. a --user install on a CI runner's
     # system Python lands outside PATH). Module invocation sidesteps that.
-    PYINSTALLER_CMD=(python3 -m PyInstaller)
+    PYINSTALLER_CMD=("$GOOD_PYTHON3" -m PyInstaller)
 fi
 "${PYINSTALLER_CMD[@]}" packaging/launcher/leaf_launcher.spec \
     --distpath "$DIST_DIR" \

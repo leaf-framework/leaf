@@ -185,7 +185,10 @@ def show_progress_window(message: str):
         tk.Label(root, text=message, font=("Helvetica", 12), wraplength=320, justify="center").pack(
             expand=True, padx=20, pady=20
         )
-        root.update()
+        # update_idletasks(), not update() -- see run_pumping_ui() below for
+        # why: update() processes the entire event queue, not just redraws,
+        # which is a known source of reentrant/hanging behavior.
+        root.update_idletasks()
         return root
     except Exception:
         print(message)
