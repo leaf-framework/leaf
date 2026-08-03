@@ -210,9 +210,24 @@ package:windows:
   script:
     - python -m pip install "pyinstaller~=6.19"
     - python -m PyInstaller packaging/launcher/leaf_launcher.spec --distpath dist --workpath build/launcher --noconfirm
-    - python packaging/runtime/fetch_python.py windows-amd64 --out dist/LEAF
-    - Set-Content -Path dist/LEAF/leaf-framework.version -Value "leaf-framework==$env:LEAF_VERSION" -Encoding ascii
-    - python packaging/runtime/build_wheelhouse.py --runtime-archive dist/LEAF/python-runtime-windows-amd64.tar.gz --requirement "leaf-framework==$env:LEAF_VERSION" --out build/wheelhouse-staging
+    - |
+      # PyInstaller freezes the launcher for whatever CPU this runner
+      # actually is -- an ARM64 runner (e.g. Windows-on-ARM under UTM/
+      # Parallels on Apple Silicon) produces an ARM64 LEAF-Setup.exe, whose
+      # bootstrap.py then looks for a matching python-runtime-windows-arm64
+      # archive at first launch. Bundling amd64 unconditionally here caused
+      # exactly that mismatch ("No bundled Python runtime found for
+      # windows/arm64") on a real ARM64 Windows install. Detect the arch
+      # instead of hardcoding one.
+      if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+        $winArch = "windows-arm64"
+      } else {
+        $winArch = "windows-amd64"
+      }
+      Write-Host "Runner architecture: $env:PROCESSOR_ARCHITECTURE -> $winArch"
+      python packaging/runtime/fetch_python.py $winArch --out dist/LEAF
+      Set-Content -Path dist/LEAF/leaf-framework.version -Value "leaf-framework==$env:LEAF_VERSION" -Encoding ascii
+      python packaging/runtime/build_wheelhouse.py --runtime-archive "dist/LEAF/python-runtime-$winArch.tar.gz" --requirement "leaf-framework==$env:LEAF_VERSION" --out build/wheelhouse-staging
     - tar czf dist/LEAF/wheelhouse.tar.gz -C build/wheelhouse-staging .
     - |
       $isccCandidates = @(
