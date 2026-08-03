@@ -77,9 +77,29 @@ def venv_entrypoint(venv_dir: Path, name: str) -> Path:
     return venv_dir / "bin" / name
 
 
+def _detect_machine() -> str:
+    """Architecture of *this running process*, not the host's raw hardware.
+
+    platform.machine() on Windows was found to report the underlying
+    hardware's native architecture unconditionally (e.g. ARM64 on a
+    Windows-on-ARM machine), even when the calling process itself is a
+    genuine AMD64 binary running under x64 emulation -- confirmed directly
+    on real hardware: a verified AMD64 LEAF.exe still saw platform.machine()
+    return "ARM64", causing bootstrap to look for a windows-arm64 runtime
+    archive that was never bundled. PROCESSOR_ARCHITECTURE (an environment
+    variable, not a hardware query) correctly reflects the calling
+    process's own architecture instead, respecting emulation.
+    """
+    if platform.system() == "Windows":
+        arch = os.environ.get("PROCESSOR_ARCHITECTURE", "")
+        if arch:
+            return arch.lower()
+    return platform.machine().lower()
+
+
 def find_portable_python_archive() -> Path:
     system = platform.system().lower()
-    machine = platform.machine().lower()
+    machine = _detect_machine()
     candidates = sorted(bundle_dir().glob(f"python-runtime-{system}-{machine}.*"))
     if not candidates:
         raise FileNotFoundError(
