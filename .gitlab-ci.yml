@@ -244,7 +244,14 @@ package:windows:
       foreach ($candidate in $pythonCandidates) {
         $exe = Get-Command $candidate -ErrorAction SilentlyContinue
         if (-not $exe) { continue }
-        $machine = & $exe.Source -c "import platform; print(platform.machine())" 2>$null
+        # NOT platform.machine(): on this ARM64 host it always reports the
+        # underlying hardware's native architecture (ARM64), regardless of
+        # which python.exe actually runs it -- confirmed directly on the
+        # runner, including for a freshly-installed, genuine amd64
+        # python.org build. PROCESSOR_ARCHITECTURE (read from *within* the
+        # candidate's own process) correctly reflects that process's own
+        # architecture instead, respecting x64-under-ARM64 emulation.
+        $machine = & $exe.Source -c "import os; print(os.environ.get('PROCESSOR_ARCHITECTURE'))" 2>$null
         if ($machine -eq "AMD64") {
           $goodPython = $exe.Source
           break
