@@ -124,13 +124,21 @@ def find_wheelhouse(data_dir: Path) -> Path | None:
     see packaging/README.md. Extracting once to a normal directory
     sidesteps that entirely, and also avoids codesign refusing to sign the
     bundle at all over the zip-structured .whl files if they were loose.
+
+    Always re-extracted (not just "if empty"): this only runs once per
+    bootstrap_environment() re-install, so the cost is negligible, and a
+    stale wheelhouse left over from a previous app version installing an
+    older pinned release would otherwise be silently reused forever --
+    pip then fails to satisfy the current pin against old wheels with no
+    obvious symptom beyond a broken launch.
     """
     archive = bundle_dir() / WHEELHOUSE_ARCHIVE_NAME
     if not archive.is_file():
         return None
     wheelhouse = data_dir / "wheelhouse"
-    if not any(wheelhouse.glob("*.whl")):
-        extract_archive(archive, wheelhouse)
+    if wheelhouse.exists():
+        shutil.rmtree(wheelhouse)
+    extract_archive(archive, wheelhouse)
     return wheelhouse if any(wheelhouse.glob("*.whl")) else None
 
 
@@ -185,6 +193,39 @@ def show_progress_window(message: str):
 
 
 def show_error(message: str) -> None:
+    """Show an error dialog, in a *subprocess* if at all possible.
+
+    By the time this is called, show_progress_window() has very likely
+    already created and destroyed a tk.Tk() root in this same process (the
+    normal case: bootstrap_environment() fails partway through, e.g. a
+    version-mismatched wheelhouse making pip unable to satisfy the pin).
+    tkinter only supports one Tk() root per process -- see the identical
+    concern in leaf/ui/desktop_launcher.py's is_desktop_environment() --
+    and creating a second one here was observed to leave the window
+    blank and the process pegged at ~100% CPU forever instead of showing
+    the dialog. Running it in a fresh interpreter sidesteps that; the
+    extracted runtime is normally already present by the time errors here
+    are possible.
+    """
+    script = (
+        "import tkinter as tk\n"
+        "from tkinter import messagebox\n"
+        "r = tk.Tk()\n"
+        "r.withdraw()\n"
+        "messagebox.showerror(__import__('sys').argv[1], __import__('sys').argv[2])\n"
+        "r.destroy()\n"
+    )
+    try:
+        runtime_python = find_runtime_python(app_data_dir() / "runtime")
+        subprocess.run([str(runtime_python), "-c", script, APP_NAME, message], timeout=60)
+        return
+    except Exception:
+        pass
+
+    # Last resort: no extracted runtime to run the dialog in a subprocess
+    # (e.g. bootstrap failed before ever extracting one). Only reachable
+    # before show_progress_window() could have created a root, so a single
+    # in-process root here is safe.
     try:
         import tkinter as tk
         from tkinter import messagebox
