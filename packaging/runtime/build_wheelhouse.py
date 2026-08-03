@@ -56,7 +56,13 @@ def main() -> None:
     parser.add_argument("--out", required=True, type=Path, help="Output wheelhouse directory")
     args = parser.parse_args()
 
-    with tempfile.TemporaryDirectory(prefix="leaf-wheelhouse-runtime-") as tmp:
+    # ignore_cleanup_errors: on Windows, a DLL the pip subprocess below just
+    # loaded (e.g. libcrypto for HTTPS) can stay locked for a moment after
+    # the process exits (commonly antivirus briefly scanning it), making
+    # rmtree's delete fail with "Access is denied" even though the
+    # subprocess already completed. Not worth failing the whole build over
+    # a leftover temp dir that the OS cleans up on its own eventually.
+    with tempfile.TemporaryDirectory(prefix="leaf-wheelhouse-runtime-", ignore_cleanup_errors=True) as tmp:
         runtime_dir = Path(tmp)
         extract_archive(args.runtime_archive, runtime_dir)
         runtime_python = find_runtime_python(runtime_dir)
