@@ -55,16 +55,23 @@ find_good_python3() {
     return 1
 }
 
+# Resolved once, reused for every python3 invocation below (PyInstaller,
+# fetch_python.py, build_wheelhouse.py) -- not just the PyInstaller step.
+# build_wheelhouse.py hitting the same bare-`python3` trap independently
+# (TypeError: ignore_cleanup_errors needs 3.10+, Apple's bundled 3.9.x
+# doesn't have it) is what prompted centralizing this instead of fixing
+# each script's call site one at a time as they turn up.
+GOOD_PYTHON3="$(find_good_python3)" || {
+    echo "ERROR: no python3 with Tcl/Tk >= 8.6 found (checked python3, /opt/homebrew/bin/python3, /usr/local/bin/python3)." >&2
+    echo "Building with an older Tcl/Tk would ship a launcher that hangs on first launch on Retina displays." >&2
+    exit 1
+}
+echo "==> Using $GOOD_PYTHON3 (Tcl/Tk $("$GOOD_PYTHON3" -c 'import tkinter; print(tkinter.Tcl().eval("info patchlevel"))'))"
+
 echo "==> Building launcher with PyInstaller"
 if [ -x ".venv/bin/pyinstaller" ]; then
     PYINSTALLER_CMD=(".venv/bin/pyinstaller")
 else
-    GOOD_PYTHON3="$(find_good_python3)" || {
-        echo "ERROR: no python3 with Tcl/Tk >= 8.6 found (checked python3, /opt/homebrew/bin/python3, /usr/local/bin/python3)." >&2
-        echo "Building with an older Tcl/Tk would ship a launcher that hangs on first launch on Retina displays." >&2
-        exit 1
-    }
-    echo "==> Using $GOOD_PYTHON3 for PyInstaller (Tcl/Tk $("$GOOD_PYTHON3" -c 'import tkinter; print(tkinter.Tcl().eval("info patchlevel"))'))"
     # A Homebrew python3 refuses `pip install` directly (PEP 668
     # externally-managed-environment) to protect its own site-packages.
     # A throwaway venv sidesteps that cleanly and still inherits the
@@ -81,7 +88,7 @@ fi
     --noconfirm
 
 echo "==> Fetching portable Python runtime for darwin-$ARCH"
-python3 packaging/runtime/fetch_python.py "darwin-$ARCH" --out "$CONTENTS_MACOS"
+"$GOOD_PYTHON3" packaging/runtime/fetch_python.py "darwin-$ARCH" --out "$CONTENTS_MACOS"
 
 if [ -n "$VERSION_SPEC" ]; then
     echo "==> Pinning $VERSION_SPEC"
@@ -91,7 +98,7 @@ if [ -n "$VERSION_SPEC" ]; then
         echo "==> Building offline wheelhouse"
         WHEELHOUSE_TMP="build/wheelhouse-staging"
         rm -rf "$WHEELHOUSE_TMP"
-        python3 packaging/runtime/build_wheelhouse.py \
+        "$GOOD_PYTHON3" packaging/runtime/build_wheelhouse.py \
             --runtime-archive "$CONTENTS_MACOS/python-runtime-darwin-$ARCH.tar.gz" \
             --requirement "$VERSION_SPEC" \
             --out "$WHEELHOUSE_TMP"
