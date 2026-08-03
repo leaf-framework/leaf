@@ -229,15 +229,17 @@ package:windows:
       # (AppData\Local\Python\pythoncore-X.Y-64\) -- confirmed present but
       # missed by an earlier version of this list that only checked the
       # classic layout, on this project's own Windows runner.
-      $pythonCandidates = @(
-        "python",
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe",
-        "C:\Python312\python.exe",
-        "C:\Python313\python.exe"
-      )
-      $pythonCandidates += Get-ChildItem -Path "$env:LOCALAPPDATA\Python\pythoncore-*-64\python.exe" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+      #
+      # Searched under C:\Users\*, not just $env:LOCALAPPDATA: if
+      # gitlab-runner runs as a Windows service, it very likely runs under
+      # a different account than whichever interactive user installed
+      # Python, so $env:LOCALAPPDATA in this job's context resolves to
+      # *that* account's (probably empty) profile, not the one Python
+      # actually lives under -- searching every user's profile directly
+      # sidesteps needing to know or fix which account the service runs as.
+      $pythonCandidates = @("python", "C:\Python312\python.exe", "C:\Python313\python.exe")
+      $pythonCandidates += Get-ChildItem -Path "C:\Users\*\AppData\Local\Programs\Python\Python3*\python.exe" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+      $pythonCandidates += Get-ChildItem -Path "C:\Users\*\AppData\Local\Python\pythoncore-*-64\python.exe" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
       $goodPython = $null
       foreach ($candidate in $pythonCandidates) {
         $exe = Get-Command $candidate -ErrorAction SilentlyContinue
