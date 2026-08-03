@@ -136,7 +136,8 @@ package:macos:
   rules:
     - if: '$CI_COMMIT_TAG'
   script:
-    - python3 -m pip install "pyinstaller~=6.19"
+    # PyInstaller is installed inside build_dmg.sh itself, into whichever
+    # python3 it picks (see there for why bare `python3` isn't trusted).
     - packaging/macos/build_dmg.sh "leaf-framework==${LEAF_VERSION}"
     - |
       asset_name="LEAF-macos-$(uname -m).dmg"
