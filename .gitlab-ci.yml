@@ -70,14 +70,20 @@ publish:
     - base_version=${latest_tag#v}
     - major=$(echo $base_version | cut -d. -f1)
     - minor=$(echo $base_version | cut -d. -f2)
+    - patch=$(echo $base_version | cut -d. -f3)
+    - patch=${patch:-0}
     - |
       if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        new_minor=$((minor + 1))
-        new_version="${major}.${new_minor}.0"
-        # Tag the release via GitLab API so dev builds count commits from this point
+        new_patch=$((patch + 1))
+        new_version="${major}.${minor}.${new_patch}"
+        # Tag the release via GitLab API so dev builds count commits from this
+        # point. Tag is the full MAJOR.MINOR.PATCH version, not just
+        # MAJOR.MINOR -- matters because packaging/'s installer pipeline
+        # triggers off any tag and derives its own version from the tag name;
+        # a mismatched format here previously caused duplicate releases.
         curl --silent --fail --request POST \
           --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-          --data "tag_name=v${major}.${new_minor}&ref=${CI_COMMIT_SHA}" \
+          --data "tag_name=v${new_version}&ref=${CI_COMMIT_SHA}" \
           "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags"
       else
         commit_count=$(git rev-list ${latest_tag}..HEAD --count)
