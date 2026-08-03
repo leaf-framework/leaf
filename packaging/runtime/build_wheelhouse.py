@@ -22,8 +22,18 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import zipfile
 from pathlib import Path
+
+# The packaging pipeline's own tag (which triggers this) fires from the
+# same `publish` job that just uploaded this exact version to PyPI --
+# sometimes before PyPI has finished indexing it, so the very next `pip
+# download` genuinely can't find a version that exists moments later.
+# Observed repeatedly in practice: retrying after PyPI catches up (usually
+# under a minute) always succeeds with no other change.
+PYPI_PROPAGATION_RETRIES = 6
+PYPI_PROPAGATION_DELAY_SECONDS = 15
 
 
 def extract_archive(archive: Path, dest: Path) -> None:
@@ -68,10 +78,20 @@ def main() -> None:
         runtime_python = find_runtime_python(runtime_dir)
 
         args.out.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            [str(runtime_python), "-m", "pip", "download", args.requirement, "-d", str(args.out)],
-            check=True,
-        )
+        cmd = [str(runtime_python), "-m", "pip", "download", args.requirement, "-d", str(args.out)]
+        for attempt in range(1, PYPI_PROPAGATION_RETRIES + 1):
+            result = subprocess.run(cmd, check=False)
+            if result.returncode == 0:
+                break
+            if attempt == PYPI_PROPAGATION_RETRIES:
+                result.check_returncode()
+            print(
+                f"pip download failed (attempt {attempt}/{PYPI_PROPAGATION_RETRIES}), "
+                f"retrying in {PYPI_PROPAGATION_DELAY_SECONDS}s in case PyPI hasn't "
+                "finished indexing this version yet...",
+                file=sys.stderr,
+            )
+            time.sleep(PYPI_PROPAGATION_DELAY_SECONDS)
 
     non_wheels = [p.name for p in args.out.iterdir() if p.suffix != ".whl"]
     if non_wheels:
