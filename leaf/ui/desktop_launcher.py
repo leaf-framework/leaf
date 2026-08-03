@@ -23,6 +23,28 @@ except ImportError:
     logger.warning("tkinter not available - desktop GUI will not be available")
 
 
+def _init_x11_threads() -> None:
+    """Tell Xlib this process is multi-threaded, before it ever touches X11.
+
+    LEAF always has other threads running by the time this GUI starts (the
+    NiceGUI web server thread, adapter/simulation threads -- see start.py),
+    even though none of them are meant to touch Tk/X11 directly. Xlib is
+    documented as requiring XInitThreads() to be called before its first
+    use in any process that is multi-threaded at all, regardless of which
+    thread actually issues X calls; skipping it is exactly what produces
+    "Unknown sequence number ... XInitThreads has not been called" xcb
+    aborts on Linux. No equivalent exists on macOS (Cocoa) or Windows.
+    """
+    if not sys.platform.startswith("linux"):
+        return
+    try:
+        import ctypes
+
+        ctypes.CDLL("libX11.so.6").XInitThreads()
+    except Exception as e:
+        logger.debug(f"Could not call XInitThreads: {e}")
+
+
 def is_desktop_environment() -> bool:
     """
     Detect if we're running in a desktop environment.
@@ -82,6 +104,7 @@ class LeafDesktopLauncher:
         self.is_running = True
 
         # Create main window
+        _init_x11_threads()
         self.root = tk.Tk()
         self.root.title("LEAF - Lightweight Equipment Adapter Framework")
         self.root.geometry("500x350")
@@ -281,6 +304,7 @@ class LeafDesktopLauncher:
 
         # Call the stop callback in a separate thread
         if self.on_stop_callback:
+            stop_finished = threading.Event()
 
             def stop_thread():
                 try:
@@ -288,13 +312,24 @@ class LeafDesktopLauncher:
                 except Exception as e:
                     logger.error(f"Error in stop callback: {e}")
                 finally:
-                    # Close the window after stopping
-                    try:
-                        self.root.after(1000, self.root.destroy)
-                    except Exception:
-                        pass
+                    stop_finished.set()
 
             threading.Thread(target=stop_thread, daemon=True).start()
+
+            # Tk/Tcl calls (root.after, root.destroy) must only ever happen
+            # on the main thread that's running mainloop() -- on Linux,
+            # Xlib can abort the whole process ("XInitThreads has not been
+            # called") if a background thread issues X11 calls concurrently
+            # with it. Polling here (itself scheduled via root.after, so it
+            # always runs on the main thread) instead of destroying directly
+            # from stop_thread keeps every Tk call on that one thread.
+            def wait_and_destroy():
+                if stop_finished.is_set():
+                    self.root.destroy()
+                else:
+                    self.root.after(100, wait_and_destroy)
+
+            self.root.after(1000, wait_and_destroy)
         else:
             # If no callback, just close
             self.root.after(500, self.root.destroy)
