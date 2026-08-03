@@ -1,6 +1,7 @@
 """Desktop GUI launcher for LEAF - Simple control panel for users."""
 
 import os
+import subprocess
 import sys
 import threading
 import webbrowser
@@ -45,12 +46,19 @@ def is_desktop_environment() -> bool:
         if not os.environ.get("DISPLAY"):
             return False
 
-    # Try to create a test window to verify tkinter actually works
+    # Verify tkinter actually works by creating a test window -- in a
+    # *subprocess*, not in-process. tkinter only supports one Tk() root per
+    # process; creating-and-destroying a throwaway root here would leave the
+    # *real* root (created later by LeafDesktopLauncher, in this same
+    # process) in a broken state on macOS: it still registers a Dock icon
+    # but the window itself never becomes visible or responds to input.
     try:
-        root = tk.Tk()
-        root.withdraw()
-        root.destroy()
-        return True
+        result = subprocess.run(
+            [sys.executable, "-c", "import tkinter; r = tkinter.Tk(); r.withdraw(); r.destroy()"],
+            capture_output=True,
+            timeout=10,
+        )
+        return result.returncode == 0
     except Exception as e:
         logger.debug(f"Desktop environment check failed: {e}")
         return False
@@ -296,10 +304,42 @@ class LeafDesktopLauncher:
         logger.info("User closed desktop launcher window")
         self.stop_leaf()
 
+    def _bring_to_front(self):
+        """Force the window to the foreground and give it real input focus.
+
+        Needed when this process was exec'd into from an already-running
+        signed .app (see packaging/launcher/bootstrap.py) rather than being
+        launched directly as its own bundled app: Tk's window then draws
+        fine but doesn't reliably become the active/frontmost app, so it
+        renders but silently ignores clicks.
+        """
+        self.root.lift()
+        self.root.attributes("-topmost", True)
+        self.root.after_idle(self.root.attributes, "-topmost", False)
+        self.root.focus_force()
+        if sys.platform == "darwin":
+            try:
+                import subprocess
+
+                subprocess.run(
+                    [
+                        "osascript",
+                        "-e",
+                        'tell application "System Events" to set frontmost of '
+                        f"(first process whose unix id is {os.getpid()}) to true",
+                    ],
+                    check=False,
+                    timeout=2,
+                )
+            except Exception as e:
+                logger.debug(f"Could not force-activate window via osascript: {e}")
+
     def run(self):
         """Run the desktop launcher main loop."""
         logger.info("Starting desktop launcher GUI")
         try:
+            self._bring_to_front()
+
             # Auto-open browser on startup after a short delay
             self.root.after(1500, self.open_browser)
 

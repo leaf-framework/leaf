@@ -43,7 +43,7 @@ packaging/
     leaf_launcher.spec       # PyInstaller spec for the launcher only
     leaf-framework.version   # (generated at build time) pinned pip spec
     python-runtime-*.tar.gz  # (generated at build time) portable Python payloads
-    wheelhouse/               # (generated at build time) offline wheel cache
+    wheelhouse.tar.gz         # (generated at build time) offline wheel cache
   runtime/
     fetch_python.py          # downloads python-build-standalone runtimes
     build_wheelhouse.py      # pre-downloads leaf-framework's wheels for offline installs
@@ -97,6 +97,39 @@ all, e.g. a bare Linux server/container -- `tk.Tk()` instead raises
 creation even started. Found via Linux AppImage testing, but the fix
 (catch broadly, fall back to a plain `print`) applies on every platform.
 
+**The wheelhouse is a single `wheelhouse.tar.gz`, not loose `.whl` files --
+this isn't just tidiness, it works around two real macOS bugs.** A locally
+built, never-quarantined `LEAF.app` looks fine either way, which made this
+easy to misdiagnose -- it only shows up for an actual downloaded copy:
+
+1. `codesign --force --sign -` (no `--deep`) on a bundle containing loose
+   `.whl` files (which are zip-structured) fails outright: `code object is
+   not signed at all`. `--deep` is required for signing to succeed at all
+   once any zip-structured file is present.
+2. But `--deep` signing 71 individual wheels, combined with what a real
+   download actually gets on first launch -- quarantined, and (short of an
+   interactive Finder drag, which can't be scripted to verify) App
+   Translocated to a randomized read-only mount -- makes `pip install`
+   reading those wheels off that mount loop forever (observed 5+ minutes,
+   oscillating memory, never completing) instead of the normal ~10-20s.
+
+Packaging the wheelhouse as one tar.gz sidesteps both: it's not
+zip-structured at the file-tree level codesign inspects, so `--deep` isn't
+forced by its presence, and `bootstrap.py` extracts it to a normal writable,
+non-quarantined directory (`find_wheelhouse()`) before pip ever reads a
+wheel, so translocation is irrelevant to that read entirely. `--deep` is
+still used for the overall re-sign (needed regardless, to reseal after
+adding the runtime/version files, so a locked bundle isn't the problem).
+
+Confirmed by reproducing with genuine quarantine + translocation
+(`xattr -w com.apple.quarantine ... /Applications/LEAF.app` triggers
+translocation without needing an actual browser download each time) --
+loose `.whl` files reproduced the hang every time even after `--deep`
+signing (the resulting bundle even worked when *not* actually re-signed
+with `--deep`, since it was silently reusing an already-signed leftover
+from a previous test, which is what made this misleading at first); the
+tar.gz form didn't hang once, repeatedly, under the same conditions.
+
 ## Building
 
 ### macOS
@@ -126,8 +159,11 @@ python -m PyInstaller packaging\launcher\leaf_launcher.spec --distpath dist --wo
 python packaging\runtime\fetch_python.py windows-amd64 --out dist\LEAF
 echo leaf-framework==<version> > dist\LEAF\leaf-framework.version
 
-:: Optional but recommended: bundle an offline wheelhouse, same as macOS
-python packaging\runtime\build_wheelhouse.py --runtime-archive dist\LEAF\python-runtime-windows-amd64.tar.gz --requirement "leaf-framework==<version>" --out dist\LEAF\wheelhouse
+:: Optional but recommended: bundle an offline wheelhouse, same as macOS.
+:: Packaged as a single tar.gz (bootstrap.py expects this exact filename on
+:: every platform) -- tar.exe ships built into Windows 10 1803+/11.
+python packaging\runtime\build_wheelhouse.py --runtime-archive dist\LEAF\python-runtime-windows-amd64.tar.gz --requirement "leaf-framework==<version>" --out build\wheelhouse-staging
+tar czf dist\LEAF\wheelhouse.tar.gz -C build\wheelhouse-staging .
 
 set LEAF_VERSION=<version>
 ISCC packaging\windows\leaf.iss

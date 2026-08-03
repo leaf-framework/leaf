@@ -53,10 +53,22 @@ if [ -n "$VERSION_SPEC" ]; then
 
     if [ -z "${SKIP_WHEELHOUSE:-}" ]; then
         echo "==> Building offline wheelhouse"
+        WHEELHOUSE_TMP="build/wheelhouse-staging"
+        rm -rf "$WHEELHOUSE_TMP"
         python3 packaging/runtime/build_wheelhouse.py \
             --runtime-archive "$CONTENTS_MACOS/python-runtime-darwin-$ARCH.tar.gz" \
             --requirement "$VERSION_SPEC" \
-            --out "$CONTENTS_MACOS/wheelhouse"
+            --out "$WHEELHOUSE_TMP"
+        # Packaged as a single tar.gz, not loose .whl files, for two reasons:
+        # codesign refuses to sign the bundle at all once zip-structured
+        # files (which .whl files are) are present without --deep, and even
+        # with --deep, pip reading dozens of --deep-signed wheels off a
+        # translocated/quarantined mount (what a real download gets on
+        # first launch) can loop forever instead of the normal ~10-20s.
+        # bootstrap.py extracts this to a normal writable, non-quarantined
+        # directory before pip ever touches the wheels.
+        tar czf "$CONTENTS_MACOS/wheelhouse.tar.gz" -C "$WHEELHOUSE_TMP" .
+        rm -rf "$WHEELHOUSE_TMP"
     else
         echo "==> SKIP_WHEELHOUSE set; launcher will need internet on first run"
     fi
@@ -75,6 +87,16 @@ else
     # exec of the binary bypasses Gatekeeper, so this only shows up for
     # real users double-clicking it). Re-sign ad-hoc to reseal the bundle
     # in its final state.
+    #
+    # --deep is required here, not optional: without it, codesign refuses
+    # to sign at all once wheelhouse/*.whl files are present ("code object
+    # is not signed at all" -- codesign treats zip-structured files as
+    # needing their own nested signature, which only --deep can satisfy).
+    # See the wheelhouse tar.gz packaging above for why loose .whl files
+    # don't end up in the final bundle at all -- avoids a separate, real
+    # bug where pip reading many --deep-signed wheels off a translocated,
+    # quarantined mount (what a real downloaded copy gets on first launch)
+    # would loop forever instead of the normal ~10-20s.
     echo "==> Re-signing ad-hoc to reseal after staging runtime/wheelhouse files"
     codesign --deep --force --sign - "$APP_PATH"
 fi
