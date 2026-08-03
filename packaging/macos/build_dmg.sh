@@ -65,14 +65,15 @@ else
         exit 1
     }
     echo "==> Using $GOOD_PYTHON3 for PyInstaller (Tcl/Tk $("$GOOD_PYTHON3" -c 'import tkinter; print(tkinter.Tcl().eval("info patchlevel"))'))"
-    # Installed here (into the same interpreter picked above), not as a
-    # separate CI step against bare `python3` -- that could silently
-    # target a *different* python3 than the one actually used below.
-    "$GOOD_PYTHON3" -m pip install --quiet "pyinstaller~=6.19"
-    # Bare `pyinstaller` relies on its console-script shim being on PATH,
-    # which pip doesn't guarantee (e.g. a --user install on a CI runner's
-    # system Python lands outside PATH). Module invocation sidesteps that.
-    PYINSTALLER_CMD=("$GOOD_PYTHON3" -m PyInstaller)
+    # A Homebrew python3 refuses `pip install` directly (PEP 668
+    # externally-managed-environment) to protect its own site-packages.
+    # A throwaway venv sidesteps that cleanly and still inherits the
+    # parent interpreter's Tcl/Tk (venvs don't get their own).
+    PYINSTALLER_VENV="build/pyinstaller-venv"
+    rm -rf "$PYINSTALLER_VENV"
+    "$GOOD_PYTHON3" -m venv "$PYINSTALLER_VENV"
+    "$PYINSTALLER_VENV/bin/pip" install --quiet "pyinstaller~=6.19"
+    PYINSTALLER_CMD=("$PYINSTALLER_VENV/bin/pyinstaller")
 fi
 "${PYINSTALLER_CMD[@]}" packaging/launcher/leaf_launcher.spec \
     --distpath "$DIST_DIR" \
