@@ -12,28 +12,6 @@ from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="desktop_launcher.log")
 
-# Works around a libXcursor/Xlib bug that aborts the whole process on Linux,
-# the first time a tk.Button is created: ButtonCreate -> TkButtonWorldChanged
-# -> Tk_GetBitmap -> ... -> libXcursor's XcursorSupportsARGB ->
-# XRenderQueryExtension -> XQueryExtension -> Xlib's _XSend, which hits
-# `assert(!xcb_xlib_unknown_seq_number)` and aborts. Root-caused via a core
-# dump (gdb, `thread apply all bt`) on a genuine Debian/Xorg reproduction --
-# NOT a threading race (every other thread was idle, blocked on condition
-# variables); the single main thread aborts inside libXcursor's lazy
-# ARGB-cursor/display-info detection, which corrupts Xlib's XCB
-# sequence-number tracking. XLIB_SKIP_ARGB_VISUALS=1 is libXcursor's own
-# documented escape hatch for exactly this, and was confirmed to fix it:
-# without it, LEAF aborted within ~1s of "Starting desktop control panel..."
-# on every run; with it, the full GUI lifecycle (button creation, 40s+
-# runtime, clean shutdown) ran with no crash, in the same environment.
-#
-# Must be set here, before tkinter is ever imported below -- libXcursor
-# reads this once via a load-time constructor and caches it, so setting it
-# via os.environ any later (even right before the first tk.Tk()) is too
-# late and has no effect. Confirmed by direct reproduction.
-if sys.platform.startswith("linux"):
-    os.environ.setdefault("XLIB_SKIP_ARGB_VISUALS", "1")
-
 # Check if tkinter is available
 try:
     import tkinter as tk
@@ -50,12 +28,18 @@ def _init_x11_threads() -> None:
 
     LEAF runs several other threads by the time this GUI starts (the
     NiceGUI web server thread, adapter/simulation threads -- see start.py).
-    None of them were shown to touch Tk/X11 in the libXcursor crash
-    reproduction above (see the XLIB_SKIP_ARGB_VISUALS comment near the top
-    of this file for that actual root cause), but Xlib documents
-    XInitThreads() as required before its first use in any multi-threaded
-    process regardless of which thread issues X calls, so there's no reason
-    to skip it. No equivalent exists on macOS (Cocoa) or Windows.
+    Xlib documents XInitThreads() as required before its first use in any
+    multi-threaded process regardless of which thread issues X calls, so
+    there's no reason to skip it. No equivalent exists on macOS (Cocoa) or
+    Windows.
+
+    Note: a real, 100%-reproducible Linux crash right around here (aborting
+    the first time a tk.Button was created, deep inside libX11/libXcursor)
+    turned out to be unrelated to threading -- it was a bug in the bundled
+    portable Python's statically-linked Tcl/Tk 8.6.12 build, fixed by
+    bumping the pinned python-build-standalone release in
+    packaging/runtime/fetch_python.py (now bundles Tk 9.0.3). See that
+    file's comment for the full root-cause writeup.
     """
     if not sys.platform.startswith("linux"):
         return
