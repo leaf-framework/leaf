@@ -44,6 +44,7 @@ PBS_TAG = "20260728"
 # our-name -> python-build-standalone target triple
 TARGETS: dict[str, str] = {
     "windows-amd64": "x86_64-pc-windows-msvc",
+    "windows-arm64": "aarch64-pc-windows-msvc",
     "darwin-x86_64": "x86_64-apple-darwin",
     "darwin-arm64": "aarch64-apple-darwin",
     "linux-x86_64": "x86_64-unknown-linux-gnu",
