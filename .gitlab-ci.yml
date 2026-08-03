@@ -223,6 +223,12 @@ package:windows:
       # Intel/AMD Windows at all. Probe candidates and verify each one's
       # own platform.machine() directly instead of trusting PATH order or
       # environment variables.
+      # Two different install layouts to check: the classic python.org
+      # installer (AppData\Local\Programs\Python\PythonXYZ\) and the newer
+      # "Python Install Manager" layout used by Python 3.13+
+      # (AppData\Local\Python\pythoncore-X.Y-64\) -- confirmed present but
+      # missed by an earlier version of this list that only checked the
+      # classic layout, on this project's own Windows runner.
       $pythonCandidates = @(
         "python",
         "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
@@ -231,6 +237,7 @@ package:windows:
         "C:\Python312\python.exe",
         "C:\Python313\python.exe"
       )
+      $pythonCandidates += Get-ChildItem -Path "$env:LOCALAPPDATA\Python\pythoncore-*-64\python.exe" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
       $goodPython = $null
       foreach ($candidate in $pythonCandidates) {
         $exe = Get-Command $candidate -ErrorAction SilentlyContinue
