@@ -204,15 +204,25 @@ def run_pumping_ui(cmd: list[str], progress) -> None:
     lasting 30-90s (venv creation, pip install) then leaves it un-repainted
     for that whole time, which macOS renders as a blank, "Not Responding"
     window even though nothing is actually wrong. Polling via Popen instead
-    of subprocess.run lets us call root.update() every tick to keep it
+    of subprocess.run lets us pump the event loop every tick to keep it
     genuinely responsive throughout.
+
+    Deliberately update_idletasks(), not update(): update() processes the
+    *entire* event queue (all pending input/window-manager events, not just
+    redraws), which Tk's own documentation warns can cause reentrant/
+    recursive callback processing. Confirmed via a real Python-level
+    traceback (faulthandler) that the main thread was the one spinning, not
+    a subprocess -- and this reentrancy is a well-known class of bug for
+    exactly this "call update() in a tight polling loop" pattern.
+    update_idletasks() only flushes pending redraws, which is all this
+    actually needs.
     """
     proc = subprocess.Popen(cmd)
     try:
         while proc.poll() is None:
             if progress is not None:
                 try:
-                    progress.update()
+                    progress.update_idletasks()
                 except Exception:
                     progress = None
             time.sleep(0.05)

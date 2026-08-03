@@ -97,29 +97,40 @@ all, e.g. a bare Linux server/container -- `tk.Tk()` instead raises
 creation even started. Found via Linux AppImage testing, but the fix
 (catch broadly, fall back to a plain `print`) applies on every platform.
 
-**The wheelhouse is a single `wheelhouse.tar.gz`, not loose `.whl` files --
-this isn't just tidiness, it works around two real macOS bugs.** A locally
-built, never-quarantined `LEAF.app` looks fine either way, which made this
-easy to misdiagnose -- it only shows up for an actual downloaded copy:
+**The wheelhouse is a single `wheelhouse.tar.gz`, not loose `.whl` files.**
+`codesign --force --sign -` (no `--deep`) on a bundle containing loose
+`.whl` files (zip-structured) fails outright: `code object is not signed at
+all`. `--deep` is required for signing to succeed at all once any
+zip-structured file is present, so this is still necessary -- but it is
+*not* what fixes the hang described below (an earlier version of this
+doc claimed it was; it didn't, and only appeared to because the hang is
+intermittent). Packaged as one tar.gz, `bootstrap.py`'s `find_wheelhouse()`
+extracts it to a normal writable, non-quarantined directory before pip
+reads any wheel, which is good practice regardless (translocation
+irrelevant to that read) but wasn't the actual root cause either.
 
-1. `codesign --force --sign -` (no `--deep`) on a bundle containing loose
-   `.whl` files (which are zip-structured) fails outright: `code object is
-   not signed at all`. `--deep` is required for signing to succeed at all
-   once any zip-structured file is present.
-2. But `--deep` signing 71 individual wheels, combined with what a real
-   download actually gets on first launch -- quarantined, and (short of an
-   interactive Finder drag, which can't be scripted to verify) App
-   Translocated to a randomized read-only mount -- makes `pip install`
-   reading those wheels off that mount loop forever (observed 5+ minutes,
-   oscillating memory, never completing) instead of the normal ~10-20s.
+**The real bug: `run_pumping_ui` calling `root.update()` in a tight polling
+loop.** A locally built, never-quarantined `LEAF.app` looks fine either
+way -- this only showed up for an actual downloaded, quarantined copy, and
+only intermittently, which made it genuinely difficult to pin down (two
+earlier "fixes" -- dropping `--deep`, then the wheelhouse tar.gz repackaging
+-- each seemed to work in a handful of manual tests, purely from luck).
+`update()` processes the *entire* Tk event queue, not just redraws, which
+Tk's own documentation warns can cause reentrant/recursive callback
+processing -- confirmed here with a real Python-level traceback
+(`faulthandler.dump_traceback_later`) showing the *main thread* (not a
+subprocess) stuck in deep, repeating recursion through
+`_PyEval_EvalFrameDefault`, specifically under quarantine + App
+Translocation (a real download gets both on first launch, short of an
+interactive Finder drag, which can't be scripted to verify). Switching to
+`update_idletasks()` -- which only flushes pending redraws, all this
+actually needs -- fixed it: 8/8 consecutive runs with genuine quarantine +
+translocation active, no hangs, versus frequent 5+ minute hangs
+(oscillating memory, never completing) before.
 
-Packaging the wheelhouse as one tar.gz sidesteps both: it's not
-zip-structured at the file-tree level codesign inspects, so `--deep` isn't
-forced by its presence, and `bootstrap.py` extracts it to a normal writable,
-non-quarantined directory (`find_wheelhouse()`) before pip ever reads a
-wheel, so translocation is irrelevant to that read entirely. `--deep` is
-still used for the overall re-sign (needed regardless, to reseal after
-adding the runtime/version files, so a locked bundle isn't the problem).
+Moral: with an intermittent bug, a handful of successful manual tests is
+not confirmation. Get to double digits, and get an actual traceback of the
+stuck thread before believing a fix.
 
 Confirmed by reproducing with genuine quarantine + translocation
 (`xattr -w com.apple.quarantine ... /Applications/LEAF.app` triggers
