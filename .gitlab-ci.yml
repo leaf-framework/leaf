@@ -208,26 +208,49 @@ package:windows:
   rules:
     - if: '$CI_COMMIT_TAG && $WINDOWS_RUNNER_READY == "true"'
   script:
-    - python -m pip install "pyinstaller~=6.19"
-    - python -m PyInstaller packaging/launcher/leaf_launcher.spec --distpath dist --workpath build/launcher --noconfirm
     - |
-      # PyInstaller freezes the launcher for whatever CPU this runner
-      # actually is -- an ARM64 runner (e.g. Windows-on-ARM under UTM/
-      # Parallels on Apple Silicon) produces an ARM64 LEAF-Setup.exe, whose
-      # bootstrap.py then looks for a matching python-runtime-windows-arm64
-      # archive at first launch. Bundling amd64 unconditionally here caused
-      # exactly that mismatch ("No bundled Python runtime found for
-      # windows/arm64") on a real ARM64 Windows install. Detect the arch
-      # instead of hardcoding one.
-      if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
-        $winArch = "windows-arm64"
-      } else {
-        $winArch = "windows-amd64"
+      # This project's Windows runner is ARM64 hardware (Windows-on-ARM
+      # under UTM on Apple Silicon), but end users are mostly on real
+      # Intel/AMD machines, which can't run ARM64 binaries at all -- so the
+      # frozen launcher must always be AMD64, not whatever this runner's
+      # own shell happens to be. PyInstaller can't cross-compile: it always
+      # freezes for whichever python.exe actually invokes it, so bare
+      # `python` on PATH isn't good enough here -- an ARM64-native python
+      # (or an ARM64-native pwsh/gitlab-runner process, since
+      # $env:PROCESSOR_ARCHITECTURE reflects the *calling shell's* own
+      # architecture context, not whatever child python.exe gets resolved)
+      # silently produces an ARM64 LEAF-Setup.exe that can't run on real
+      # Intel/AMD Windows at all. Probe candidates and verify each one's
+      # own platform.machine() directly instead of trusting PATH order or
+      # environment variables.
+      $pythonCandidates = @(
+        "python",
+        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe",
+        "C:\Python312\python.exe",
+        "C:\Python313\python.exe"
+      )
+      $goodPython = $null
+      foreach ($candidate in $pythonCandidates) {
+        $exe = Get-Command $candidate -ErrorAction SilentlyContinue
+        if (-not $exe) { continue }
+        $machine = & $exe.Source -c "import platform; print(platform.machine())" 2>$null
+        if ($machine -eq "AMD64") {
+          $goodPython = $exe.Source
+          break
+        }
       }
-      Write-Host "Runner architecture: $env:PROCESSOR_ARCHITECTURE -> $winArch"
-      python packaging/runtime/fetch_python.py $winArch --out dist/LEAF
+      if (-not $goodPython) {
+        Write-Error "No AMD64 python.exe found (checked PATH and common python.org install locations). Install the x64 Python installer from python.org on this runner -- the ARM64 one won't produce a launcher that runs on real Intel/AMD Windows."
+        exit 1
+      }
+      Write-Host "Using AMD64 python at $goodPython"
+      & $goodPython -m pip install "pyinstaller~=6.19"
+      & $goodPython -m PyInstaller packaging/launcher/leaf_launcher.spec --distpath dist --workpath build/launcher --noconfirm
+      & $goodPython packaging/runtime/fetch_python.py windows-amd64 --out dist/LEAF
       Set-Content -Path dist/LEAF/leaf-framework.version -Value "leaf-framework==$env:LEAF_VERSION" -Encoding ascii
-      python packaging/runtime/build_wheelhouse.py --runtime-archive "dist/LEAF/python-runtime-$winArch.tar.gz" --requirement "leaf-framework==$env:LEAF_VERSION" --out build/wheelhouse-staging
+      & $goodPython packaging/runtime/build_wheelhouse.py --runtime-archive dist/LEAF/python-runtime-windows-amd64.tar.gz --requirement "leaf-framework==$env:LEAF_VERSION" --out build/wheelhouse-staging
     - tar czf dist/LEAF/wheelhouse.tar.gz -C build/wheelhouse-staging .
     - |
       $isccCandidates = @(
