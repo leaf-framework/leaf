@@ -196,7 +196,8 @@ package:windows:
     - python -m PyInstaller packaging/launcher/leaf_launcher.spec --distpath dist --workpath build/launcher --noconfirm
     - python packaging/runtime/fetch_python.py windows-amd64 --out dist/LEAF
     - Set-Content -Path dist/LEAF/leaf-framework.version -Value "leaf-framework==$env:LEAF_VERSION" -Encoding ascii
-    - python packaging/runtime/build_wheelhouse.py --runtime-archive dist/LEAF/python-runtime-windows-amd64.tar.gz --requirement "leaf-framework==$env:LEAF_VERSION" --out dist/LEAF/wheelhouse
+    - python packaging/runtime/build_wheelhouse.py --runtime-archive dist/LEAF/python-runtime-windows-amd64.tar.gz --requirement "leaf-framework==$env:LEAF_VERSION" --out build/wheelhouse-staging
+    - tar czf dist/LEAF/wheelhouse.tar.gz -C build/wheelhouse-staging .
     - '& "$env:ISCC_PATH" packaging/windows/leaf.iss'
     - |
       curl --fail --header "JOB-TOKEN: $env:CI_JOB_TOKEN" `

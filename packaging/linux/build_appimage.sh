@@ -68,10 +68,18 @@ if [ -n "$VERSION_SPEC" ]; then
 
     if [ -z "${SKIP_WHEELHOUSE:-}" ]; then
         echo "==> Building offline wheelhouse"
+        WHEELHOUSE_TMP="build/wheelhouse-staging"
+        rm -rf "$WHEELHOUSE_TMP"
         python3 packaging/runtime/build_wheelhouse.py \
             --runtime-archive "$APPDIR/LEAF/python-runtime-$RUNTIME_TARGET.tar.gz" \
             --requirement "$VERSION_SPEC" \
-            --out "$APPDIR/LEAF/wheelhouse"
+            --out "$WHEELHOUSE_TMP"
+        # A single tar.gz, not loose .whl files -- bootstrap.py expects this
+        # format on every platform (see its find_wheelhouse() docstring for
+        # why: a macOS-specific codesign/App-Translocation bug, but the
+        # launcher code is shared, so the packaging format stays uniform).
+        tar czf "$APPDIR/LEAF/wheelhouse.tar.gz" -C "$WHEELHOUSE_TMP" .
+        rm -rf "$WHEELHOUSE_TMP"
     else
         echo "==> SKIP_WHEELHOUSE set; launcher will need internet on first run"
     fi

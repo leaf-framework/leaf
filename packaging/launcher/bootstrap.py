@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -40,8 +41,9 @@ BOOTSTRAP_MARKER = ".leaf-bootstrap-complete"
 
 # If a build shipped a wheelhouse (see packaging/runtime/build_wheelhouse.py)
 # next to the launcher, install from it with --no-index instead of hitting
-# PyPI, so first run works with zero network access.
-WHEELHOUSE_DIR_NAME = "wheelhouse"
+# PyPI, so first run works with zero network access. Packaged as a single
+# tar.gz, not loose .whl files -- see find_wheelhouse() for why.
+WHEELHOUSE_ARCHIVE_NAME = "wheelhouse.tar.gz"
 
 
 def app_data_dir() -> Path:
@@ -109,11 +111,27 @@ def find_runtime_python(runtime_dir: Path) -> Path:
     return matches[0]
 
 
-def find_wheelhouse() -> Path | None:
-    wheelhouse = bundle_dir() / WHEELHOUSE_DIR_NAME
-    if wheelhouse.is_dir() and any(wheelhouse.glob("*.whl")):
-        return wheelhouse
-    return None
+def find_wheelhouse(data_dir: Path) -> Path | None:
+    """Extract the bundled offline wheelhouse (if any) to a writable,
+    non-quarantined location and return that directory.
+
+    Shipped as a single tar.gz and extracted here rather than read in place
+    from the app bundle: a real downloaded copy is quarantined and (short
+    of an interactive Finder drag) gets App Translocated to a randomized
+    read-only mount on first launch. Reading dozens of individually
+    code-signed wheel files directly off that mount was observed to loop
+    forever (5+ minutes, never completing) instead of the normal ~10-20s --
+    see packaging/README.md. Extracting once to a normal directory
+    sidesteps that entirely, and also avoids codesign refusing to sign the
+    bundle at all over the zip-structured .whl files if they were loose.
+    """
+    archive = bundle_dir() / WHEELHOUSE_ARCHIVE_NAME
+    if not archive.is_file():
+        return None
+    wheelhouse = data_dir / "wheelhouse"
+    if not any(wheelhouse.glob("*.whl")):
+        extract_archive(archive, wheelhouse)
+    return wheelhouse if any(wheelhouse.glob("*.whl")) else None
 
 
 def apply_tcl_tk_env(runtime_dir: Path) -> None:
@@ -179,6 +197,32 @@ def show_error(message: str) -> None:
         print(message, file=sys.stderr)
 
 
+def run_pumping_ui(cmd: list[str], progress) -> None:
+    """subprocess.run, but keeps the Tk progress window's event loop alive.
+
+    A single root.update() paints the window once; a blocking subprocess
+    lasting 30-90s (venv creation, pip install) then leaves it un-repainted
+    for that whole time, which macOS renders as a blank, "Not Responding"
+    window even though nothing is actually wrong. Polling via Popen instead
+    of subprocess.run lets us call root.update() every tick to keep it
+    genuinely responsive throughout.
+    """
+    proc = subprocess.Popen(cmd)
+    try:
+        while proc.poll() is None:
+            if progress is not None:
+                try:
+                    progress.update()
+                except Exception:
+                    progress = None
+            time.sleep(0.05)
+    except BaseException:
+        proc.kill()
+        raise
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd)
+
+
 def bootstrap_environment(data_dir: Path) -> Path:
     venv_dir = data_dir / "venv"
     marker = venv_dir / BOOTSTRAP_MARKER
@@ -198,20 +242,20 @@ def bootstrap_environment(data_dir: Path) -> Path:
 
         if venv_dir.exists():
             shutil.rmtree(venv_dir)
-        subprocess.run([str(runtime_python), "-m", "venv", str(venv_dir)], check=True)
+        run_pumping_ui([str(runtime_python), "-m", "venv", str(venv_dir)], progress)
 
         venv_python = venv_python_path(venv_dir)
-        wheelhouse = find_wheelhouse()
+        wheelhouse = find_wheelhouse(data_dir)
         if wheelhouse is not None:
             # Offline install: everything needed is already on disk, so skip
             # the network-dependent pip self-upgrade too.
-            subprocess.run(
+            run_pumping_ui(
                 [str(venv_python), "-m", "pip", "install", "--no-index", "--find-links", str(wheelhouse), pinned],
-                check=True,
+                progress,
             )
         else:
-            subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
-            subprocess.run([str(venv_python), "-m", "pip", "install", pinned], check=True)
+            run_pumping_ui([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], progress)
+            run_pumping_ui([str(venv_python), "-m", "pip", "install", pinned], progress)
 
         marker.write_text(pinned)
     finally:
