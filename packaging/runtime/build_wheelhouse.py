@@ -93,6 +93,22 @@ def main() -> None:
             )
             time.sleep(PYPI_PROPAGATION_DELAY_SECONDS)
 
+        # Some dependencies don't publish a prebuilt wheel for every target
+        # (e.g. httptools has no win_arm64 wheel on PyPI, only an sdist) --
+        # `pip download` above fell back to downloading the sdist itself.
+        # Rather than fail outright, try building a wheel from each sdist
+        # right here with the SAME runtime python, so tags match what the
+        # end user's machine needs. This still compiles at package-build
+        # time only, on whatever compiler is on PATH (e.g. an activated VS
+        # dev shell on a Windows runner) -- end users never need one.
+        sdists = [p for p in args.out.iterdir() if p.suffix != ".whl"]
+        for sdist in sdists:
+            print(f"No prebuilt wheel for {sdist.name}, trying to build one locally...", file=sys.stderr)
+            build_cmd = [str(runtime_python), "-m", "pip", "wheel", str(sdist), "-w", str(args.out), "--no-deps"]
+            result = subprocess.run(build_cmd, check=False)
+            if result.returncode == 0:
+                sdist.unlink()
+
     non_wheels = [p.name for p in args.out.iterdir() if p.suffix != ".whl"]
     if non_wheels:
         shutil.rmtree(args.out)

@@ -109,28 +109,6 @@ publish:
     - main
     - dev
 
-# TEMPORARY, one-off: publishes an exact version to PyPI instead of
-# auto-computing one, for when a manually-created tag (e.g. after a
-# history squash) needs a matching PyPI release that publish's own
-# auto-versioning can't produce. Trigger via a pipeline run with the
-# MANUAL_VERSION variable set. Remove this job once used.
-publish:manual-version:
-  stage: publish
-  image: python:3.12
-  rules:
-    - if: '$MANUAL_VERSION'
-  before_script:
-    - pip install poetry
-    - poetry config virtualenvs.create false
-    - poetry config pypi-token.pypi "$PYPI_TOKEN"
-  script:
-    - echo "Publishing exact version $MANUAL_VERSION"
-    - sed -i -E "s/^(version\s*=\s*\")0\.0\.0(\".*)$/\1${MANUAL_VERSION}\2/" pyproject.toml
-    - head -n 10 pyproject.toml
-    - poetry build
-    - ls -l dist/
-    - poetry publish
-
 # --- Desktop installers -----------------------------------------------------
 # Runs only on the tag pipeline that `publish` triggers when it releases from
 # main (the API call above creates tag vMAJOR.MINOR, which fires a fresh
@@ -306,6 +284,16 @@ package:windows:arm64:
       & $goodPython -m PyInstaller packaging/launcher/leaf_launcher.spec --distpath dist --workpath build/launcher --noconfirm
       & $goodPython packaging/runtime/fetch_python.py windows-arm64 --out dist/LEAF
       Set-Content -Path dist/LEAF/leaf-framework.version -Value "leaf-framework==$env:LEAF_VERSION" -Encoding ascii
+      # A few dependencies (e.g. httptools) have no prebuilt win_arm64 wheel
+      # on PyPI -- build_wheelhouse.py compiles them from source itself in
+      # that case, which needs a C compiler on PATH. Activate the VS Build
+      # Tools ARM64 dev shell for the rest of this job so that's available.
+      # -SkipAutomaticLocation: Enter-VsDevShell otherwise cd's away from
+      # the repo checkout, breaking the relative paths used below.
+      $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+      $vsPath = & $vswhere -latest -products * -property installationPath
+      Import-Module "$vsPath\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+      Enter-VsDevShell -VsInstallPath $vsPath -DevCmdArguments "-arch=arm64 -host_arch=arm64" -SkipAutomaticLocation
       & $goodPython packaging/runtime/build_wheelhouse.py --runtime-archive dist/LEAF/python-runtime-windows-arm64.tar.gz --requirement "leaf-framework==$env:LEAF_VERSION" --out build/wheelhouse-staging-arm64
     - tar czf dist/LEAF/wheelhouse.tar.gz -C build/wheelhouse-staging-arm64 .
     - |
