@@ -109,6 +109,28 @@ publish:
     - main
     - dev
 
+# TEMPORARY, one-off: publishes an exact version to PyPI instead of
+# auto-computing one, for when a manually-created tag (e.g. after a
+# history squash) needs a matching PyPI release that publish's own
+# auto-versioning can't produce. Trigger via a pipeline run with the
+# MANUAL_VERSION variable set. Remove this job once used.
+publish:manual-version:
+  stage: publish
+  image: python:3.12
+  rules:
+    - if: '$MANUAL_VERSION'
+  before_script:
+    - pip install poetry
+    - poetry config virtualenvs.create false
+    - poetry config pypi-token.pypi "$PYPI_TOKEN"
+  script:
+    - echo "Publishing exact version $MANUAL_VERSION"
+    - sed -i -E "s/^(version\s*=\s*\")0\.0\.0(\".*)$/\1${MANUAL_VERSION}\2/" pyproject.toml
+    - head -n 10 pyproject.toml
+    - poetry build
+    - ls -l dist/
+    - poetry publish
+
 # --- Desktop installers -----------------------------------------------------
 # Runs only on the tag pipeline that `publish` triggers when it releases from
 # main (the API call above creates tag vMAJOR.MINOR, which fires a fresh
