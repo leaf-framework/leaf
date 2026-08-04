@@ -9,7 +9,10 @@
 ;   3. echo leaf-framework==<version> > dist\LEAF\leaf-framework.version
 ;   4. ISCC packaging\windows\leaf.iss
 ;
-; Output: packaging\windows\Output\LEAF-Setup.exe
+; Output: packaging\windows\Output\LEAF-Setup-<arch>.exe -- matching the
+; arch-tagged naming already used for macOS (LEAF-macos-<arch>.dmg) and
+; Linux (LEAF-linux-<arch>.AppImage), so a future second Windows arch
+; build doesn't silently overwrite this one's release asset.
 ;
 #define MyAppName "LEAF"
 #define MyAppPublisher "Systems Biology, Wageningen University & Research"
@@ -19,6 +22,10 @@
 #define MyAppVersion GetEnv("LEAF_VERSION")
 #if MyAppVersion == ""
   #define MyAppVersion "0.0.0"
+#endif
+#define MyAppArch GetEnv("LEAF_WIN_ARCH")
+#if MyAppArch == ""
+  #define MyAppArch "amd64"
 #endif
 
 [Setup]
@@ -34,7 +41,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=Output
-OutputBaseFilename=LEAF-Setup
+OutputBaseFilename=LEAF-Setup-{#MyAppArch}
 Compression=lzma2
 SolidCompression=yes
 SetupIconFile=..\..\leaf\ui\images\icon.ico

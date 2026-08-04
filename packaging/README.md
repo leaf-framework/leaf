@@ -197,8 +197,10 @@ reports on the build machine -- not cross-compiled). Downloads
 `appimagetool` into `build/` on first run and reuses it after that. Same
 `SKIP_WHEELHOUSE=1` escape hatch as macOS for faster local iteration.
 
-Produces `packaging\windows\Output\LEAF-Setup.exe`. Installs per-user (no
-admin prompt) to `%LOCALAPPDATA%\Programs\LEAF`.
+Produces `packaging\windows\Output\LEAF-Setup-amd64.exe` (arch-tagged, same
+convention as macOS/Linux, so a future ARM64 Windows build won't collide
+with this one). Installs per-user (no admin prompt) to
+`%LOCALAPPDATA%\Programs\LEAF`.
 
 ### Offline installs (no internet on the target computer)
 
