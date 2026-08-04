@@ -25,12 +25,26 @@ import urllib.request
 from pathlib import Path
 
 # Bump these together when picking up a newer CPython / PBS release.
-PYTHON_VERSION = "3.12.8"
-PBS_TAG = "20241219"
+#
+# Pinned to 20260728 specifically (not just "latest"): the older 20241219
+# build's bundled Tcl/Tk 8.6.12 has a real, 100%-reproducible bug on Linux
+# that aborts the whole process the first time a tk.Button is created
+# (assert(!xcb_xlib_unknown_seq_number) deep in libX11/libXcursor, via
+# Tk_GetBitmap -> ... -> XcursorSupportsARGB -> XRenderQueryExtension).
+# Confirmed root cause: it's specific to that PBS build's statically-linked
+# Tcl/Tk interacting with the system's dynamically-loaded X11 libs -- the
+# same system's own python3-tk (dynamically linked) never crashed, and
+# neither does this newer PBS build (bundles Tk 9.0.3 instead of 8.6.12).
+# Verified via a genuine Debian/Xorg VM reproduction: 0/20 crashes across
+# repeated trials (isolated Button-creation script and the real leaf app)
+# with this build, vs. 100% reproducible aborts with 20241219.
+PYTHON_VERSION = "3.12.13"
+PBS_TAG = "20260728"
 
 # our-name -> python-build-standalone target triple
 TARGETS: dict[str, str] = {
     "windows-amd64": "x86_64-pc-windows-msvc",
+    "windows-arm64": "aarch64-pc-windows-msvc",
     "darwin-x86_64": "x86_64-apple-darwin",
     "darwin-arm64": "aarch64-apple-darwin",
     "linux-x86_64": "x86_64-unknown-linux-gnu",

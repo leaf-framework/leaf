@@ -30,14 +30,57 @@ DIST_DIR="dist"
 APP_PATH="$DIST_DIR/LEAF.app"
 CONTENTS_MACOS="$APP_PATH/Contents/MacOS"
 
+# Apple's bundled /usr/bin/python3 links against an ancient Tcl/Tk (8.5.x)
+# with a known infinite-loop bug computing wrapped-text label geometry on
+# Retina displays -- PyInstaller bakes whichever Tcl/Tk its build-time
+# Python is linked against into the frozen launcher, so building with the
+# wrong python3 here ships a launcher that hangs at 100% CPU on first
+# launch, on every Retina Mac, regardless of quarantine/network state.
+# `python3` alone is not reliable enough to pick the right one: shell
+# executor CI runners (esp. a launchd-managed gitlab-runner service, which
+# gets launchd's minimal PATH, not the interactive shell's) can easily
+# resolve it to /usr/bin/python3 ahead of a real install. Find one with a
+# modern Tcl/Tk explicitly instead of trusting PATH order.
+find_good_python3() {
+    for candidate in python3 /opt/homebrew/bin/python3 /usr/local/bin/python3; do
+        command -v "$candidate" >/dev/null 2>&1 || continue
+        patchlevel=$("$candidate" -c 'import tkinter; print(tkinter.Tcl().eval("info patchlevel"))' 2>/dev/null) || continue
+        major=${patchlevel%%.*}
+        minor=$(echo "$patchlevel" | cut -d. -f2)
+        if [ "$major" -gt 8 ] || { [ "$major" -eq 8 ] && [ "$minor" -ge 6 ]; }; then
+            command -v "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Resolved once, reused for every python3 invocation below (PyInstaller,
+# fetch_python.py, build_wheelhouse.py) -- not just the PyInstaller step.
+# build_wheelhouse.py hitting the same bare-`python3` trap independently
+# (TypeError: ignore_cleanup_errors needs 3.10+, Apple's bundled 3.9.x
+# doesn't have it) is what prompted centralizing this instead of fixing
+# each script's call site one at a time as they turn up.
+GOOD_PYTHON3="$(find_good_python3)" || {
+    echo "ERROR: no python3 with Tcl/Tk >= 8.6 found (checked python3, /opt/homebrew/bin/python3, /usr/local/bin/python3)." >&2
+    echo "Building with an older Tcl/Tk would ship a launcher that hangs on first launch on Retina displays." >&2
+    exit 1
+}
+echo "==> Using $GOOD_PYTHON3 (Tcl/Tk $("$GOOD_PYTHON3" -c 'import tkinter; print(tkinter.Tcl().eval("info patchlevel"))'))"
+
 echo "==> Building launcher with PyInstaller"
 if [ -x ".venv/bin/pyinstaller" ]; then
     PYINSTALLER_CMD=(".venv/bin/pyinstaller")
 else
-    # Bare `pyinstaller` relies on its console-script shim being on PATH,
-    # which pip doesn't guarantee (e.g. a --user install on a CI runner's
-    # system Python lands outside PATH). Module invocation sidesteps that.
-    PYINSTALLER_CMD=(python3 -m PyInstaller)
+    # A Homebrew python3 refuses `pip install` directly (PEP 668
+    # externally-managed-environment) to protect its own site-packages.
+    # A throwaway venv sidesteps that cleanly and still inherits the
+    # parent interpreter's Tcl/Tk (venvs don't get their own).
+    PYINSTALLER_VENV="build/pyinstaller-venv"
+    rm -rf "$PYINSTALLER_VENV"
+    "$GOOD_PYTHON3" -m venv "$PYINSTALLER_VENV"
+    "$PYINSTALLER_VENV/bin/pip" install --quiet "pyinstaller~=6.19"
+    PYINSTALLER_CMD=("$PYINSTALLER_VENV/bin/pyinstaller")
 fi
 "${PYINSTALLER_CMD[@]}" packaging/launcher/leaf_launcher.spec \
     --distpath "$DIST_DIR" \
@@ -45,7 +88,7 @@ fi
     --noconfirm
 
 echo "==> Fetching portable Python runtime for darwin-$ARCH"
-python3 packaging/runtime/fetch_python.py "darwin-$ARCH" --out "$CONTENTS_MACOS"
+"$GOOD_PYTHON3" packaging/runtime/fetch_python.py "darwin-$ARCH" --out "$CONTENTS_MACOS"
 
 if [ -n "$VERSION_SPEC" ]; then
     echo "==> Pinning $VERSION_SPEC"
@@ -53,10 +96,22 @@ if [ -n "$VERSION_SPEC" ]; then
 
     if [ -z "${SKIP_WHEELHOUSE:-}" ]; then
         echo "==> Building offline wheelhouse"
-        python3 packaging/runtime/build_wheelhouse.py \
+        WHEELHOUSE_TMP="build/wheelhouse-staging"
+        rm -rf "$WHEELHOUSE_TMP"
+        "$GOOD_PYTHON3" packaging/runtime/build_wheelhouse.py \
             --runtime-archive "$CONTENTS_MACOS/python-runtime-darwin-$ARCH.tar.gz" \
             --requirement "$VERSION_SPEC" \
-            --out "$CONTENTS_MACOS/wheelhouse"
+            --out "$WHEELHOUSE_TMP"
+        # Packaged as a single tar.gz, not loose .whl files, for two reasons:
+        # codesign refuses to sign the bundle at all once zip-structured
+        # files (which .whl files are) are present without --deep, and even
+        # with --deep, pip reading dozens of --deep-signed wheels off a
+        # translocated/quarantined mount (what a real download gets on
+        # first launch) can loop forever instead of the normal ~10-20s.
+        # bootstrap.py extracts this to a normal writable, non-quarantined
+        # directory before pip ever touches the wheels.
+        tar czf "$CONTENTS_MACOS/wheelhouse.tar.gz" -C "$WHEELHOUSE_TMP" .
+        rm -rf "$WHEELHOUSE_TMP"
     else
         echo "==> SKIP_WHEELHOUSE set; launcher will need internet on first run"
     fi
@@ -75,6 +130,16 @@ else
     # exec of the binary bypasses Gatekeeper, so this only shows up for
     # real users double-clicking it). Re-sign ad-hoc to reseal the bundle
     # in its final state.
+    #
+    # --deep is required here, not optional: without it, codesign refuses
+    # to sign at all once wheelhouse/*.whl files are present ("code object
+    # is not signed at all" -- codesign treats zip-structured files as
+    # needing their own nested signature, which only --deep can satisfy).
+    # See the wheelhouse tar.gz packaging above for why loose .whl files
+    # don't end up in the final bundle at all -- avoids a separate, real
+    # bug where pip reading many --deep-signed wheels off a translocated,
+    # quarantined mount (what a real downloaded copy gets on first launch)
+    # would loop forever instead of the normal ~10-20s.
     echo "==> Re-signing ad-hoc to reseal after staging runtime/wheelhouse files"
     codesign --deep --force --sign - "$APP_PATH"
 fi

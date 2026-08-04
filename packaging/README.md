@@ -43,7 +43,7 @@ packaging/
     leaf_launcher.spec       # PyInstaller spec for the launcher only
     leaf-framework.version   # (generated at build time) pinned pip spec
     python-runtime-*.tar.gz  # (generated at build time) portable Python payloads
-    wheelhouse/               # (generated at build time) offline wheel cache
+    wheelhouse.tar.gz         # (generated at build time) offline wheel cache
   runtime/
     fetch_python.py          # downloads python-build-standalone runtimes
     build_wheelhouse.py      # pre-downloads leaf-framework's wheels for offline installs
@@ -97,6 +97,50 @@ all, e.g. a bare Linux server/container -- `tk.Tk()` instead raises
 creation even started. Found via Linux AppImage testing, but the fix
 (catch broadly, fall back to a plain `print`) applies on every platform.
 
+**The wheelhouse is a single `wheelhouse.tar.gz`, not loose `.whl` files.**
+`codesign --force --sign -` (no `--deep`) on a bundle containing loose
+`.whl` files (zip-structured) fails outright: `code object is not signed at
+all`. `--deep` is required for signing to succeed at all once any
+zip-structured file is present, so this is still necessary -- but it is
+*not* what fixes the hang described below (an earlier version of this
+doc claimed it was; it didn't, and only appeared to because the hang is
+intermittent). Packaged as one tar.gz, `bootstrap.py`'s `find_wheelhouse()`
+extracts it to a normal writable, non-quarantined directory before pip
+reads any wheel, which is good practice regardless (translocation
+irrelevant to that read) but wasn't the actual root cause either.
+
+**The real bug: `run_pumping_ui` calling `root.update()` in a tight polling
+loop.** A locally built, never-quarantined `LEAF.app` looks fine either
+way -- this only showed up for an actual downloaded, quarantined copy, and
+only intermittently, which made it genuinely difficult to pin down (two
+earlier "fixes" -- dropping `--deep`, then the wheelhouse tar.gz repackaging
+-- each seemed to work in a handful of manual tests, purely from luck).
+`update()` processes the *entire* Tk event queue, not just redraws, which
+Tk's own documentation warns can cause reentrant/recursive callback
+processing -- confirmed here with a real Python-level traceback
+(`faulthandler.dump_traceback_later`) showing the *main thread* (not a
+subprocess) stuck in deep, repeating recursion through
+`_PyEval_EvalFrameDefault`, specifically under quarantine + App
+Translocation (a real download gets both on first launch, short of an
+interactive Finder drag, which can't be scripted to verify). Switching to
+`update_idletasks()` -- which only flushes pending redraws, all this
+actually needs -- fixed it: 8/8 consecutive runs with genuine quarantine +
+translocation active, no hangs, versus frequent 5+ minute hangs
+(oscillating memory, never completing) before.
+
+Moral: with an intermittent bug, a handful of successful manual tests is
+not confirmation. Get to double digits, and get an actual traceback of the
+stuck thread before believing a fix.
+
+Confirmed by reproducing with genuine quarantine + translocation
+(`xattr -w com.apple.quarantine ... /Applications/LEAF.app` triggers
+translocation without needing an actual browser download each time) --
+loose `.whl` files reproduced the hang every time even after `--deep`
+signing (the resulting bundle even worked when *not* actually re-signed
+with `--deep`, since it was silently reusing an already-signed leftover
+from a previous test, which is what made this misleading at first); the
+tar.gz form didn't hang once, repeatedly, under the same conditions.
+
 ## Building
 
 ### macOS
@@ -126,8 +170,11 @@ python -m PyInstaller packaging\launcher\leaf_launcher.spec --distpath dist --wo
 python packaging\runtime\fetch_python.py windows-amd64 --out dist\LEAF
 echo leaf-framework==<version> > dist\LEAF\leaf-framework.version
 
-:: Optional but recommended: bundle an offline wheelhouse, same as macOS
-python packaging\runtime\build_wheelhouse.py --runtime-archive dist\LEAF\python-runtime-windows-amd64.tar.gz --requirement "leaf-framework==<version>" --out dist\LEAF\wheelhouse
+:: Optional but recommended: bundle an offline wheelhouse, same as macOS.
+:: Packaged as a single tar.gz (bootstrap.py expects this exact filename on
+:: every platform) -- tar.exe ships built into Windows 10 1803+/11.
+python packaging\runtime\build_wheelhouse.py --runtime-archive dist\LEAF\python-runtime-windows-amd64.tar.gz --requirement "leaf-framework==<version>" --out build\wheelhouse-staging
+tar czf dist\LEAF\wheelhouse.tar.gz -C build\wheelhouse-staging .
 
 set LEAF_VERSION=<version>
 ISCC packaging\windows\leaf.iss
@@ -150,8 +197,10 @@ reports on the build machine -- not cross-compiled). Downloads
 `appimagetool` into `build/` on first run and reuses it after that. Same
 `SKIP_WHEELHOUSE=1` escape hatch as macOS for faster local iteration.
 
-Produces `packaging\windows\Output\LEAF-Setup.exe`. Installs per-user (no
-admin prompt) to `%LOCALAPPDATA%\Programs\LEAF`.
+Produces `packaging\windows\Output\LEAF-Setup-amd64.exe` (arch-tagged, same
+convention as macOS/Linux, so a future ARM64 Windows build won't collide
+with this one). Installs per-user (no admin prompt) to
+`%LOCALAPPDATA%\Programs\LEAF`.
 
 ### Offline installs (no internet on the target computer)
 

@@ -22,8 +22,18 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import zipfile
 from pathlib import Path
+
+# The packaging pipeline's own tag (which triggers this) fires from the
+# same `publish` job that just uploaded this exact version to PyPI --
+# sometimes before PyPI has finished indexing it, so the very next `pip
+# download` genuinely can't find a version that exists moments later.
+# Observed repeatedly in practice: retrying after PyPI catches up (usually
+# under a minute) always succeeds with no other change.
+PYPI_PROPAGATION_RETRIES = 6
+PYPI_PROPAGATION_DELAY_SECONDS = 15
 
 
 def extract_archive(archive: Path, dest: Path) -> None:
@@ -56,16 +66,32 @@ def main() -> None:
     parser.add_argument("--out", required=True, type=Path, help="Output wheelhouse directory")
     args = parser.parse_args()
 
-    with tempfile.TemporaryDirectory(prefix="leaf-wheelhouse-runtime-") as tmp:
+    # ignore_cleanup_errors: on Windows, a DLL the pip subprocess below just
+    # loaded (e.g. libcrypto for HTTPS) can stay locked for a moment after
+    # the process exits (commonly antivirus briefly scanning it), making
+    # rmtree's delete fail with "Access is denied" even though the
+    # subprocess already completed. Not worth failing the whole build over
+    # a leftover temp dir that the OS cleans up on its own eventually.
+    with tempfile.TemporaryDirectory(prefix="leaf-wheelhouse-runtime-", ignore_cleanup_errors=True) as tmp:
         runtime_dir = Path(tmp)
         extract_archive(args.runtime_archive, runtime_dir)
         runtime_python = find_runtime_python(runtime_dir)
 
         args.out.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            [str(runtime_python), "-m", "pip", "download", args.requirement, "-d", str(args.out)],
-            check=True,
-        )
+        cmd = [str(runtime_python), "-m", "pip", "download", args.requirement, "-d", str(args.out)]
+        for attempt in range(1, PYPI_PROPAGATION_RETRIES + 1):
+            result = subprocess.run(cmd, check=False)
+            if result.returncode == 0:
+                break
+            if attempt == PYPI_PROPAGATION_RETRIES:
+                result.check_returncode()
+            print(
+                f"pip download failed (attempt {attempt}/{PYPI_PROPAGATION_RETRIES}), "
+                f"retrying in {PYPI_PROPAGATION_DELAY_SECONDS}s in case PyPI hasn't "
+                "finished indexing this version yet...",
+                file=sys.stderr,
+            )
+            time.sleep(PYPI_PROPAGATION_DELAY_SECONDS)
 
     non_wheels = [p.name for p in args.out.iterdir() if p.suffix != ".whl"]
     if non_wheels:

@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -40,8 +41,9 @@ BOOTSTRAP_MARKER = ".leaf-bootstrap-complete"
 
 # If a build shipped a wheelhouse (see packaging/runtime/build_wheelhouse.py)
 # next to the launcher, install from it with --no-index instead of hitting
-# PyPI, so first run works with zero network access.
-WHEELHOUSE_DIR_NAME = "wheelhouse"
+# PyPI, so first run works with zero network access. Packaged as a single
+# tar.gz, not loose .whl files -- see find_wheelhouse() for why.
+WHEELHOUSE_ARCHIVE_NAME = "wheelhouse.tar.gz"
 
 
 def app_data_dir() -> Path:
@@ -75,9 +77,29 @@ def venv_entrypoint(venv_dir: Path, name: str) -> Path:
     return venv_dir / "bin" / name
 
 
+def _detect_machine() -> str:
+    """Architecture of *this running process*, not the host's raw hardware.
+
+    platform.machine() on Windows was found to report the underlying
+    hardware's native architecture unconditionally (e.g. ARM64 on a
+    Windows-on-ARM machine), even when the calling process itself is a
+    genuine AMD64 binary running under x64 emulation -- confirmed directly
+    on real hardware: a verified AMD64 LEAF.exe still saw platform.machine()
+    return "ARM64", causing bootstrap to look for a windows-arm64 runtime
+    archive that was never bundled. PROCESSOR_ARCHITECTURE (an environment
+    variable, not a hardware query) correctly reflects the calling
+    process's own architecture instead, respecting emulation.
+    """
+    if platform.system() == "Windows":
+        arch = os.environ.get("PROCESSOR_ARCHITECTURE", "")
+        if arch:
+            return arch.lower()
+    return platform.machine().lower()
+
+
 def find_portable_python_archive() -> Path:
     system = platform.system().lower()
-    machine = platform.machine().lower()
+    machine = _detect_machine()
     candidates = sorted(bundle_dir().glob(f"python-runtime-{system}-{machine}.*"))
     if not candidates:
         raise FileNotFoundError(
@@ -109,11 +131,35 @@ def find_runtime_python(runtime_dir: Path) -> Path:
     return matches[0]
 
 
-def find_wheelhouse() -> Path | None:
-    wheelhouse = bundle_dir() / WHEELHOUSE_DIR_NAME
-    if wheelhouse.is_dir() and any(wheelhouse.glob("*.whl")):
-        return wheelhouse
-    return None
+def find_wheelhouse(data_dir: Path) -> Path | None:
+    """Extract the bundled offline wheelhouse (if any) to a writable,
+    non-quarantined location and return that directory.
+
+    Shipped as a single tar.gz and extracted here rather than read in place
+    from the app bundle: a real downloaded copy is quarantined and (short
+    of an interactive Finder drag) gets App Translocated to a randomized
+    read-only mount on first launch. Reading dozens of individually
+    code-signed wheel files directly off that mount was observed to loop
+    forever (5+ minutes, never completing) instead of the normal ~10-20s --
+    see packaging/README.md. Extracting once to a normal directory
+    sidesteps that entirely, and also avoids codesign refusing to sign the
+    bundle at all over the zip-structured .whl files if they were loose.
+
+    Always re-extracted (not just "if empty"): this only runs once per
+    bootstrap_environment() re-install, so the cost is negligible, and a
+    stale wheelhouse left over from a previous app version installing an
+    older pinned release would otherwise be silently reused forever --
+    pip then fails to satisfy the current pin against old wheels with no
+    obvious symptom beyond a broken launch.
+    """
+    archive = bundle_dir() / WHEELHOUSE_ARCHIVE_NAME
+    if not archive.is_file():
+        return None
+    wheelhouse = data_dir / "wheelhouse"
+    if wheelhouse.exists():
+        shutil.rmtree(wheelhouse)
+    extract_archive(archive, wheelhouse)
+    return wheelhouse if any(wheelhouse.glob("*.whl")) else None
 
 
 def apply_tcl_tk_env(runtime_dir: Path) -> None:
@@ -159,7 +205,10 @@ def show_progress_window(message: str):
         tk.Label(root, text=message, font=("Helvetica", 12), wraplength=320, justify="center").pack(
             expand=True, padx=20, pady=20
         )
-        root.update()
+        # update_idletasks(), not update() -- see run_pumping_ui() below for
+        # why: update() processes the entire event queue, not just redraws,
+        # which is a known source of reentrant/hanging behavior.
+        root.update_idletasks()
         return root
     except Exception:
         print(message)
@@ -167,6 +216,39 @@ def show_progress_window(message: str):
 
 
 def show_error(message: str) -> None:
+    """Show an error dialog, in a *subprocess* if at all possible.
+
+    By the time this is called, show_progress_window() has very likely
+    already created and destroyed a tk.Tk() root in this same process (the
+    normal case: bootstrap_environment() fails partway through, e.g. a
+    version-mismatched wheelhouse making pip unable to satisfy the pin).
+    tkinter only supports one Tk() root per process -- see the identical
+    concern in leaf/ui/desktop_launcher.py's is_desktop_environment() --
+    and creating a second one here was observed to leave the window
+    blank and the process pegged at ~100% CPU forever instead of showing
+    the dialog. Running it in a fresh interpreter sidesteps that; the
+    extracted runtime is normally already present by the time errors here
+    are possible.
+    """
+    script = (
+        "import tkinter as tk\n"
+        "from tkinter import messagebox\n"
+        "r = tk.Tk()\n"
+        "r.withdraw()\n"
+        "messagebox.showerror(__import__('sys').argv[1], __import__('sys').argv[2])\n"
+        "r.destroy()\n"
+    )
+    try:
+        runtime_python = find_runtime_python(app_data_dir() / "runtime")
+        subprocess.run([str(runtime_python), "-c", script, APP_NAME, message], timeout=60)
+        return
+    except Exception:
+        pass
+
+    # Last resort: no extracted runtime to run the dialog in a subprocess
+    # (e.g. bootstrap failed before ever extracting one). Only reachable
+    # before show_progress_window() could have created a root, so a single
+    # in-process root here is safe.
     try:
         import tkinter as tk
         from tkinter import messagebox
@@ -177,6 +259,42 @@ def show_error(message: str) -> None:
         root.destroy()
     except Exception:
         print(message, file=sys.stderr)
+
+
+def run_pumping_ui(cmd: list[str], progress) -> None:
+    """subprocess.run, but keeps the Tk progress window's event loop alive.
+
+    A single root.update() paints the window once; a blocking subprocess
+    lasting 30-90s (venv creation, pip install) then leaves it un-repainted
+    for that whole time, which macOS renders as a blank, "Not Responding"
+    window even though nothing is actually wrong. Polling via Popen instead
+    of subprocess.run lets us pump the event loop every tick to keep it
+    genuinely responsive throughout.
+
+    Deliberately update_idletasks(), not update(): update() processes the
+    *entire* event queue (all pending input/window-manager events, not just
+    redraws), which Tk's own documentation warns can cause reentrant/
+    recursive callback processing. Confirmed via a real Python-level
+    traceback (faulthandler) that the main thread was the one spinning, not
+    a subprocess -- and this reentrancy is a well-known class of bug for
+    exactly this "call update() in a tight polling loop" pattern.
+    update_idletasks() only flushes pending redraws, which is all this
+    actually needs.
+    """
+    proc = subprocess.Popen(cmd)
+    try:
+        while proc.poll() is None:
+            if progress is not None:
+                try:
+                    progress.update_idletasks()
+                except Exception:
+                    progress = None
+            time.sleep(0.05)
+    except BaseException:
+        proc.kill()
+        raise
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd)
 
 
 def bootstrap_environment(data_dir: Path) -> Path:
@@ -198,20 +316,20 @@ def bootstrap_environment(data_dir: Path) -> Path:
 
         if venv_dir.exists():
             shutil.rmtree(venv_dir)
-        subprocess.run([str(runtime_python), "-m", "venv", str(venv_dir)], check=True)
+        run_pumping_ui([str(runtime_python), "-m", "venv", str(venv_dir)], progress)
 
         venv_python = venv_python_path(venv_dir)
-        wheelhouse = find_wheelhouse()
+        wheelhouse = find_wheelhouse(data_dir)
         if wheelhouse is not None:
             # Offline install: everything needed is already on disk, so skip
             # the network-dependent pip self-upgrade too.
-            subprocess.run(
+            run_pumping_ui(
                 [str(venv_python), "-m", "pip", "install", "--no-index", "--find-links", str(wheelhouse), pinned],
-                check=True,
+                progress,
             )
         else:
-            subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
-            subprocess.run([str(venv_python), "-m", "pip", "install", pinned], check=True)
+            run_pumping_ui([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], progress)
+            run_pumping_ui([str(venv_python), "-m", "pip", "install", pinned], progress)
 
         marker.write_text(pinned)
     finally:

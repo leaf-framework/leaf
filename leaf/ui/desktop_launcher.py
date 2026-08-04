@@ -1,6 +1,7 @@
 """Desktop GUI launcher for LEAF - Simple control panel for users."""
 
 import os
+import subprocess
 import sys
 import threading
 import webbrowser
@@ -20,6 +21,34 @@ try:
 except ImportError:
     TKINTER_AVAILABLE = False
     logger.warning("tkinter not available - desktop GUI will not be available")
+
+
+def _init_x11_threads() -> None:
+    """Tell Xlib this process is multi-threaded, before it ever touches X11.
+
+    LEAF runs several other threads by the time this GUI starts (the
+    NiceGUI web server thread, adapter/simulation threads -- see start.py).
+    Xlib documents XInitThreads() as required before its first use in any
+    multi-threaded process regardless of which thread issues X calls, so
+    there's no reason to skip it. No equivalent exists on macOS (Cocoa) or
+    Windows.
+
+    Note: a real, 100%-reproducible Linux crash right around here (aborting
+    the first time a tk.Button was created, deep inside libX11/libXcursor)
+    turned out to be unrelated to threading -- it was a bug in the bundled
+    portable Python's statically-linked Tcl/Tk 8.6.12 build, fixed by
+    bumping the pinned python-build-standalone release in
+    packaging/runtime/fetch_python.py (now bundles Tk 9.0.3). See that
+    file's comment for the full root-cause writeup.
+    """
+    if not sys.platform.startswith("linux"):
+        return
+    try:
+        import ctypes
+
+        ctypes.CDLL("libX11.so.6").XInitThreads()
+    except Exception as e:
+        logger.debug(f"Could not call XInitThreads: {e}")
 
 
 def is_desktop_environment() -> bool:
@@ -45,12 +74,19 @@ def is_desktop_environment() -> bool:
         if not os.environ.get("DISPLAY"):
             return False
 
-    # Try to create a test window to verify tkinter actually works
+    # Verify tkinter actually works by creating a test window -- in a
+    # *subprocess*, not in-process. tkinter only supports one Tk() root per
+    # process; creating-and-destroying a throwaway root here would leave the
+    # *real* root (created later by LeafDesktopLauncher, in this same
+    # process) in a broken state on macOS: it still registers a Dock icon
+    # but the window itself never becomes visible or responds to input.
     try:
-        root = tk.Tk()
-        root.withdraw()
-        root.destroy()
-        return True
+        result = subprocess.run(
+            [sys.executable, "-c", "import tkinter; r = tkinter.Tk(); r.withdraw(); r.destroy()"],
+            capture_output=True,
+            timeout=10,
+        )
+        return result.returncode == 0
     except Exception as e:
         logger.debug(f"Desktop environment check failed: {e}")
         return False
@@ -74,6 +110,7 @@ class LeafDesktopLauncher:
         self.is_running = True
 
         # Create main window
+        _init_x11_threads()
         self.root = tk.Tk()
         self.root.title("LEAF - Lightweight Equipment Adapter Framework")
         self.root.geometry("500x350")
@@ -273,6 +310,7 @@ class LeafDesktopLauncher:
 
         # Call the stop callback in a separate thread
         if self.on_stop_callback:
+            stop_finished = threading.Event()
 
             def stop_thread():
                 try:
@@ -280,13 +318,24 @@ class LeafDesktopLauncher:
                 except Exception as e:
                     logger.error(f"Error in stop callback: {e}")
                 finally:
-                    # Close the window after stopping
-                    try:
-                        self.root.after(1000, self.root.destroy)
-                    except Exception:
-                        pass
+                    stop_finished.set()
 
             threading.Thread(target=stop_thread, daemon=True).start()
+
+            # Tk/Tcl calls (root.after, root.destroy) must only ever happen
+            # on the main thread that's running mainloop() -- on Linux,
+            # Xlib can abort the whole process ("XInitThreads has not been
+            # called") if a background thread issues X11 calls concurrently
+            # with it. Polling here (itself scheduled via root.after, so it
+            # always runs on the main thread) instead of destroying directly
+            # from stop_thread keeps every Tk call on that one thread.
+            def wait_and_destroy():
+                if stop_finished.is_set():
+                    self.root.destroy()
+                else:
+                    self.root.after(100, wait_and_destroy)
+
+            self.root.after(1000, wait_and_destroy)
         else:
             # If no callback, just close
             self.root.after(500, self.root.destroy)
@@ -296,10 +345,42 @@ class LeafDesktopLauncher:
         logger.info("User closed desktop launcher window")
         self.stop_leaf()
 
+    def _bring_to_front(self):
+        """Force the window to the foreground and give it real input focus.
+
+        Needed when this process was exec'd into from an already-running
+        signed .app (see packaging/launcher/bootstrap.py) rather than being
+        launched directly as its own bundled app: Tk's window then draws
+        fine but doesn't reliably become the active/frontmost app, so it
+        renders but silently ignores clicks.
+        """
+        self.root.lift()
+        self.root.attributes("-topmost", True)
+        self.root.after_idle(self.root.attributes, "-topmost", False)
+        self.root.focus_force()
+        if sys.platform == "darwin":
+            try:
+                import subprocess
+
+                subprocess.run(
+                    [
+                        "osascript",
+                        "-e",
+                        'tell application "System Events" to set frontmost of '
+                        f"(first process whose unix id is {os.getpid()}) to true",
+                    ],
+                    check=False,
+                    timeout=2,
+                )
+            except Exception as e:
+                logger.debug(f"Could not force-activate window via osascript: {e}")
+
     def run(self):
         """Run the desktop launcher main loop."""
         logger.info("Starting desktop launcher GUI")
         try:
+            self._bring_to_front()
+
             # Auto-open browser on startup after a short delay
             self.root.after(1500, self.open_browser)
 
