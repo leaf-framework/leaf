@@ -222,10 +222,9 @@ package:linux:arm64:
     expire_in: 30 days
 
 # Assumes a PowerShell-shell Windows runner with Inno Setup pre-installed.
-# ISCC_PATH is auto-discovered below across known install locations (its
-# default path has already moved once between Inno Setup 6 and 7 on this
-# project's own runner) -- set an ISCC_PATH project/group CI/CD variable
-# to override if it's installed somewhere none of these check.
+# Python/ISCC discovery lives in packaging/windows/find_python.ps1 and
+# find_iscc.ps1 (see those for the full reasoning) -- shared with
+# package:windows:arm64 below rather than duplicated inline per arch.
 #
 # Gated on $WINDOWS_RUNNER_READY (set to "true" as a project/group CI/CD
 # variable once a `windows`-tagged runner actually exists) so this job isn't
@@ -241,58 +240,7 @@ package:windows:
     - if: '$CI_COMMIT_TAG && $WINDOWS_RUNNER_READY == "true"'
   script:
     - |
-      # This project's Windows runner is ARM64 hardware (Windows-on-ARM
-      # under UTM on Apple Silicon), but end users are mostly on real
-      # Intel/AMD machines, which can't run ARM64 binaries at all -- so the
-      # frozen launcher must always be AMD64, not whatever this runner's
-      # own shell happens to be. PyInstaller can't cross-compile: it always
-      # freezes for whichever python.exe actually invokes it, so bare
-      # `python` on PATH isn't good enough here -- an ARM64-native python
-      # (or an ARM64-native pwsh/gitlab-runner process, since
-      # $env:PROCESSOR_ARCHITECTURE reflects the *calling shell's* own
-      # architecture context, not whatever child python.exe gets resolved)
-      # silently produces an ARM64 LEAF-Setup.exe that can't run on real
-      # Intel/AMD Windows at all. Probe candidates and verify each one's
-      # own platform.machine() directly instead of trusting PATH order or
-      # environment variables.
-      # Two different install layouts to check: the classic python.org
-      # installer (AppData\Local\Programs\Python\PythonXYZ\) and the newer
-      # "Python Install Manager" layout used by Python 3.13+
-      # (AppData\Local\Python\pythoncore-X.Y-64\) -- confirmed present but
-      # missed by an earlier version of this list that only checked the
-      # classic layout, on this project's own Windows runner.
-      #
-      # Searched under C:\Users\*, not just $env:LOCALAPPDATA: if
-      # gitlab-runner runs as a Windows service, it very likely runs under
-      # a different account than whichever interactive user installed
-      # Python, so $env:LOCALAPPDATA in this job's context resolves to
-      # *that* account's (probably empty) profile, not the one Python
-      # actually lives under -- searching every user's profile directly
-      # sidesteps needing to know or fix which account the service runs as.
-      $pythonCandidates = @("python", "C:\Python312\python.exe", "C:\Python313\python.exe")
-      $pythonCandidates += Get-ChildItem -Path "C:\Users\*\AppData\Local\Programs\Python\Python3*\python.exe" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
-      $pythonCandidates += Get-ChildItem -Path "C:\Users\*\AppData\Local\Python\pythoncore-*-64\python.exe" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
-      $goodPython = $null
-      foreach ($candidate in $pythonCandidates) {
-        $exe = Get-Command $candidate -ErrorAction SilentlyContinue
-        if (-not $exe) { continue }
-        # NOT platform.machine(): on this ARM64 host it always reports the
-        # underlying hardware's native architecture (ARM64), regardless of
-        # which python.exe actually runs it -- confirmed directly on the
-        # runner, including for a freshly-installed, genuine amd64
-        # python.org build. PROCESSOR_ARCHITECTURE (read from *within* the
-        # candidate's own process) correctly reflects that process's own
-        # architecture instead, respecting x64-under-ARM64 emulation.
-        $machine = & $exe.Source -c "import os; print(os.environ.get('PROCESSOR_ARCHITECTURE'))" 2>$null
-        if ($machine -eq "AMD64") {
-          $goodPython = $exe.Source
-          break
-        }
-      }
-      if (-not $goodPython) {
-        Write-Error "No AMD64 python.exe found (checked PATH and common python.org install locations). Install the x64 Python installer from python.org on this runner -- the ARM64 one won't produce a launcher that runs on real Intel/AMD Windows."
-        exit 1
-      }
+      $goodPython = packaging/windows/find_python.ps1 -Arch amd64
       Write-Host "Using AMD64 python at $goodPython"
       & $goodPython -m pip install "pyinstaller~=6.19"
       & $goodPython -m PyInstaller packaging/launcher/leaf_launcher.spec --distpath dist --workpath build/launcher --noconfirm
@@ -301,27 +249,11 @@ package:windows:
       & $goodPython packaging/runtime/build_wheelhouse.py --runtime-archive dist/LEAF/python-runtime-windows-amd64.tar.gz --requirement "leaf-framework==$env:LEAF_VERSION" --out build/wheelhouse-staging
     - tar czf dist/LEAF/wheelhouse.tar.gz -C build/wheelhouse-staging .
     - |
-      $isccCandidates = @(
-        $env:ISCC_PATH,
-        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-        "C:\Program Files\Inno Setup 6\ISCC.exe",
-        "C:\Program Files (x86)\Inno Setup 7\ISCC.exe",
-        "C:\Program Files\Inno Setup 7\ISCC.exe"
-      ) | Where-Object { $_ -and (Test-Path $_) }
-      # Where-Object unwraps a single match to a bare string, not a
-      # 1-element array -- indexing that with [0] silently returns just
-      # its first CHARACTER ('C'), not the path. @(...) forces array
-      # context first so [0] always means "first element" regardless of
-      # match count.
-      $isccPath = @($isccCandidates)[0]
-      if (-not $isccPath) {
-        Write-Error "ISCC.exe not found. Checked ISCC_PATH and Inno Setup 6/7 default install locations. Set an ISCC_PATH CI/CD variable if it's installed elsewhere."
-        exit 1
-      }
+      $isccPath = packaging/windows/find_iscc.ps1
       Write-Host "Using ISCC at $isccPath"
       # Arch-tagged output filename, matching macOS/Linux's LEAF-<os>-<arch>
-      # convention -- not just cosmetic: without it, a future second
-      # Windows arch build would silently overwrite this release asset.
+      # convention -- not just cosmetic: without it, a second Windows arch
+      # build would silently overwrite this release asset.
       $env:LEAF_WIN_ARCH = "amd64"
       & $isccPath packaging/windows/leaf.iss
     - |
@@ -331,6 +263,41 @@ package:windows:
   artifacts:
     paths:
       - packaging/windows/Output/LEAF-Setup-amd64.exe
+    expire_in: 30 days
+
+# Same build, targeting arm64 instead -- this runner's own hardware IS
+# ARM64 (Windows-on-ARM under UTM on Apple Silicon), so this one builds
+# natively with no emulation involved, unlike package:windows above.
+package:windows:arm64:
+  stage: package
+  tags:
+    - windows
+  needs:
+    - determine_version
+  rules:
+    - if: '$CI_COMMIT_TAG && $WINDOWS_RUNNER_READY == "true"'
+  script:
+    - |
+      $goodPython = packaging/windows/find_python.ps1 -Arch arm64
+      Write-Host "Using ARM64 python at $goodPython"
+      & $goodPython -m pip install "pyinstaller~=6.19"
+      & $goodPython -m PyInstaller packaging/launcher/leaf_launcher.spec --distpath dist --workpath build/launcher --noconfirm
+      & $goodPython packaging/runtime/fetch_python.py windows-arm64 --out dist/LEAF
+      Set-Content -Path dist/LEAF/leaf-framework.version -Value "leaf-framework==$env:LEAF_VERSION" -Encoding ascii
+      & $goodPython packaging/runtime/build_wheelhouse.py --runtime-archive dist/LEAF/python-runtime-windows-arm64.tar.gz --requirement "leaf-framework==$env:LEAF_VERSION" --out build/wheelhouse-staging-arm64
+    - tar czf dist/LEAF/wheelhouse.tar.gz -C build/wheelhouse-staging-arm64 .
+    - |
+      $isccPath = packaging/windows/find_iscc.ps1
+      Write-Host "Using ISCC at $isccPath"
+      $env:LEAF_WIN_ARCH = "arm64"
+      & $isccPath packaging/windows/leaf.iss
+    - |
+      curl --fail --header "JOB-TOKEN: $env:CI_JOB_TOKEN" `
+        --upload-file "packaging/windows/Output/LEAF-Setup-arm64.exe" `
+        "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/packages/generic/leaf-desktop/$env:LEAF_VERSION/LEAF-Setup-arm64.exe"
+  artifacts:
+    paths:
+      - packaging/windows/Output/LEAF-Setup-arm64.exe
     expire_in: 30 days
 
 # Depends on package:macos and package:linux (both need no special runner
@@ -376,6 +343,24 @@ release:windows-asset:
       curl --fail --request POST --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
         --data "name=Windows installer (amd64, .exe)" \
         --data "url=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leaf-desktop/${LEAF_VERSION}/LEAF-Setup-amd64.exe" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases/${CI_COMMIT_TAG}/assets/links"
+
+# Adds the Windows arm64 asset link, same gate as windows-asset above.
+release:windows-arm64-asset:
+  stage: release
+  image: alpine:latest
+  needs:
+    - determine_version
+    - package:windows:arm64
+    - release
+  rules:
+    - if: '$CI_COMMIT_TAG && $WINDOWS_RUNNER_READY == "true"'
+  script:
+    - apk add --no-cache curl
+    - |
+      curl --fail --request POST --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+        --data "name=Windows installer (arm64, .exe)" \
+        --data "url=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leaf-desktop/${LEAF_VERSION}/LEAF-Setup-arm64.exe" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases/${CI_COMMIT_TAG}/assets/links"
 
 # Adds the Linux arm64 asset link to the already-created release. Not in
