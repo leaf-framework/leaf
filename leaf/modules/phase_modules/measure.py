@@ -94,11 +94,11 @@ class MeasurePhase(PhaseModule):
                 for index, chunk in enumerate(chunks):
                     if index % 10 == 0:
                         logger.debug(f"Sending chunk {index + 1} of {len(chunks)} with {len(chunk)} measurements.")
-                    messages.append(self._form_message(exp_id, chunk))
+                    messages.extend(self._form_message(exp_id, chunk))
                     time.sleep(0.1)
                 return messages
             else:
-                return [self._form_message(exp_id, result)]
+                return self._form_message(exp_id, result)
         else:
             experiment_id = kwargs.get("experiment_id", "unknown")
             measurement = kwargs.get("measurement", "unknown")
@@ -106,28 +106,75 @@ class MeasurePhase(PhaseModule):
             action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
             return [(action, data)]
 
-    def _form_message(self, experiment_id: str, result: Any) -> tuple:
+    def _form_message(self, experiment_id: str, result: Any) -> list[tuple]:
         """
-        Formulate a message with the experiment ID and result.
+        Formulate one or more (topic, data) messages for a measurement result.
+
+        A list/set of points can mix several distinct measurement types
+        (e.g. pH, temperature, oxygen) in the same batch. Since the topic
+        encodes a single measurement type, each distinct type present in
+        the batch is split out into its own message rather than all being
+        published under whichever type happened to come first.
 
         Args:
             experiment_id (str): The ID of the experiment.
             result (Any): The measurement result data.
 
         Returns:
-            tuple: A tuple containing the action and result.
+            list[tuple]: A list of (action, result) tuples.
         """
-        measurement = "unknown"
         if isinstance(result, dict):
-            measurement = result.get("measurement", "unknown")
-        elif isinstance(result, InfluxPoint):
-            result = result.to_json()
-            measurement = result.get("measurement", "unknown")
-        elif isinstance(result, list):
-            result = [l.to_json() if isinstance(l, InfluxPoint) else l for l in result]
-        else:
-            excp = AdapterLogicError(f"Unknown measurement data type: {type(result)}")
-            self._handle_exception(excp)
+            measurement = self._resolve_measurement(result)
+            action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
+            return [(action, result)]
 
-        action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
-        return (action, result)
+        if isinstance(result, InfluxPoint):
+            result = result.to_json()
+            measurement = self._resolve_measurement(result)
+            action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
+            return [(action, result)]
+
+        if isinstance(result, list):
+            converted = []
+            for item in result:
+                if isinstance(item, InfluxPoint):
+                    converted.append(item.to_json())
+                else:
+                    converted.append(item)
+
+            groups: dict[str, list] = {}
+            for item in converted:
+                if isinstance(item, dict):
+                    key = self._resolve_measurement(item)
+                else:
+                    key = "unknown"
+                groups.setdefault(key, []).append(item)
+
+            messages = []
+            for key, group in groups.items():
+                action = self._term_builder(experiment_id=experiment_id, measurement=key)
+                messages.append((action, group))
+            return messages
+
+        excp = AdapterLogicError(f"Unknown measurement data type: {type(result)}")
+        self._handle_exception(excp)
+        return []
+
+    def _resolve_measurement(self, item: dict) -> str:
+        """
+        Resolve the measurement label used for the topic's last segment.
+
+        Prefers the "metric" tag (e.g. "temperature", "ph") over the
+        top-level "measurement" field, since adapters commonly set
+        "measurement" to a constant device/point type shared by every
+        point (e.g. all Pioreactor points use "pioreactor"), while the
+        "metric" tag is what actually distinguishes one point from another.
+        """
+        tags = item.get("tags")
+        if isinstance(tags, dict) and tags.get("metric"):
+            return tags["metric"]
+
+        if item.get("measurement"):
+            return item["measurement"]
+
+        return "unknown"
