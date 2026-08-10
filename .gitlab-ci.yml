@@ -74,7 +74,11 @@ publish:
     - poetry config virtualenvs.create false
     - poetry config pypi-token.pypi "$PYPI_TOKEN"
   script:
-    - latest_tag=$(git describe --tags --abbrev=0)
+    # Highest semver tag, not nearest-ancestor tag (git describe --abbrev=0
+    # picks by commit-graph distance, which breaks if a tag ever gets
+    # created on a commit behind an already-tagged one).
+    - git fetch --tags --force
+    - latest_tag=$(git tag --list 'v*' | sort -V | tail -n1)
     - base_version=${latest_tag#v}
     - major=$(echo $base_version | cut -d. -f1)
     - minor=$(echo $base_version | cut -d. -f2)
