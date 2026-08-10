@@ -51,8 +51,13 @@ def install_adapter(adapter: dict[Any, Any]) -> None:
     # Show "installing" notification
     ui.notify(f"Installing {adapter_name}... This may take a moment.", type="info", position="top", timeout=3000)
 
+    # --force-reinstall so a re-install always re-clones and re-checks the
+    # repo's default branch HEAD -- these adapters' pyproject.toml versions
+    # don't get bumped per commit, so a plain `pip install` would see the
+    # already-installed version as satisfying the requirement and skip
+    # fetching the newer commit entirely.
     result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", f"git+{repository}"],
+        [sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", f"git+{repository}"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
