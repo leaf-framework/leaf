@@ -524,6 +524,13 @@ def main(args: list[str] | None = None) -> None:
     except ValueError as e:
         run_ui_error_mode(f"Environment variable substitution failed: {e}")
         return
+    except (TypeError, AttributeError, KeyError) as e:
+        # Config parsed as valid YAML but has the wrong shape (e.g. a string
+        # where a mapping was expected under OUTPUTS/EQUIPMENT_INSTANCES) --
+        # surface it the same way as the other config problems above instead
+        # of crashing with a raw traceback.
+        run_ui_error_mode(f"Invalid configuration structure: {e}")
+        return
 
     create_configuration(context.args)
 
