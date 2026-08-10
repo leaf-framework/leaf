@@ -69,12 +69,17 @@ def discover_from_config(config: dict[str, Any], external_path: str = None) -> N
     """
     from leaf.registry import discovery
 
-    output_codes = _collect_output_codes(config.get("OUTPUTS", []))
-    equipment_codes = {instance["equipment"]["adapter"].lower() for instance in config.get("EQUIPMENT_INSTANCES", [])}
-    ...
+    # `.get(key, default)` only falls back when the key is absent -- a YAML
+    # section present but left empty (e.g. "OUTPUTS:" with nothing under it)
+    # parses to None, not the default, so that must be caught too.
+    outputs = config.get("OUTPUTS") or []
+    equipment_instances = config.get("EQUIPMENT_INSTANCES") or []
+
+    output_codes = _collect_output_codes(outputs)
+    equipment_codes = {instance["equipment"]["adapter"].lower() for instance in equipment_instances}
     external_input_codes = {
         instance["equipment"]["external_input"]["plugin"].lower()
-        for instance in config.get("EQUIPMENT_INSTANCES", [])
+        for instance in equipment_instances
         if "external_input" in instance["equipment"]
     }
 
