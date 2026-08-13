@@ -134,6 +134,165 @@ class TestMeasurePhase(unittest.TestCase):
         with self.assertRaises(LEAFError):
             self._module.update(content)
 
+    def test_measure_phase_generator(self):
+        self._module._maximum_message_size = 10
+        exp_id = "test_measure_phase_generator"
+
+        class MockInterpreter:
+            def __init__(self):
+                self.id = exp_id
+
+            def measurement(self, data):
+                yield from range(1, 24 + 1)
+
+        interpreter = MockInterpreter()
+        self._module.set_interpreter(interpreter)
+
+        measurement_messages = self._module.update([])
+        expected_chunks = [list(range(1, 11)), list(range(11, 21)), list(range(21, 25))]
+        self.assertEqual(len(measurement_messages), len(expected_chunks))
+        for chunk, expected_chunk in zip(measurement_messages, expected_chunks):
+            self.assertEqual(chunk[1], expected_chunk)
+
+    def test_measure_phase_generator_error_handle(self):
+        self._module._maximum_message_size = 10
+        exp_id = "test_measure_phase_generator_error_handle"
+
+        class MockInterpreter:
+            def __init__(self):
+                self.id = exp_id
+
+            def measurement(self, data):
+                yield from range(1, 11)
+                raise ValueError("stream broke")
+
+        interpreter = MockInterpreter()
+        self._module.set_interpreter(interpreter)
+
+        with self.assertRaises(LEAFError):
+            self._module.update([])
+
+    def test_measure_phase_drops_concurrent_call(self):
+        exp_id = "test_measure_phase_drops_concurrent_call"
+
+        class MockInterpreter:
+            def __init__(self):
+                self.id = exp_id
+
+            def measurement(self, data):
+                return "ok"
+
+        interpreter = MockInterpreter()
+        self._module.set_interpreter(interpreter)
+
+        # Simulate a measurement already in flight (e.g. a long-draining
+        # generator) by holding the lock before calling update().
+        self._module._measurement_lock.acquire()
+        try:
+            result = self._module.update([])
+        finally:
+            self._module._measurement_lock.release()
+        self.assertIsNone(result)
+
+    def test_measure_phase_stream(self):
+        self._module._maximum_message_size = 10
+        exp_id = "test_measure_phase_stream"
+
+        class MockOutput:
+            def __init__(self):
+                self.calls = []
+
+            def transmit(self, topic, data):
+                self.calls.append((topic, data))
+
+        class MockInterpreter:
+            def __init__(self):
+                self.id = exp_id
+                self.filenames_seen = []
+
+            def stream(self, filename):
+                self.filenames_seen.append(filename)
+                yield from range(1, 24 + 1)
+
+        interpreter = MockInterpreter()
+        self._module.set_interpreter(interpreter)
+        output = MockOutput()
+
+        self._module.stream(output, "measurements.csv")
+
+        expected_chunks = [list(range(1, 11)), list(range(11, 21)), list(range(21, 25))]
+        self.assertEqual(len(output.calls), len(expected_chunks))
+        for (_, data), expected_chunk in zip(output.calls, expected_chunks):
+            self.assertEqual(data, expected_chunk)
+        self.assertEqual(interpreter.filenames_seen, ["measurements.csv"])
+
+    def test_measure_phase_stream_requires_stream_method(self):
+        class MockInterpreter:
+            def __init__(self):
+                self.id = "test_measure_phase_stream_requires_stream_method"
+
+            def measurement(self, data):
+                return data
+
+        interpreter = MockInterpreter()
+        self._module.set_interpreter(interpreter)
+
+        with self.assertRaises(LEAFError):
+            self._module.stream(output=None, filename="measurements.csv")
+
+    def test_measure_phase_stream_drops_when_busy(self):
+        class MockOutput:
+            def transmit(self, topic, data):
+                pass
+
+        class MockInterpreter:
+            def __init__(self):
+                self.id = "test_measure_phase_stream_drops_when_busy"
+
+            def stream(self, filename):
+                yield 1
+
+        interpreter = MockInterpreter()
+        self._module.set_interpreter(interpreter)
+
+        lock = self._module._get_stream_lock("measurements.csv")
+        lock.acquire()
+        try:
+            # Should log and return without raising or calling stream().
+            self._module.stream(MockOutput(), "measurements.csv")
+        finally:
+            lock.release()
+
+    def test_measure_phase_stream_different_filenames_not_blocked(self):
+        class MockOutput:
+            def __init__(self):
+                self.calls = []
+
+            def transmit(self, topic, data):
+                self.calls.append((topic, data))
+
+        class MockInterpreter:
+            def __init__(self):
+                self.id = "test_measure_phase_stream_different_filenames"
+
+            def stream(self, filename):
+                yield filename
+
+        interpreter = MockInterpreter()
+        self._module.set_interpreter(interpreter)
+        output = MockOutput()
+
+        # Holding the lock for "a.csv" must not block a concurrent stream
+        # for a different filename, "b.csv".
+        lock_a = self._module._get_stream_lock("a.csv")
+        lock_a.acquire()
+        try:
+            self._module.stream(output, "b.csv")
+        finally:
+            lock_a.release()
+
+        self.assertEqual([data for _, data in output.calls], [["b.csv"]])
+
 
 class TestControlPhase(unittest.TestCase):
     def setUp(self) -> None:

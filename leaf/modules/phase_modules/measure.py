@@ -1,5 +1,7 @@
+import inspect
+import threading
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from influxobject import InfluxPoint
 
@@ -8,6 +10,9 @@ from leaf.error_handler.exceptions import AdapterLogicError, InterpreterError
 from leaf.modules.phase_modules.phase import PhaseModule
 from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
+
+if TYPE_CHECKING:
+    from leaf.modules.output_modules.output_module import OutputModule
 
 logger = get_logger(__name__, log_file="measure.log")
 
@@ -40,6 +45,19 @@ class MeasurePhase(PhaseModule):
 
         super().__init__(term_builder, metadata_manager=metadata_manager, error_holder=error_holder)
         self._maximum_message_size: int = maximum_message_size
+        # Guards against a second measurement running concurrently with one still
+        # draining (e.g. a generator-based interpreter that streams for a long time,
+        # or forever). Without this, an overlapping event (e.g. FileWatcher's
+        # trailing-modification timer firing on its own thread) could invoke the
+        # interpreter a second time while the first call is still in flight.
+        self._measurement_lock = threading.Lock()
+        # stream() is keyed per-filename rather than sharing _measurement_lock:
+        # StreamingAdapter may run several filenames concurrently (e.g. multiple
+        # files matching a watch pattern), each on its own thread, and those
+        # shouldn't block each other - only two calls for the *same* filename
+        # should be mutually exclusive.
+        self._stream_locks: dict[Any, threading.Lock] = {}
+        self._stream_locks_guard = threading.Lock()
 
     def update(self, data: Any | None = None, **kwargs: Any) -> list[tuple[str, Any]] | None:
         """
@@ -66,45 +84,136 @@ class MeasurePhase(PhaseModule):
                 excp = AdapterLogicError("Trying to transmit measurements outside of experiment (No experiment id)")
                 self._handle_exception(excp)
 
+            if not self._measurement_lock.acquire(blocking=False):
+                logger.warning("Interpreter is still processing a previous measurement; dropping this event.")
+                return None
             try:
-                result = self._interpreter.measurement(data)
-            except Exception as ex:
-                leaf_exp = InterpreterError(ex)
-                self._handle_exception(leaf_exp)
-                return None
+                try:
+                    result = self._interpreter.measurement(data)
+                except Exception as ex:
+                    leaf_exp = InterpreterError(ex)
+                    self._handle_exception(leaf_exp)
+                    return None
 
-            if result is False:
-                # Case when the interpreter
-                # doesnt want to send a message.
-                return None
+                if result is False:
+                    # Case when the interpreter
+                    # doesnt want to send a message.
+                    return None
 
-            if result is None:
-                excp = AdapterLogicError(
-                    "Interpreter couldn't parse measurement, likely metadata has been provided as measurement data."
-                )
-                self._handle_exception(excp)
-                return None
-            if isinstance(result, (set, list, tuple)):
-                result = list(result)
-                chunks = [
-                    result[i : i + self._maximum_message_size]
-                    for i in range(0, len(result), self._maximum_message_size)
-                ]
-                messages = []
-                for index, chunk in enumerate(chunks):
-                    if index % 10 == 0:
-                        logger.debug(f"Sending chunk {index + 1} of {len(chunks)} with {len(chunk)} measurements.")
-                    messages.extend(self._form_message(exp_id, chunk))
-                    time.sleep(0.1)
-                return messages
-            else:
-                return self._form_message(exp_id, result)
+                if result is None:
+                    excp = AdapterLogicError(
+                        "Interpreter couldn't parse measurement, likely metadata has been provided as measurement data."
+                    )
+                    self._handle_exception(excp)
+                    return None
+                if isinstance(result, (set, list, tuple)):
+                    result = list(result)
+                    chunks = [
+                        result[i : i + self._maximum_message_size]
+                        for i in range(0, len(result), self._maximum_message_size)
+                    ]
+                    messages = []
+                    for index, chunk in enumerate(chunks):
+                        if index % 10 == 0:
+                            logger.debug(f"Sending chunk {index + 1} of {len(chunks)} with {len(chunk)} measurements.")
+                        messages.extend(self._form_message(exp_id, chunk))
+                        time.sleep(0.1)
+                    return messages
+                elif inspect.isgenerator(result):
+                    # The interpreter streams measurements lazily instead of building
+                    # the full result up front - useful when a source produces data
+                    # too fast/large to buffer in one go, or runs indefinitely.
+                    messages = []
+                    chunk: list[Any] = []
+                    chunk_index = 0
+                    try:
+                        for item in result:
+                            chunk.append(item)
+                            if len(chunk) >= self._maximum_message_size:
+                                if chunk_index % 10 == 0:
+                                    logger.debug(f"Sending chunk {chunk_index + 1} with {len(chunk)} measurements.")
+                                messages.extend(self._form_message(exp_id, chunk))
+                                time.sleep(0.1)
+                                chunk = []
+                                chunk_index += 1
+                    except Exception as ex:
+                        leaf_exp = InterpreterError(ex)
+                        self._handle_exception(leaf_exp)
+                        return messages or None
+                    if chunk:
+                        messages.extend(self._form_message(exp_id, chunk))
+                    return messages
+                else:
+                    return self._form_message(exp_id, result)
+            finally:
+                self._measurement_lock.release()
         else:
             experiment_id = kwargs.get("experiment_id", "unknown")
             measurement = kwargs.get("measurement", "unknown")
 
             action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
             return [(action, data)]
+
+    def stream(self, output: "OutputModule", filename: Any) -> None:
+        """
+        Drain the interpreter's `stream(filename)` generator, started once
+        for the given filename, and transmit each measurement as soon as
+        it is produced.
+
+        Unlike update(), this is not triggered per watcher event: the
+        calling thread stays inside this call for as long as the
+        interpreter's generator keeps yielding - potentially forever - so
+        it must be run on its own dedicated thread (see StreamingAdapter).
+        Locking is per-filename, so multiple filenames can stream
+        concurrently on separate threads; only two calls for the *same*
+        filename are mutually exclusive.
+
+        Args:
+            output (OutputModule): Output module to transmit each chunk to
+                directly, since the calling thread never returns control
+                to ProcessModule.process_input for the duration of the stream.
+            filename (Any): Passed straight through to interpreter.stream(),
+                identifying what the interpreter should read/tail. Typically
+                discovered from a watcher's start event rather than fixed
+                up front (see StreamingAdapter).
+        """
+        if self._interpreter is None or not hasattr(self._interpreter, "stream"):
+            excp = AdapterLogicError("Interpreter does not implement stream()")
+            self._handle_exception(excp)
+            return
+
+        lock = self._get_stream_lock(filename)
+        if not lock.acquire(blocking=False):
+            logger.warning(f"Interpreter is already streaming {filename!r}; ignoring duplicate stream start.")
+            return
+
+        if getattr(self._interpreter, "id", None) is None:
+            logger.warning("Interpreter has no experiment id set.")
+            self._interpreter.id = "invalid_id"
+        exp_id = self._interpreter.id
+
+        chunk: list[Any] = []
+        try:
+            for item in self._interpreter.stream(filename):
+                chunk.append(item)
+                if len(chunk) >= self._maximum_message_size:
+                    for action, result in self._form_message(exp_id, chunk):
+                        output.transmit(action, result)
+                    chunk = []
+            if chunk:
+                for action, result in self._form_message(exp_id, chunk):
+                    output.transmit(action, result)
+        except Exception as ex:
+            leaf_exp = InterpreterError(ex)
+            self._handle_exception(leaf_exp)
+        finally:
+            lock.release()
+
+    def _get_stream_lock(self, filename: Any) -> threading.Lock:
+        with self._stream_locks_guard:
+            if filename not in self._stream_locks:
+                self._stream_locks[filename] = threading.Lock()
+            return self._stream_locks[filename]
 
     def _form_message(self, experiment_id: str, result: Any) -> list[tuple]:
         """

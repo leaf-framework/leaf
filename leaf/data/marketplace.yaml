@@ -11,10 +11,10 @@
     application: Table parser
   requirements:
     folder: "<path>"
-  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-table.git
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-table.git
 
 - adapter_id: LiveViewUI
-  image: "./images/plot.png"
+  image: "./images/plot.jpg"
   description: "A plugin with a graph viewer to show submitted data in real-time." # TODO: Add description
   equipment_data:
     version: "1.0"
@@ -23,7 +23,20 @@
     application: UI Extension Demonstration
   requirements:
     interval: int
-  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-live-view.git
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-live-view.git
+
+- adapter_id: Example
+  image: ""
+  description: "A basic LEAF adapter example. Creates a measurement message every x seconds. Useful as a starting point for developing new adapters."
+  equipment_data:
+    version: "0.2.1"
+    manufacturer: LEAF
+    device_type: EXAMPLE
+    application: Example application
+  requirements:
+    interval: int
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-example.git
+  name: LEAF-Example
 
 # - adapter_id: MockFunctionalAdapter
 #   image: ""
@@ -35,7 +48,7 @@
 #     application: DEMO application
 #   requirements:
 #     interval: int
-#   repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-examples
+#   repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-examples
 #   name: LEAF-Examples
 
 - adapter_id: BiolectorXT
@@ -49,7 +62,7 @@
     interval: 11
     host: string
     token: string
-  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-biolector-xt
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-biolector-xt
   name: LEAF-Biolector XT
 
 - adapter_id: BioLector1
@@ -88,7 +101,7 @@
     weight: "10kg"
   requirements:
     write_file: str
-  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-biolector1
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-biolector1
   name: LEAF-biolector1
 
 - adapter_id: leaf_indpensim
@@ -102,7 +115,7 @@
     application: Industrial Penicilin Simulation
   requirements:
     write_file: str
-  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-indpensim
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-indpensim
   name: LEAF-IndPenSim
 
 - adapter_id: maq
@@ -118,7 +131,7 @@
     interval: int
     token: str
     site: int
-  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-maq
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-maq
   name: LEAF-MAQ
 
 - adapter_id: MinKNOW
@@ -134,7 +147,7 @@
     host: string
     port: int
     token: string
-  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-minknow
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-minknow
   name: LEAF-MinKNOW
 
 - adapter_id: iRODS
@@ -152,7 +165,7 @@
     zone: string
     user: string
     password: string
-  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-irods
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-irods
   name: LEAF-iRODS
 
 # - adapter_id: HelloWorld
@@ -165,11 +178,11 @@
 #     application: DEMO application
 #   requirements:
 #     interval: int
-#   repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-hello-world
+#   repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-hello-world
 #   name: LEAF-Hello World
 
 - adapter_id: Pioreactor
-  image: ./images/pioreactor.png
+  image: ./images/pioreactor.jpg
   description: "A LEAF adapter for the Pioreactor bioreactor system by Pioreactor. This plugin connects to the Pioreactor MQTT broker to retrieve real-time data on bioreactor conditions and performance."
   equipment_data:
     version: "1.0"
@@ -182,7 +195,7 @@
     port: int
     username: str
     password: str
-  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-pioreactor
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-pioreactor
   name: LEAF-Pioreactor
 
 - adapter_id: OPC
@@ -194,9 +207,78 @@
     device_type: OPC sensor module
     application: OPC Monitoring
   requirements:
-    port: int
-    host: string
-    topics: list[string]
-    exclude_topics: list[string]
-  repo_url: https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-opc-adapter.git
+    port: int                   # OPC server port
+    host: string                # OPC server host address
+    topics: list[string]        # Optional: list of OPC node IDs to subscribe to
+    exclude_topics: list[string] # Optional: list of OPC node IDs to exclude
+    mapper:                     # Optional: tag mapping rules applied to each measurement
+      - field: node             # Tag field to match against (e.g. "node")
+        pattern: '^R1_.*'       # Regex pattern to match the field value
+        tags:                   # Tags to add when the pattern matches
+          entity: 9
+      - field: node
+        pattern: '^R2_.*'
+        tags:
+          entity: 10
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-opc-adapter.git
   name: LEAF OPC
+- adapter_id: CAFE
+  image: icon:bi-thermometer
+  description: "A LEAF adapter for the CAFE system from the PROSE-lab Université Paris-Saclay, INRAE."
+  equipment_data:
+    version: "1.0.0"
+    manufacturer: PROSE
+    device_type: CAFE system
+    application: Monitoring
+  requirements:
+    time_column: string
+    watch: list[string]
+    sep: string
+  repo_url: https://gitlab.com/bioindustry-4.0/leafs/leaf-cafe.git
+  name: LEAF CAFE
+- adapter_id: RAMSMART
+  image: ./images/movesense.png
+  description: "A LEAF adapter for the RAMSMART system by Movesense. This plugin detects and retrieves BLE real-time data from RAMSMART sensors for monitoring and analysis."
+  equipment_data:
+    version: "1.0"
+    manufacturer: Movesense
+    device_type: RAMSMART sensor
+    application: Monitoring
+  # requirements:
+  repo_url: https://git.wur.nl/leaf/adapters/leaf-ramsmart.git
+  name: LEAF-RAMSMART
+- adapter_id: BluetoothScanner
+  image: icon:bi-bluetooth
+  description: "A LEAF adapter for scanning nearby Bluetooth devices. This plugin retrieves real-time raw-data on detected Bluetooth devices for monitoring and analysis."
+  equipment_data:
+    version: "1.0"
+    manufacturer: LEAF
+    device_type: Bluetooth Scanner
+    application: Monitoring
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-bluetooth
+  name: leaf_bluetooth
+- adapter_id: leaf_modbus
+  image: icon:bi-hdd-network
+  description: "A LEAF adapter for Modbus TCP devices. Polls configurable holding registers at a fixed interval and publishes measurements for monitoring and analysis."
+  equipment_data:
+    version: "0.1.0"
+    manufacturer: Modbus
+    device_type: Modbus TCP device
+    application: Modbus Monitoring
+    requirements:
+      host: string          # Modbus TCP host address
+      port: int             # Modbus TCP port (default 502)
+      device_id: int        # Modbus unit/device ID (default 1)
+      interval: int         # Polling interval in seconds
+      registers:
+        - name: temperature   # Key used in the output payload
+          address: 40301      # Holding register address in 4xxxx notation
+          scale: 0.01         # Optional: multiply raw value by this factor (default 1.0)
+        - name: presence
+          address: 40803
+        - name: last_ir_ts
+          address: 42002
+          count: 2            # Optional: number of consecutive registers to read (default 1)
+                              # Multi-register fields are stored as last_ir_ts_0, last_ir_ts_1, ...
+  repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-modbus.git
+  name: LEAF-Modbus
