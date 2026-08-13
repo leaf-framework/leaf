@@ -3,6 +3,7 @@ stages:
   - lint
   - test
   - publish
+  - verify
   - package
   - release
 
@@ -48,7 +49,7 @@ test:
     # Use -n auto for parallel execution, --forked for test isolation
     # loadscope distribution groups tests by module to reduce file watcher conflicts
     # -v shows test names as they run, --maxfail=5 stops after 5 failures
-    - poetry run pytest -n auto --forked tests/ --maxfail=5 -v
+    - poetry run pytest -n auto --forked tests/ --maxfail=5 -v -m "not marketplace"
       --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml
       --cov-report=html:htmlcov --junitxml=test-reports/report.xml
 
@@ -112,6 +113,24 @@ publish:
   only:
     - main
     - dev
+
+verify-marketplace:
+  stage: verify
+  image: python:3.12
+  allow_failure: true
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - pip install pytest pyyaml
+  script:
+    - pytest tests/test_marketplace_install.py -v -m marketplace
+      --junitxml=marketplace-report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: marketplace-report.xml
+  only:
+    - main
+    - tags
 
 # --- Desktop installers -----------------------------------------------------
 # Runs only on the tag pipeline that `publish` triggers when it releases from

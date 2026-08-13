@@ -73,7 +73,10 @@ class AbstractInterpreter(ABC):
             data (Any): Raw measurement data.
 
         Returns:
-            Any: Parsed or transformed measurement data.
+            Any: Parsed or transformed measurement data. May also be a
+            (finite) generator; MeasurePhase drains it lazily and chunks
+            the yielded items into messages of maximum_message_size,
+            instead of requiring the full result built up front.
         """
         self._last_measurement = time.time()
         return data

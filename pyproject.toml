@@ -74,6 +74,7 @@ addopts = [
 ]
 markers = [
     "timing: marks tests as timing-sensitive (file watchers, etc.)",
+    "marketplace: marks tests that install adapters from the marketplace (slow, requires network)",
 ]
 
 [tool.coverage.run]
