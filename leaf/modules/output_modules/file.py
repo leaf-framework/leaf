@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 from typing import Any
 
 from leaf.error_handler.error_holder import ErrorHolder
@@ -19,6 +20,15 @@ class FILE(OutputModule):
         if not self._name:
             self._name = f"FILE({filename.replace('/', '_')})"
         self.filename = filename
+        # Guards read-modify-write access to `filename` against concurrent
+        # adapter threads (each adapter runs on its own thread but they can
+        # share a single FILE fallback instance) - without it, interleaved
+        # appends/rewrites corrupt lines or drop entries.
+        self._lock = threading.Lock()
+
+        directory = os.path.dirname(self.filename)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
 
     def _handle_file_error(self, error) -> None:
         """
@@ -59,7 +69,7 @@ class FILE(OutputModule):
             line = json.dumps({topic: [data]}, separators=(",", ":"))
 
             # Append to file (no reading required)
-            with open(self.filename, "a") as f:
+            with self._lock, open(self.filename, "a") as f:
                 f.write(line + "\n")
 
             # Reset global failure counter on successful transmission
@@ -88,7 +98,7 @@ class FILE(OutputModule):
                 return []
 
             results = []
-            with open(self.filename) as f:
+            with self._lock, open(self.filename) as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -136,42 +146,43 @@ class FILE(OutputModule):
             found_topic = None
             found_data = None
 
-            # Read all lines and find the first matching one
-            with open(self.filename) as f:
-                for line in f:
-                    line_content = line.strip()
-                    if not line_content:
-                        continue
+            with self._lock:
+                # Read all lines and find the first matching one
+                with open(self.filename) as f:
+                    for line in f:
+                        line_content = line.strip()
+                        if not line_content:
+                            continue
 
-                    try:
-                        entry = json.loads(line_content)
+                        try:
+                            entry = json.loads(line_content)
 
-                        # If no key specified, take the first valid line
-                        if key is None and found_line is None:
-                            found_topic = list(entry.keys())[0]
-                            found_data = entry[found_topic]
-                            found_line = line
-                            continue  # Skip adding to lines (removes it)
+                            # If no key specified, take the first valid line
+                            if key is None and found_line is None:
+                                found_topic = list(entry.keys())[0]
+                                found_data = entry[found_topic]
+                                found_line = line
+                                continue  # Skip adding to lines (removes it)
 
-                        # If key specified, find matching topic
-                        if key is not None and key in entry and found_line is None:
-                            found_topic = key
-                            found_data = entry[key]
-                            found_line = line
-                            continue  # Skip adding to lines (removes it)
+                            # If key specified, find matching topic
+                            if key is not None and key in entry and found_line is None:
+                                found_topic = key
+                                found_data = entry[key]
+                                found_line = line
+                                continue  # Skip adding to lines (removes it)
 
-                        # Keep all other lines
-                        lines.append(line)
-                    except json.JSONDecodeError:
-                        # Keep malformed lines
-                        lines.append(line)
+                            # Keep all other lines
+                            lines.append(line)
+                        except json.JSONDecodeError:
+                            # Keep malformed lines
+                            lines.append(line)
 
-            if found_line is None:
-                return None
+                if found_line is None:
+                    return None
 
-            # Rewrite file without the removed line
-            with open(self.filename, "w") as f:
-                f.writelines(lines)
+                # Rewrite file without the removed line
+                with open(self.filename, "w") as f:
+                    f.writelines(lines)
 
             return found_topic, found_data
 
