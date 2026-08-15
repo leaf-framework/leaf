@@ -20,6 +20,10 @@ class FILE(OutputModule):
             self._name = f"FILE({filename.replace('/', '_')})"
         self.filename = filename
 
+        directory = os.path.dirname(self.filename)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+
     def _handle_file_error(self, error) -> None:
         """
         Handles file-related exceptions consistently
