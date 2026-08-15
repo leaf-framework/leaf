@@ -120,7 +120,7 @@ verify-marketplace:
   allow_failure: true
   before_script:
     - apt-get update -qq && apt-get install -y -qq git
-    - pip install pytest pytest-forked pytest-xdist pyyaml
+    - pip install pytest pytest-forked pytest-xdist pytest-timeout pyyaml
   script:
     - pytest tests/test_marketplace_install.py -v -m marketplace
       --junitxml=marketplace-report.xml
