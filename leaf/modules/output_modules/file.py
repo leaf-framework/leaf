@@ -30,6 +30,10 @@ class FILE(OutputModule):
         if directory:
             os.makedirs(directory, exist_ok=True)
 
+        directory = os.path.dirname(self.filename)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+
     def _handle_file_error(self, error) -> None:
         """
         Handles file-related exceptions consistently
