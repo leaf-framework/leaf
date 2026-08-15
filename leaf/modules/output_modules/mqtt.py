@@ -1,4 +1,5 @@
 import json
+import re
 import threading
 import time
 from socket import gaierror
@@ -13,6 +14,12 @@ from leaf.modules.output_modules.output_module import OutputModule
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="output_module.log")
+
+# '+' and '#' are MQTT wildcard characters and NUL is disallowed outright;
+# paho rejects any of these in a topic passed to publish(). Equipment tag
+# names occasionally contain them literally (e.g. an OPC tag named
+# "R1_Project#"), so strip them rather than treating it as a broker error.
+_ILLEGAL_TOPIC_CHARS = re.compile(r"[+#\x00]")
 
 
 class MQTT(OutputModule):
@@ -93,6 +100,7 @@ class MQTT(OutputModule):
         self._tls: bool = tls
         self.messages: dict[str, list[str]] = {}
         self.sending_success: dict[str, bool] = {}
+        self._sanitized_topic_warned: set[str] = set()
 
         self._heartbeat_topic: str | None = heartbeat_topic
 
@@ -174,6 +182,18 @@ class MQTT(OutputModule):
             logger.error(f"Failed to disconnect from MQTT broker: {e}")
             self._handle_exception(ClientUnreachableError("Failed to disconnect from broker.", output_module=self))
 
+    def _sanitize_topic(self, topic: str) -> str:
+        """
+        Strip MQTT-illegal characters ('+', '#', NUL) out of a topic before
+        publishing. Logs a warning the first time a given raw topic is seen
+        with such characters; silent on subsequent calls for that topic.
+        """
+        sanitized = _ILLEGAL_TOPIC_CHARS.sub("", topic)
+        if sanitized != topic and topic not in self._sanitized_topic_warned:
+            self._sanitized_topic_warned.add(topic)
+            logger.warning(f"Topic '{topic}' contains MQTT-illegal characters; publishing as '{sanitized}' instead.")
+        return sanitized
+
     def transmit(self, topic: str, data: str | dict | None = None, retain: bool = False) -> bool:
         """
         Publish a message to the MQTT broker on a given topic.
@@ -186,6 +206,7 @@ class MQTT(OutputModule):
         Returns:
             bool: True if the message was successfully published, False otherwise.
         """
+        topic = self._sanitize_topic(topic)
         if not self.is_enabled():
             logger.warning(f"{self.__class__.__name__} - transmit called with module disabled.")
             # Call the fallback if available
@@ -206,9 +227,9 @@ class MQTT(OutputModule):
 
         try:
             result = self.client.publish(topic=topic, payload=data, qos=0, retain=retain)
-        except ValueError:
-            msg = f"{topic} contains wildcards, likely required instance data missing"
-            exception = ClientUnreachableError(msg, output_module=self, severity=SeverityLevel.ERROR)
+        except ValueError as e:
+            msg = f"Cannot publish to topic '{topic}': {e}"
+            exception = ClientUnreachableError(msg, output_module=self, severity=SeverityLevel.WARNING)
             self._handle_exception(exception)
             return False
 
