@@ -8,6 +8,7 @@ import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 
+from leaf import __version__
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="desktop_launcher.log")
@@ -112,7 +113,7 @@ class LeafDesktopLauncher:
         # Create main window
         _init_x11_threads()
         self.root = tk.Tk()
-        self.root.title("LEAF - Lightweight Equipment Adapter Framework")
+        self.root.title(f"LEAF v{__version__} - Lightweight Equipment Adapter Framework")
         self.root.geometry("500x350")
         self.root.resizable(False, False)
 
@@ -271,7 +272,11 @@ class LeafDesktopLauncher:
 
         info_font = tkfont.Font(family="Helvetica", size=9)
         info_label = tk.Label(
-            footer_frame, text="Documentation: leaf.systemsbiology.nl", font=info_font, bg=bg_color, fg="#666666"
+            footer_frame,
+            text=f"LEAF v{__version__}  •  Documentation: docs.leaf-framework.org",
+            font=info_font,
+            bg=bg_color,
+            fg="#666666",
         )
         info_label.pack()
 

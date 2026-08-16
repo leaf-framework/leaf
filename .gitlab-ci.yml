@@ -36,6 +36,14 @@ test:
     - source /venv/bin/activate
     - poetry lock
     - poetry install --with test,dev
+    # leaf-example is normally installed by end users via the UI marketplace
+    # (see leaf/ui/tabs/adapters.py), not bundled as a project dependency.
+    # tests/static_files/test_config_keydb.yaml exercises it though, so pull
+    # it in here. --no-deps because its own leaf-framework>=0.10.0 pin can't
+    # resolve against this checkout's dev placeholder version (0.0.0) - the
+    # leaf-framework already installed via this editable checkout satisfies
+    # it at runtime regardless of the declared version number.
+    - pip install --no-deps "git+https://gitlab.com/leaf-framework/leaf-adapters/leaf-example.git"
   script:
     # Run tests with parallel execution but better isolation
     # Use -n auto for parallel execution, --forked for test isolation

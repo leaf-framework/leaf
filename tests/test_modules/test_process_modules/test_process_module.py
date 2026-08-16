@@ -7,6 +7,7 @@ import unittest
 import uuid
 from threading import Thread
 
+import pytest
 import yaml
 
 from leaf.utility.logger.logger_utils import get_logger
@@ -212,6 +213,7 @@ class TestDiscreteProcess(unittest.TestCase):
             os.remove(self.text_watch_file)
         self.mock_client = None
 
+    @pytest.mark.timeout(60)
     def test_discrete_process(self):
         if os.path.isfile(self.text_watch_file):
             os.remove(self.text_watch_file)

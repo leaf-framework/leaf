@@ -8,6 +8,7 @@ import unittest
 import uuid
 from threading import Thread
 
+import pytest
 import yaml
 
 sys.path.insert(0, os.path.join(".."))
@@ -89,7 +90,11 @@ class MockEquipmentAdapter(EquipmentAdapter):
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
         start_p = ControlPhase(metadata_manager.experiment.start)
         stop_p = ControlPhase(metadata_manager.experiment.stop)
-        measure_p = MeasurePhase()
+        # The measurement fixture files used by these tests have ~285 rows;
+        # the default maximum_message_size=1 would pace publishing at one
+        # row per 0.1s (~28s total) on top of FileWatcher's debounce delay.
+        # A large batch size keeps that in a single chunk for fast tests.
+        measure_p = MeasurePhase(maximum_message_size=1000)
         details_p = ControlPhase(metadata_manager.details)
 
         metadata_manager.add_instance_data(instance_data)
@@ -174,7 +179,10 @@ class TestEquipmentAdapter(unittest.TestCase):
         unique_instance_id = str(uuid.uuid4())
         unique_organisation = "TestInstitute_"  # + unique_instance_id[:8]
 
-        unique_file_name = f"TestBioreactor_{unique_instance_id}.txt"
+        # .csv (not .txt) so FileWatcher parses the semicolon-delimited
+        # fixture content into rows via _read_csv instead of returning it
+        # as one opaque string, which MeasurePhase can't turn into a message.
+        unique_file_name = f"TestBioreactor_{unique_instance_id}.csv"
         text_watch_file = os.path.join(self.temp_dir.name, unique_file_name)
 
         instance_data = {
@@ -263,6 +271,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         self.mock_client.subscribe(self.start_topic)
         self.assertEqual(self.mock_client.messages, {})
 
+    @pytest.mark.timeout(60)
     def test_update(self):
         self.initialize_experiment()
         text_watch_file = os.path.join(self._adapter._watcher._paths[0], self._adapter._watcher._filenames[0])
@@ -280,7 +289,14 @@ class TestEquipmentAdapter(unittest.TestCase):
         _create_file(text_watch_file)
         time.sleep(2)
         _modify_file(text_watch_file)
-        time.sleep(2)
+
+        # FileWatcher's debounce/trailing-timer can delay delivery by up to
+        # ~10s (see trailing_delay), so poll rather than assume a fixed sleep
+        # is enough.
+        deadline = time.time() + 20
+        while time.time() < deadline and exp_tp not in self.mock_client.messages:
+            time.sleep(1)
+
         _delete_file(text_watch_file)
         time.sleep(2)
         self._adapter.stop()

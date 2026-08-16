@@ -193,11 +193,20 @@ class MQTT(OutputModule):
 
     def _sanitize_topic(self, topic: str) -> str:
         """
-        Strip MQTT-illegal characters ('+', '#', NUL) out of a topic before
-        publishing. Logs a warning the first time a given raw topic is seen
-        with such characters; silent on subsequent calls for that topic.
+        Strip MQTT-illegal characters ('+', '#', NUL) out of topic segments
+        that mix them with other characters (e.g. an equipment tag literally
+        named "R1_Project#"). A segment that is *entirely* '+' or '#' is left
+        untouched: that's topic_utilities' placeholder for a required field
+        that wasn't filled in (see render_template), and publishing it should
+        keep failing loudly - paho rejects it as a wildcard - rather than
+        silently going out under a blank segment.
+
+        Logs a warning the first time a given raw topic is seen with such
+        characters; silent on subsequent calls for that topic.
         """
-        sanitized = _ILLEGAL_TOPIC_CHARS.sub("", topic)
+        sanitized = "/".join(
+            part if part in ("+", "#") else _ILLEGAL_TOPIC_CHARS.sub("", part) for part in topic.split("/")
+        )
         if sanitized != topic and topic not in self._sanitized_topic_warned:
             self._sanitized_topic_warned.add(topic)
             logger.warning(f"Topic '{topic}' contains MQTT-illegal characters; publishing as '{sanitized}' instead.")

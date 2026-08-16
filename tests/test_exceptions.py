@@ -486,6 +486,7 @@ class TestExceptionsGeneral(unittest.TestCase):
         finally:
             OutputModule.reset_failure_count()
 
+    @pytest.mark.timeout(60)
     def test_start_handler_no_connection(self) -> None:
         write_dir = Path(os.path.dirname(os.path.realpath(__file__))) / ".." / "testing_data" / str(uuid.uuid4())
         error_holder = ErrorHolder()
