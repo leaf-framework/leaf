@@ -101,6 +101,14 @@ class MQTT(OutputModule):
         self.messages: dict[str, list[str]] = {}
         self.sending_success: dict[str, bool] = {}
         self._sanitized_topic_warned: set[str] = set()
+        # paho's connect() returns once the socket is open and the CONNECT
+        # packet is sent, but the broker's CONNACK (which is what actually
+        # flips is_connected() to True) is only processed once loop_start()'s
+        # network thread picks it up. Without waiting for it, a transmit()
+        # fired immediately after construction - e.g. an adapter's synthetic
+        # "start" message - can race that handshake and see is_connected()
+        # still False, tripping into the fallback path unnecessarily.
+        self._connected_event: threading.Event = threading.Event()
 
         self._heartbeat_topic: str | None = heartbeat_topic
 
@@ -156,6 +164,7 @@ class MQTT(OutputModule):
             if self._username and self._password:
                 self.client.username_pw_set(self._username, self._password)
             self.client.reconnect_delay_set(min_delay=1, max_delay=60)
+            self._connected_event.clear()
             self.client.connect(self._broker, self._port, 20)
             self.client.loop_start()
             if self._heartbeat_topic and self._heartbeat_interval > 0:
@@ -217,9 +226,17 @@ class MQTT(OutputModule):
         # Register the topic in sending_success if not already present
         if topic not in self.sending_success:
             self.sending_success[topic] = False
-        # Check if the client is connected before attempting to publish
+        # Check if the client is connected before attempting to publish.
+        # A short bounded wait here (rather than failing over immediately)
+        # covers the common startup race: connect() returns as soon as the
+        # CONNECT packet is sent, but the broker's CONNACK - which is what
+        # actually flips is_connected() to True - is only processed once
+        # loop_start()'s network thread picks it up moments later. A
+        # transmit() fired right after construction (e.g. an adapter's
+        # synthetic "start" message) can otherwise lose that race every time.
         if not self.client.is_connected():
-            return self.fallback(topic, data)
+            if not self._connected_event.wait(timeout=3) or not self.client.is_connected():
+                return self.fallback(topic, data)
         if data == "":
             data = {}
         if isinstance(data, (dict, list)):
@@ -326,6 +343,9 @@ class MQTT(OutputModule):
             }
             message = error_messages.get(rc.value, f"Unknown connection error with code {rc}")
             self._handle_exception(ClientUnreachableError(f"Connection refused: {message}", output_module=self))
+            return
+
+        self._connected_event.set()
 
     def on_connect_fail(
         self,
@@ -364,6 +384,7 @@ class MQTT(OutputModule):
             properties (Optional[Any]): Additional metadata (if any).
         """
         logger.info(f"Disconnected from broker {self._username}@{self._broker}")
+        self._connected_event.clear()
         if not self.is_enabled():
             logger.warning(f"{self.__class__.__name__} - disconnect called with module disabled.")
             return
