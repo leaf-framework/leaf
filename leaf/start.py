@@ -15,6 +15,7 @@ from typing import Any
 
 import yaml  # type: ignore
 
+from leaf import __version__
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import ClientUnreachableError, SeverityLevel
 from leaf.modules.output_modules.output_module import OutputModule
@@ -94,6 +95,8 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     """Parses command line arguments."""
     parser = argparse.ArgumentParser(description="Proxy to monitor equipment and send data to the cloud.")
 
+    parser.add_argument("--version", action="version", version=f"LEAF {__version__}")
+
     parser.add_argument("--debug", action="store_true", help="Enable debug logging.")
 
     # Gui argument
@@ -141,9 +144,10 @@ def welcome_message() -> None:
  ########: ########: ##:::: ##: ##:::::::
 ........::........::..:::::..::..::::::::\n\n""")
     logger.info("Welcome to the LEAF Proxy.")
+    logger.info(f"Version: {__version__}")
     logger.info("Starting the proxy.")
     logger.info("Press Ctrl+C to stop the proxy.")
-    logger.info("For more information, visit leaf.systemsbiology.nl")
+    logger.info("For more information, visit docs.leaf-framework.org")
     logger.info("For help, use the -h flag.")
     logger.info("#" * 40)
     # Obtain all installed adapters

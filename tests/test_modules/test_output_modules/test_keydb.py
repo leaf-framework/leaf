@@ -127,6 +127,19 @@ class TestKeyDB(unittest.TestCase):
         thread.start()
         print("LEAF thread started")
 
+        # The Example adapter reports three distinct metrics (each split into
+        # its own topic by MeasurePhase._resolve_measurement), plus one
+        # details topic. Build the expected topics from the config itself
+        # rather than hardcoding organisation/department separately.
+        equipment_data = config_data["EQUIPMENT_INSTANCES"][0]["equipment"]["data"]
+        topic_prefix = (
+            f"{equipment_data['organisation']}/{equipment_data['department']}/Example/{equipment_data['instance_id']}"
+        )
+        expected_details_key = f"{topic_prefix}/details".encode()
+        expected_measurement_prefix = f"{topic_prefix}/experiment/undefined/measurement/".encode()
+        expected_measurement_metrics = {"agitation_speed", "pH", "temperature"}
+        expected_key_count = 1 + len(expected_measurement_metrics)
+
         # Set a timeout to avoid hanging forever
         timeout = 60  # seconds
         start_time = time.time()
@@ -137,9 +150,13 @@ class TestKeyDB(unittest.TestCase):
                 # Check timeout
                 if time.time() - start_time > timeout:
                     current_keys = sorted(keydb_client.keys("keydb_test_instance*"))
+                    error_dump = ""
+                    for key in current_keys:
+                        if b"/error" in key:
+                            error_dump += f"\n{key}: {keydb_client.lrange(key, 0, -1)}"
                     self.fail(
                         f"Test timed out after {timeout} seconds. "
-                        f"Expected 2 keys but found {len(current_keys)}: {current_keys}"
+                        f"Expected {expected_key_count} keys but found {len(current_keys)}: {current_keys}{error_dump}"
                     )
 
                 # Check if the thread is still alive
@@ -147,27 +164,26 @@ class TestKeyDB(unittest.TestCase):
                     current_keys = sorted(keydb_client.keys("keydb_test_instance*"))
                     print(f"LEAF thread has finished unexpectedly. Keys found: {current_keys}")
                     self.fail(
-                        f"LEAF thread stopped early. Expected 2 keys but found {len(current_keys)}: {current_keys}"
+                        f"LEAF thread stopped early. "
+                        f"Expected {expected_key_count} keys but found {len(current_keys)}: {current_keys}"
                     )
                 # Obtain data from KeyDB
                 keys = sorted(keydb_client.keys("keydb_test_instance*"))
                 self.logger.info("Current keys in KeyDB: %s", keys)
-                if len(keys) == 2:
+                if len(keys) == expected_key_count:
                     # Find keys by pattern instead of assuming order
                     details_key = None
-                    measurement_key = None
+                    measurement_keys = []
                     for key in keys:
                         if b"/details" in key:
                             details_key = key
                         elif b"/measurement/" in key:
-                            measurement_key = key
+                            measurement_keys.append(key)
 
-                    # Assert both expected keys are present
-                    assert details_key == b"keydb_test_instance_organisation1/Example/keydb_test_instance/details"
-                    assert (
-                        measurement_key
-                        == b"keydb_test_instance_organisation1/Example/keydb_test_instance/experiment/undefined/measurement/unknown"
-                    )
+                    # Assert the details key and all expected measurement keys are present
+                    assert details_key == expected_details_key
+                    found_metrics = {key[len(expected_measurement_prefix) :].decode() for key in measurement_keys}
+                    assert found_metrics == expected_measurement_metrics
                     self.logger.info("Current keys in KeyDB: %s", keys)
                     # Number of values in the list
                     size_before = keydb_client.llen(details_key)

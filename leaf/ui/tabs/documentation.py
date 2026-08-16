@@ -35,7 +35,7 @@ def create_documentation_tab(docs_tab: ui.tab, docs_main_md: str, docs_protips_m
                                     ui.button(
                                         "Official Documentation",
                                         on_click=lambda: ui.run_javascript(
-                                            'window.open("https://leaf.systemsbiology.nl", "_blank")'
+                                            'window.open("https://docs.leaf-framework.org", "_blank")'
                                         ),
                                     ).classes("btn-secondary w-full rounded transition-colors")
                                     ui.button(
