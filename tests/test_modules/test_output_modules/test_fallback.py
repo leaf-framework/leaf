@@ -67,6 +67,24 @@ class TestFallbacks(unittest.TestCase):
         self._mock_client.subscribe(mock_topic)
         time.sleep(2)
 
+    def _pop_with_wait(self, topic: str, timeout: float = 5.0, interval: float = 0.1):
+        """Poll keydb.pop() until it returns data or `timeout` elapses.
+
+        The MQTT-disconnect -> fallback-to-keydb publish this is waiting on
+        happens asynchronously; a single pop() right after a fixed sleep()
+        was flaky under CPU contention (e.g. running the suite without
+        --forked) because the publish sometimes hadn't landed yet, making
+        pop() return None and the caller's list(None) raise TypeError
+        instead of a clear assertion failure.
+        """
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            res = self._keydb.pop(topic)
+            if res is not None:
+                return res
+            time.sleep(interval)
+        self.fail(f"keydb.pop({topic!r}) still returned None after {timeout}s")
+
     def test_fallback_keydb(self) -> None:
         mock_topic = f"test_fallback/{uuid4()}"
         self._mock_client.subscribe(mock_topic)
@@ -80,9 +98,8 @@ class TestFallbacks(unittest.TestCase):
         self._module.client.disconnect()
         time.sleep(1)
         self._module.transmit(mock_topic, mock_data)
-        time.sleep(1)
         self.assertNotIn(mock_topic, self._mock_client.messages)
-        res = list(self._keydb.pop(mock_topic))
+        res = list(self._pop_with_wait(mock_topic))
         self.assertEqual(mock_topic, res[0])
         self.assertEqual(mock_data, res[1])
 
