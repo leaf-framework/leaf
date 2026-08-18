@@ -49,14 +49,54 @@ test:
     # Use -n auto for parallel execution, --forked for test isolation
     # loadscope distribution groups tests by module to reduce file watcher conflicts
     # -v shows test names as they run, --maxfail=5 stops after 5 failures
+    #
+    # No --cov here on purpose: pytest-forked's per-test os._exit() skips
+    # coverage.py's exit-save hook, so a --forked run only ever captured
+    # ~20% "coverage" regardless of what actually ran (measured: 21.4%
+    # reported vs ~62% real, confirmed by rerunning the same suite without
+    # --forked). See the `coverage` job below for the real number.
     - poetry run pytest -n auto --forked tests/ --maxfail=5 -v -m "not marketplace"
-      --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml
-      --cov-report=html:htmlcov --junitxml=test-reports/report.xml
+      --junitxml=test-reports/report.xml
 
   artifacts:
     when: always
     reports:
       junit: test-reports/*.xml
+    paths:
+      - test-reports/
+  timeout: 30m  # Extended timeout for file watcher tests with longer wait times
+
+# Same suite as `test`, minus --forked, so coverage.py can actually see what
+# ran. --forked stays in `test` because it's load-bearing: without it,
+# test_parallel_does_not_affect_primary_return and test_fallback_keydb fail
+# on shared Redis/keydb state leaking between tests (exactly what per-test
+# process isolation is for) - not something this job should paper over.
+# allow_failure is set because those two failures are therefore expected
+# here; this job exists to publish an accurate coverage number, not to gate
+# correctness (that's still `test`'s job).
+coverage:
+  stage: test
+  image: registry.gitlab.com/leaf-framework/leaf:runner
+  allow_failure: true
+  variables:
+    # Overrides the global PYTEST_ADDOPTS (which injects --forked into every
+    # job) - the whole point of this job is running without --forked.
+    PYTEST_ADDOPTS: "--dist=loadscope --tb=short"
+  before_script:
+    - mosquitto -d
+    - redis-server --daemonize yes
+    - source /venv/bin/activate
+    - poetry lock
+    - poetry install --with test,dev
+    - pip install --no-deps "git+https://gitlab.com/leaf-framework/leaf-adapters/leaf-example.git"
+  script:
+    - poetry run pytest -n auto --dist=loadscope tests/ -v -m "not marketplace"
+      --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml
+      --cov-report=html:htmlcov --junitxml=test-reports/coverage-report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: test-reports/coverage-report.xml
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
@@ -64,7 +104,7 @@ test:
       - test-reports/
       - htmlcov/
       - coverage.xml
-  timeout: 30m  # Extended timeout for file watcher tests with longer wait times
+  timeout: 30m
 
 
 publish:
