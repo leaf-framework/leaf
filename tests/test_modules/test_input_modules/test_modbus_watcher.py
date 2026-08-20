@@ -287,6 +287,48 @@ class TestModbusWatcherStartStop(unittest.TestCase):
         logging.info(f"Received data: {data}")
         self.assertAlmostEqual(data["temperature"], 23.50)
 
+    @patch("leaf.modules.input_modules.modbus_watcher.MODBUS_AVAILABLE", True)
+    @patch("leaf.modules.input_modules.modbus_watcher.ModbusTcpClient")
+    def test_poll_survives_a_single_read_exception(self, mock_cls):
+        """A transient read exception (e.g. a Modbus timeout/CRC error) must
+        not permanently kill the background polling thread. Without an
+        ErrorHolder configured -- the default, since it's None throughout
+        the constructor chain unless explicitly wired up -- _handle_exception
+        re-raises, which used to escape _poll's try/except and kill the
+        daemon thread silently: no crash, no retry, no visible alert."""
+        mock_client = MagicMock()
+        mock_client.connect.return_value = True
+        calls = {"n": 0}
+
+        def flaky_read(address, count, device_id):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise TimeoutError("simulated Modbus timeout")
+            return make_register_result([2350])
+
+        mock_client.read_holding_registers.side_effect = flaky_read
+        mock_cls.return_value = mock_client
+
+        received = []
+
+        def callback(topic, data):
+            received.append((topic, data))
+
+        watcher = ModbusWatcher(
+            host="192.168.1.12",
+            interval=1,
+            registers=[{"name": "temperature", "address": 40301, "scale": 0.01}],
+            callbacks=[callback],
+        )
+        watcher.start()
+        time.sleep(2.5)
+        thread_alive = watcher._thread.is_alive()
+        watcher.stop()
+
+        self.assertTrue(thread_alive, "poll thread died after a single register-read exception")
+        self.assertGreaterEqual(calls["n"], 2, "polling stopped retrying after the first exception")
+        self.assertTrue(received, "no measurement delivered after recovering from the exception")
+
 
 def _device_reachable(host: str, port: int, timeout: float = 1.0) -> bool:
     try:

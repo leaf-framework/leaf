@@ -114,7 +114,16 @@ class ModbusWatcher(ExternalEventWatcher):
                 self._emit(data)
             except Exception as e:
                 logger.error(f"ModbusWatcher poll error: {e}")
-                self._handle_exception(e)
+                try:
+                    self._handle_exception(e)
+                except Exception:
+                    # _handle_exception re-raises when no error_holder is
+                    # configured (the default) -- this loop must survive
+                    # regardless, or a single bad read (e.g. a Modbus
+                    # timeout/CRC error) silently and permanently kills all
+                    # future polling. See polling_watcher.py's _poll for the
+                    # same fix and full rationale.
+                    pass
             time.sleep(self._interval)
 
     def _read_registers(self) -> dict[str, Any]:

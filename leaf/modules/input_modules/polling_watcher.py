@@ -72,16 +72,32 @@ class PollingWatcher(EventWatcher):
     def _poll(self) -> None:
         """Background loop for fetching data and dispatching events."""
         while self._running:
-            data = self._fetch_data()
+            try:
+                data = self._fetch_data()
 
-            if data.get("measurement") is not None:
-                self.measurement_message(data["measurement"])
+                if data.get("measurement") is not None:
+                    self.measurement_message(data["measurement"])
 
-            if data.get("start") is not None:
-                self.start_message(data["start"])
+                if data.get("start") is not None:
+                    self.start_message(data["start"])
 
-            if data.get("stop") is not None:
-                self.stop_message(data["stop"])
+                if data.get("stop") is not None:
+                    self.stop_message(data["stop"])
+            except Exception as exc:
+                logger.error(f"PollingWatcher: error during poll cycle, will retry next interval: {exc}")
+                try:
+                    self._handle_exception(exc)
+                except Exception:
+                    # _handle_exception re-raises when no error_holder is
+                    # configured (the default -- it's None throughout the
+                    # constructor chain unless an adapter explicitly wires
+                    # one up). This loop must survive regardless: without
+                    # this, a single bad cycle (e.g. a transient hardware
+                    # read glitch) silently and permanently kills this
+                    # daemon thread -- no crash, no retry, no visible
+                    # alert, just an experiment that quietly stops
+                    # reporting data.
+                    pass
 
             time.sleep(self._interval)
 
