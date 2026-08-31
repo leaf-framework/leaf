@@ -145,6 +145,32 @@ class TestEquipmentAdapter(unittest.TestCase):
         self.mock_client.subscribe(self.details_topic)
         time.sleep(2)
 
+    def _find_matching_log(self, logs, expected_log):
+        """Check whether any captured log record matches expected_log's key/value pairs and carries a timestamp."""
+        for log in logs.records:
+            try:
+                logged_dict = ast.literal_eval(log.getMessage())
+            except (ValueError, SyntaxError):
+                continue
+            if not isinstance(logged_dict, dict):
+                continue
+            if "timestamp" in logged_dict and all(logged_dict.get(k) == v for k, v in expected_log.items()):
+                return True
+        return False
+
+    def _wait_for_log_match(self, logs, expected_log, timeout=15, interval=0.2):
+        """
+        Poll captured logs for expected_log rather than sleeping a fixed duration.
+        MQTT delivery and phase processing happen on background threads, so a fixed
+        sleep can be too short under load and race ahead of the log actually firing.
+        """
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self._find_matching_log(logs, expected_log):
+                return True
+            time.sleep(interval)
+        return self._find_matching_log(logs, expected_log)
+
     def tearDown(self):
         try:
             self._adapter.stop()
@@ -159,6 +185,7 @@ class TestEquipmentAdapter(unittest.TestCase):
         except Exception:
             pass
 
+    @pytest.mark.timeout(90)
     def test_mock_adapter_takes_message(self):
         self.initialize_experiment()
         mthread = Thread(target=self._adapter.start)
@@ -171,45 +198,22 @@ class TestEquipmentAdapter(unittest.TestCase):
             if cur_count > timeout:
                 self.fail("Unable to initialise.")
         unique_logger_name = logger.name
-        with self.assertLogs(unique_logger_name, level="INFO") as logs:
-            topics = self._adapter._external_watcher._topics
-            for t in topics:
-                self.mock_client.transmit(t, {"MOCK": "DATA"})
-            time.sleep(2)
-            self._adapter.stop()
-            mthread.join()
-            time.sleep(2)
-
-        logged_dicts = []
-        for log in logs.records:
-            try:
-                message = log.getMessage()
-                logged_dict = ast.literal_eval(message)
-                if isinstance(logged_dict, dict):
-                    logged_dicts.append(logged_dict)
-            except (ValueError, SyntaxError):
-                continue
-
         expected_log = {
             "topic": self._adapter._external_watcher._topics[0],
             "data": '{"MOCK": "DATA"}',
             "actions_taken": None,
         }
-
-        found_match = False
-
-        for ld in logged_dicts:
-            try:
-                if all(k in ld and ld[k] == v for k, v in expected_log.items()):
-                    if "timestamp" in ld:
-                        found_match = True
-                        break
-            except Exception:
-                continue
+        with self.assertLogs(unique_logger_name, level="INFO") as logs:
+            topics = self._adapter._external_watcher._topics
+            for t in topics:
+                self.mock_client.transmit(t, {"MOCK": "DATA"})
+            found_match = self._wait_for_log_match(logs, expected_log, timeout=60)
+            self._adapter.stop()
+            mthread.join()
 
         self.assertTrue(found_match, "Expected log entry with valid timestamp not found.")
 
-    @pytest.mark.timeout(60)
+    @pytest.mark.timeout(100)
     def test_external_inputs_config(self):
         error_holder = ErrorHolder()
         write_file = "tmp1.csv"
@@ -258,6 +262,11 @@ class TestEquipmentAdapter(unittest.TestCase):
             time.sleep(10)
 
         test_topic = "test_topic/external_action"
+        expected_log = {
+            "topic": test_topic,
+            "data": '{"MOCK": "DATA"}',
+            "actions_taken": None,
+        }
         with self.assertLogs(logger.name, level="INFO") as logs:
             mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
             time.sleep(0.5)
@@ -265,35 +274,8 @@ class TestEquipmentAdapter(unittest.TestCase):
             while len(adapters) == 0 or not adapters[0].is_running():
                 continue
             mock_client.transmit(test_topic, {"MOCK": "DATA"})
-            time.sleep(10)
+            found_match = self._wait_for_log_match(logs, expected_log, timeout=60)
             _stop(adapter_thread)
-
-        logged_dicts = []
-        for log in logs.records:
-            try:
-                message = log.getMessage()
-                logged_dict = ast.literal_eval(message)
-                if isinstance(logged_dict, dict):
-                    logged_dicts.append(logged_dict)
-            except (ValueError, SyntaxError):
-                continue
-
-        expected_log = {
-            "topic": test_topic,
-            "data": '{"MOCK": "DATA"}',
-            "actions_taken": None,
-        }
-
-        found_match = False
-
-        for ld in logged_dicts:
-            try:
-                if all(k in ld and ld[k] == v for k, v in expected_log.items()):
-                    if "timestamp" in ld:
-                        found_match = True
-                        break
-            except Exception:
-                continue
 
         self.assertTrue(found_match, "Expected log entry with valid timestamp not found.")
 

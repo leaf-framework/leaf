@@ -6,7 +6,7 @@ from pathlib import Path
 
 from nicegui import ui
 
-from leaf import __version__
+from leaf.ui.components.update_notice import create_update_notice
 
 
 def create_header(dark_mode: ui.dark_mode, curr_dir: Path, drawer=None) -> None:
@@ -32,7 +32,9 @@ def create_header(dark_mode: ui.dark_mode, curr_dir: Path, drawer=None) -> None:
                         ui.html(f'<img width="32" height="32" src="data:image/svg+xml;base64,{b64}" />', sanitize=False)
 
                 ui.label("LEAF").classes("text-3xl font-bold ml-2")
-                ui.label(f"v{__version__}").classes("text-xs opacity-70 ml-2 self-end mb-1")
+                # Renders the version label (click it to check for updates)
+                # and the "update available" badge.
+                create_update_notice()
                 ui.label("Lightweight Equipment Adapter Framework").classes("text-sm opacity-80 ml-4 hidden md:block")
 
             with ui.row().classes("items-center"):

@@ -128,3 +128,19 @@ cloud/grafana_data/
 cloud/vernemq_data
 
 testing_data
+
+# Local run artifacts
+coverage_noforked.xml
+test-reports/
+tmp_exception.txt
+tests/tmp_exception.txt
+
+# Output-module files written by the default/test configurations
+testing.json
+testing.db
+local.json
+tests/local.json
+dump.rdb
+
+# This project locks with poetry.lock
+uv.lock

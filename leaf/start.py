@@ -191,6 +191,9 @@ def stop_all_adapters() -> None:
         except Exception as e:
             logger.error(f"Error joining thread: {e}")
 
+    adapters.clear()
+    adapter_threads.clear()
+
 
 def signal_handler(signal_received: int, frame: Any | None) -> None:
     """Handles termination signals like Ctrl+C or kill."""
