@@ -14,6 +14,18 @@ leaf
 
 LEAF automatically shows a **desktop control panel** on desktop systems, making it easy to see if the application is running and where to access it.
 
+## Updating
+
+LEAF checks PyPI for a newer release one hour after it starts, and weekly from then on -- never at startup, so a restart simply re-arms the one-hour delay. When a newer version exists, an **update badge** appears next to the version number in the web interface header; clicking it offers to install the update and restart LEAF.
+
+To check without waiting for the schedule, **click the version number** in the header. The result appears as a banner: green when this install is current, amber when a newer release exists, red when PyPI could not be reached.
+
+Set `LEAF_DISABLE_UPDATE_CHECK=1` to switch the check off entirely. Installs running from a source checkout are told about the new version but never overwritten -- update those with `git pull`. To update by hand:
+
+```bash
+pip install --upgrade leaf-framework
+```
+
 ## Documentation
 
 The complete documentation can be found [here](https://leaf-framework.org).

@@ -1,7 +1,8 @@
+import gzip
 import json
 import os
 import threading
-from typing import Any
+from typing import IO, Any, cast
 
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import ClientUnreachableError, SeverityLevel
@@ -30,7 +31,16 @@ class FILE(OutputModule):
         if directory:
             os.makedirs(directory, exist_ok=True)
 
-    def _handle_file_error(self, error) -> None:
+    def _open(self, mode: str) -> IO[str]:
+        """
+        Open `self.filename` in text mode, transparently using gzip
+        when the filename ends in '.gz'.
+        """
+        if self.filename.endswith(".gz"):
+            return cast(IO[str], gzip.open(self.filename, mode + "t"))
+        return open(self.filename, mode)
+
+    def _handle_file_error(self, error: Exception) -> None:
         """
         Handles file-related exceptions consistently
         with a structured error message.
@@ -56,7 +66,7 @@ class FILE(OutputModule):
 
         self._handle_exception(ClientUnreachableError(message, output_module=self, severity=severity))
 
-    def transmit(self, topic: str, data: str | dict | None = None) -> bool:
+    def transmit(self, topic: str, data: str | dict[str, Any] | None = None) -> bool:
         """
         Transmit data to the file associated with a specific topic.
         Appends a single line with the topic and data in compact JSON format.
@@ -69,7 +79,7 @@ class FILE(OutputModule):
             line = json.dumps({topic: [data]}, separators=(",", ":"))
 
             # Append to file (no reading required)
-            with self._lock, open(self.filename, "a") as f:
+            with self._lock, self._open("a") as f:
                 f.write(line + "\n")
 
             # Reset global failure counter on successful transmission
@@ -88,7 +98,7 @@ class FILE(OutputModule):
             self._handle_file_error(e)
             return self.fallback(topic, data)
 
-    def retrieve(self, topic: str) -> list:
+    def retrieve(self, topic: str) -> list[dict[str, Any]] | None:
         """
         Retrieve all data associated with a specific topic by streaming line-by-line.
         Returns a list of all data entries for the topic.
@@ -98,7 +108,7 @@ class FILE(OutputModule):
                 return []
 
             results = []
-            with self._lock, open(self.filename) as f:
+            with self._lock, self._open("r") as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -123,7 +133,7 @@ class FILE(OutputModule):
             self._handle_file_error(e)
             return None
 
-    def pop(self, key: str = None) -> tuple[str, Any] | None:
+    def pop(self, key: str | None = None) -> tuple[Any | None, Any | None] | None:
         """
         Retrieve and remove the first occurrence of a topic from the file.
         If a specific key is provided, removes the first line with that topic.
@@ -134,7 +144,7 @@ class FILE(OutputModule):
                                 If None, removes the first line.
 
         Returns:
-            Optional[tuple[str, Any]]: A tuple of (topic, data_list),
+            Optional[tuple[Any | None, Any | None]]: A tuple of (topic, data_list),
                                     or None if the file is empty or key not found.
         """
         try:
@@ -148,7 +158,7 @@ class FILE(OutputModule):
 
             with self._lock:
                 # Read all lines and find the first matching one
-                with open(self.filename) as f:
+                with self._open("r") as f:
                     for line in f:
                         line_content = line.strip()
                         if not line_content:
@@ -181,7 +191,7 @@ class FILE(OutputModule):
                     return None
 
                 # Rewrite file without the removed line
-                with open(self.filename, "w") as f:
+                with self._open("w") as f:
                     f.writelines(lines)
 
             return found_topic, found_data

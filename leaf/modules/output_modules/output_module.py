@@ -55,13 +55,16 @@ class OutputModule(ABC):
         self._topic_store: TopicStore = TopicStore()
 
     @abstractmethod
-    def transmit(self, topic: str, data: str) -> None:
+    def transmit(self, topic: str, data: str | dict[Any, Any] | None = None) -> bool:
         """
         Transmit data to the output system.
 
         Args:
             topic (str): The topic or destination identifier.
-            data (str): Serialized data to be transmitted.
+            data (str | dict | None): Data to be transmitted.
+
+        Returns:
+            bool: True if transmission succeeded, False otherwise.
         """
         pass
 
@@ -126,13 +129,13 @@ class OutputModule(ABC):
         if self._fallback is not None:
             self._fallback.subscribe(topic)
 
-    def fallback(self, topic: str, data: str) -> bool:
+    def fallback(self, topic: str, data: str | dict[Any, Any] | None = None) -> bool:
         """
         Attempt to transmit data using the fallback module.
 
         Args:
             topic (str): Topic for the message.
-            data (str): Data to transmit.
+            data (str | dict | None): Data to transmit.
 
         Returns:
             bool: True if fallback succeeded, False otherwise.
@@ -246,7 +249,7 @@ class OutputModule(ABC):
         else:
             self._parallels.append(parallel)
 
-    def transmit_to_parallels(self, topic: str, data: str) -> None:
+    def transmit_to_parallels(self, topic: str, data: str | dict[Any, Any] | None = None) -> None:
         """
         Transmit data to all parallel output modules.
 
@@ -256,7 +259,7 @@ class OutputModule(ABC):
 
         Args:
             topic (str): The topic or destination identifier.
-            data (str): Serialized data to be transmitted.
+            data (str | dict | None): Data to be transmitted.
         """
         for parallel in self._parallels:
             try:

@@ -4,7 +4,7 @@ import base64
 import os
 from pathlib import Path
 
-from nicegui import ui
+from nicegui import app, ui
 
 from leaf import __version__
 from leaf.registry.discovery import discover_adapter_ui_extensions
@@ -15,6 +15,7 @@ from leaf.ui.tabs.configuration import create_configuration_tab
 from leaf.ui.tabs.documentation import create_documentation_tab
 from leaf.ui.tabs.logs import create_logs_tab
 from leaf.ui.tabs.monitoring import create_monitoring_tab
+from leaf.ui.update_checker import start_update_checker, stop_update_checker
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="interface.log")
@@ -235,6 +236,12 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
             except Exception:
                 pass
             raise
+
+    # Check for a newer LEAF release in the background -- an hour into the
+    # session, then weekly. Registered on startup so it runs once per process,
+    # not once per connected browser tab.
+    app.on_startup(start_update_checker)
+    app.on_shutdown(stop_update_checker)
 
     logger.info(f"Starting web interface on port {port}...")
     logger.info(f"Access the LEAF UI at http://localhost:{port}")

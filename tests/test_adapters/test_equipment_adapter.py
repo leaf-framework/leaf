@@ -148,10 +148,6 @@ class TestEquipmentAdapter(unittest.TestCase):
                 pass
             root.removeHandler(handler)
 
-        # Force garbage collection of logger manager dict to ensure clean state
-        logging.root.manager.loggerDict.clear()
-        logging.root.manager.loggerClass = logging.Logger
-
     def tearDown(self):
         try:
             if hasattr(self, "_adapter") and self._adapter:

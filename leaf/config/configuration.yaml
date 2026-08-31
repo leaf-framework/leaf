@@ -9,14 +9,17 @@ EQUIPMENT_INSTANCES:
         interval: 1
 
 OUTPUTS:
+    - plugin: mqtt
+      broker: localhost
+      port: 1883
 # MQTT output requires 'broker' and 'port' 
 # optionally 'username', 'password', 'clientid', 'protocol', 'transport', and 'tls'
 # and optionally an alternative 'fallback' output
-  - plugin: FILE
-    filename: testing.json
-    parallel: SQL
-  - plugin: SQL
-    filename: testing.db
+  # - plugin: FILE
+  #   filename: testing.json
+  #   parallel: SQL
+  # - plugin: SQL
+  #   filename: testing.db
 #   username: None #OPTIONAL expects a str
 #   password: None #OPTIONAL expects a str
 #   clientid: None #OPTIONAL expects a str
