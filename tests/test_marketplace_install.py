@@ -20,6 +20,7 @@ def load_adapters():
 
 
 @pytest.mark.marketplace
+@pytest.mark.timeout(300)
 @pytest.mark.parametrize("adapter", load_adapters(), ids=lambda a: a["adapter_id"])
 def test_adapter_installable(adapter, tmp_path):
     repo_url = adapter.get("repo_url")

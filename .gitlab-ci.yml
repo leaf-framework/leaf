@@ -158,6 +158,8 @@ verify-marketplace:
   stage: verify
   image: python:3.12
   allow_failure: true
+  variables:
+    PYTEST_ADDOPTS: "--tb=short"
   before_script:
     - apt-get update -qq && apt-get install -y -qq git
     - pip install pytest pytest-forked pytest-xdist pytest-timeout pyyaml
