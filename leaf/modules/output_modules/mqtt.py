@@ -212,7 +212,9 @@ class MQTT(OutputModule):
             logger.warning(f"Topic '{topic}' contains MQTT-illegal characters; publishing as '{sanitized}' instead.")
         return sanitized
 
-    def transmit(self, topic: str, data: str | dict | None = None, retain: bool = False) -> bool:
+    def transmit(
+        self, topic: str, data: str | dict | None = None, retain: bool = False, use_fallback: bool = True
+    ) -> bool:
         """
         Publish a message to the MQTT broker on a given topic.
 
@@ -220,6 +222,10 @@ class MQTT(OutputModule):
             topic (str): The topic to publish the message to.
             data (Optional[Union[str, dict]]): The message payload to be transmitted.
             retain (bool): Whether to retain the message on the broker.
+            use_fallback (bool): Whether a failed publish should be handed to the
+                fallback module. Set to False for messages that are only meaningful
+                live (e.g. the heartbeat), so they are dropped rather than buffered
+                and replayed later.
 
         Returns:
             bool: True if the message was successfully published, False otherwise.
@@ -228,7 +234,7 @@ class MQTT(OutputModule):
         if not self.is_enabled():
             logger.warning(f"{self.__class__.__name__} - transmit called with module disabled.")
             # Call the fallback if available
-            if self._fallback is not None:
+            if use_fallback and self._fallback is not None:
                 logger.debug("Calling fallback as module is disabled.")
                 return self.fallback(topic, data)
             return False
@@ -245,6 +251,8 @@ class MQTT(OutputModule):
         # synthetic "start" message) can otherwise lose that race every time.
         if not self.client.is_connected():
             if not self._connected_event.wait(timeout=3) or not self.client.is_connected():
+                if not use_fallback:
+                    return False
                 return self.fallback(topic, data)
         if data == "":
             data = {}
@@ -263,6 +271,8 @@ class MQTT(OutputModule):
         if error is not None:
             self.sending_success[topic] = False
             self._handle_exception(error)
+            if not use_fallback:
+                return False
             return self.fallback(topic, data)
 
         # If successfully published, check if the fallback has data on the topic
@@ -270,7 +280,7 @@ class MQTT(OutputModule):
         if not self.sending_success[topic]:
             # To prevent recursion in case the fallback also tries to publish
             self.sending_success[topic] = True
-            if self._fallback is not None:
+            if use_fallback and self._fallback is not None:
                 while True:
                     fallback_result = self._fallback.pop(topic)
                     if fallback_result is not None:
@@ -544,7 +554,10 @@ class MQTT(OutputModule):
                 }
             logger.debug(f"Publishing heartbeat to '{self._heartbeat_topic}': {payload}")
             try:
-                self.transmit(self._heartbeat_topic, payload)
+                # use_fallback=False: a heartbeat is only meaningful live, so a
+                # failed publish is dropped rather than buffered in the fallback
+                # and replayed as a stale "alive" once the broker is back.
+                self.transmit(self._heartbeat_topic, payload, use_fallback=False)
             except LEAFError as e:
                 # Must not propagate - an unhandled exception here (e.g. the broker
                 # connection not being fully up yet) would silently kill this daemon

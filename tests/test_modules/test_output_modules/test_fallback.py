@@ -127,6 +127,40 @@ class TestFallbacks(unittest.TestCase):
         ]
         self.assertIn(mock_data, res)
 
+    def test_heartbeat_not_written_to_fallback(self) -> None:
+        """A heartbeat is only meaningful live.
+
+        With the broker unreachable it must be dropped rather than buffered in
+        the fallback chain, where it would later be replayed as a stale "alive"
+        (and, with no fallback at all, would trip the global
+        "all outputs failed" backoff).  Ordinary data on a sibling topic still
+        has to reach the fallback, so both are asserted here.
+        """
+        heartbeat_topic = f"test_fallback/{uuid4()}/heartbeat"
+        data_topic = f"test_fallback/{uuid4()}"
+        mock_data = {"test_fallback": "test_fallback"}
+
+        self._module.client.loop_stop()
+        self._module.client.on_disconnect = None
+        self._module.client.loop_start()
+        self._module.client.disconnect()
+        self._keydb.disconnect()
+        time.sleep(1)
+
+        self._module._heartbeat_topic = heartbeat_topic
+        self._module._heartbeat_interval = 0.5
+        self._module._start_heartbeat()
+        time.sleep(2)
+        self._module._stop_heartbeat()
+
+        # Ordinary data on the same (broken) connection does land in the fallback.
+        self._module.transmit(data_topic, mock_data)
+        time.sleep(1)
+
+        self.assertIsNone(self._keydb.pop(heartbeat_topic))
+        self.assertIsNone(self._file.retrieve(heartbeat_topic))
+        self.assertIsNotNone(self._file.retrieve(data_topic))
+
     def test_pop_all_messages(self):
         mock_topic = f"test_fallback/{uuid4()}"
         self._mock_client.subscribe(mock_topic)
