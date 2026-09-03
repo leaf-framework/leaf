@@ -218,12 +218,14 @@ package:macos:
       curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
         --upload-file "dist/${asset_name}" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leaf-desktop/${LEAF_VERSION}/${asset_name}"
+  # No binary artifact on purpose: the installer is already uploaded to the
+  # generic package registry above, which is the permanent copy the release
+  # asset links point at. Keeping a second 30-day copy here duplicated every
+  # installer for no consumer - nothing downstream reads dist/ (release and
+  # the release:*-asset jobs use only the dotenv variables below).
   artifacts:
-    paths:
-      - dist/*.dmg
     reports:
       dotenv: macos_asset.env
-    expire_in: 30 days
 
 # Unlike macOS/Windows, a Linux build needs nothing native -- it's just an
 # ELF binary, so it runs in a plain Docker image on the shared runner, same
@@ -247,12 +249,14 @@ package:linux:
       curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
         --upload-file "dist/${asset_name}" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leaf-desktop/${LEAF_VERSION}/${asset_name}"
+  # No binary artifact on purpose: the installer is already uploaded to the
+  # generic package registry above, which is the permanent copy the release
+  # asset links point at. Keeping a second 30-day copy here duplicated every
+  # installer for no consumer - nothing downstream reads dist/ (release and
+  # the release:*-asset jobs use only the dotenv variables below).
   artifacts:
-    paths:
-      - dist/*.AppImage
     reports:
       dotenv: linux_asset.env
-    expire_in: 30 days
 
 # Same build, on a linux-arm64-tagged runner (Docker Desktop on Apple
 # Silicon runs arm64 Linux containers natively -- no cross-arch emulation
@@ -279,12 +283,14 @@ package:linux:arm64:
       curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
         --upload-file "dist/${asset_name}" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leaf-desktop/${LEAF_VERSION}/${asset_name}"
+  # No binary artifact on purpose: the installer is already uploaded to the
+  # generic package registry above, which is the permanent copy the release
+  # asset links point at. Keeping a second 30-day copy here duplicated every
+  # installer for no consumer - nothing downstream reads dist/ (release and
+  # the release:*-asset jobs use only the dotenv variables below).
   artifacts:
-    paths:
-      - dist/*.AppImage
     reports:
       dotenv: linux_arm64_asset.env
-    expire_in: 30 days
 
 # Assumes a PowerShell-shell Windows runner with Inno Setup pre-installed.
 # Python/ISCC discovery lives in packaging/windows/find_python.ps1 and
@@ -325,10 +331,11 @@ package:windows:
       curl --fail --header "JOB-TOKEN: $env:CI_JOB_TOKEN" `
         --upload-file "packaging/windows/Output/LEAF-Setup-amd64.exe" `
         "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/packages/generic/leaf-desktop/$env:LEAF_VERSION/LEAF-Setup-amd64.exe"
-  artifacts:
-    paths:
-      - packaging/windows/Output/LEAF-Setup-amd64.exe
-    expire_in: 30 days
+  # No binary artifact on purpose: the installer is already uploaded to the
+  # generic package registry above, which is the permanent copy the release
+  # asset links point at. Keeping a second 30-day copy here duplicated every
+  # installer for no consumer - nothing downstream reads dist/ (release and
+  # the release:*-asset jobs use only the dotenv variables below).
 
 # Same build, targeting arm64 instead -- this runner's own hardware IS
 # ARM64 (Windows-on-ARM under UTM on Apple Silicon), so this one builds
@@ -370,10 +377,11 @@ package:windows:arm64:
       curl --fail --header "JOB-TOKEN: $env:CI_JOB_TOKEN" `
         --upload-file "packaging/windows/Output/LEAF-Setup-arm64.exe" `
         "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/packages/generic/leaf-desktop/$env:LEAF_VERSION/LEAF-Setup-arm64.exe"
-  artifacts:
-    paths:
-      - packaging/windows/Output/LEAF-Setup-arm64.exe
-    expire_in: 30 days
+  # No binary artifact on purpose: the installer is already uploaded to the
+  # generic package registry above, which is the permanent copy the release
+  # asset links point at. Keeping a second 30-day copy here duplicated every
+  # installer for no consumer - nothing downstream reads dist/ (release and
+  # the release:*-asset jobs use only the dotenv variables below).
 
 # Depends on package:macos and package:linux (both need no special runner
 # setup) but not package:windows, so the release goes out even before a
@@ -489,12 +497,22 @@ cleanup:old-patches:
 
       # --- Prune older tags for this minor line (also removes their GitLab Releases) ---
       git fetch --tags --force --quiet
+      failed=0
       for old_tag in $(git tag --list "v${major_minor}.*"); do
         if [ "$old_tag" != "$current_tag" ]; then
           echo "Deleting tag $old_tag"
-          curl --silent --fail --request DELETE \
-            --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-            "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags/${old_tag}" || true
+          # No `|| true` here. Swallowing the status made this job green while
+          # deleting nothing: a 403 (v* tags protected against deletion, or a
+          # GITLAB_TOKEN without the rights) printed the line above and moved
+          # on, so every patch tag and its packages accumulated unnoticed.
+          code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request DELETE --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags/${old_tag}")
+          # 404 is fine - already gone is the state we want.
+          case "$code" in
+            2*|404) ;;
+            *) echo "  FAILED to delete tag $old_tag (HTTP $code)"; failed=1 ;;
+          esac
         fi
       done
 
@@ -505,12 +523,28 @@ cleanup:old-patches:
           "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages?package_name=leaf-desktop&per_page=100&page=${page}")
         count=$(echo "$packages" | jq 'length')
         [ "$count" -eq 0 ] && break
-        echo "$packages" | jq -r --arg mm "${major_minor}." --arg cur "${LEAF_VERSION}" \
-          '.[] | select(.version | startswith($mm)) | select(.version != $cur) | .id' | while read -r pkg_id; do
-            echo "Deleting package id $pkg_id"
-            curl --silent --fail --request DELETE \
-              --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-              "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/${pkg_id}" || true
-          done
+        # `for` over the id list, not `... | while read`: a piped while runs in
+        # a subshell, so a failure recorded inside it would be lost when that
+        # subshell exits. Package ids are bare integers, so word-splitting is
+        # safe here.
+        for pkg_id in $(echo "$packages" | jq -r --arg mm "${major_minor}." --arg cur "${LEAF_VERSION}" \
+          '.[] | select(.version | startswith($mm)) | select(.version != $cur) | .id'); do
+          echo "Deleting package id $pkg_id"
+          code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request DELETE --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/${pkg_id}")
+          case "$code" in
+            2*|404) ;;
+            *) echo "  FAILED to delete package $pkg_id (HTTP $code)"; failed=1 ;;
+          esac
+        done
         page=$((page + 1))
       done
+
+      if [ "$failed" -ne 0 ]; then
+        echo "Pruning did not complete - see the FAILED lines above."
+        echo "Most likely cause: v* tags are protected against deletion, or"
+        echo "GITLAB_TOKEN lacks the rights. Storage will keep growing until"
+        echo "this is fixed, so this job fails rather than reporting success."
+        exit 1
+      fi
