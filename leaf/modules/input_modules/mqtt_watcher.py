@@ -81,6 +81,7 @@ class MQTTEventWatcher(EventWatcher):
         self.client.on_connect_fail = self.on_connect_fail
         self.client.on_disconnect = self.on_disconnect
         self.client.on_message = self.on_message
+        self.client.on_subscribe = self.on_subscribe
 
         if tls:
             try:
@@ -99,6 +100,11 @@ class MQTTEventWatcher(EventWatcher):
         # Set when on_connect fires so start() can block until subscriptions are active
         self._connected_event = threading.Event()
 
+        # wait for the SUBACKs instead of just for CONNACK.
+        self._pending_subscriptions: set[int] = set()
+        self._subscriptions_lock = threading.Lock()
+        self._subscribed_event = threading.Event()
+
     def _register_topics(self, topics: list[str] | None, event: str):
         if topics:
             for topic in topics:
@@ -107,9 +113,10 @@ class MQTTEventWatcher(EventWatcher):
     def start(self):
         """
         Connects to the MQTT broker and sets a thread looping.
-        Blocks until on_connect fires and subscriptions are active, so callers
-        can publish immediately after start() returns.  On reconnects after a
-        broker restart, on_connect re-subscribes automatically.
+        Blocks until on_connect fires and every subscription has been
+        acknowledged by the broker, so callers can publish immediately after
+        start() returns.  On reconnects after a broker restart, on_connect
+        re-subscribes automatically.
         """
         super().start()
         try:
@@ -117,7 +124,16 @@ class MQTTEventWatcher(EventWatcher):
                 self.client.username_pw_set(self._username, self._password)
             self.client.connect(self._broker, self._port, 60)
             self.client.loop_start()
-            self._connected_event.wait(timeout=10)
+            # Both waits are bounded, and a timeout warns and carries on rather
+            # than blocking: a broker that accepts the connection but never
+            # acknowledges a SUBSCRIBE must not hang the caller. The second
+            # wait is skipped when the connect wait already timed out, so the
+            # worst case stays 10s rather than doubling.
+            if self._connected_event.wait(timeout=10) and not self._subscribed_event.wait(timeout=10):
+                logger.warning(
+                    f"Timed out waiting for subscription acknowledgement from {self._broker}. "
+                    "Continuing anyway - messages published immediately may be missed."
+                )
         except (gaierror, OSError) as e:
             self._handle_exception(
                 ClientUnreachableError(f"Error connecting to broker: {self._broker} {e}", output_module=self)
@@ -167,7 +183,11 @@ class MQTTEventWatcher(EventWatcher):
             str: The subscribed topic.
         """
         logger.debug(f"Subscribing to {topic}")
-        self.client.subscribe(topic)
+        _, mid = self.client.subscribe(topic)
+        if mid is not None:
+            with self._subscriptions_lock:
+                self._pending_subscriptions.add(mid)
+                self._subscribed_event.clear()
         return topic
 
     def unsubscribe(self, topic: str) -> str:
@@ -220,10 +240,50 @@ class MQTTEventWatcher(EventWatcher):
             self._handle_exception(ClientUnreachableError(f"Connection refused: {message}", output_module=self))
             return
 
+        # Reset before re-subscribing: on_connect also runs on reconnects, and
+        # the previous session's mids are meaningless on the new one.
+        with self._subscriptions_lock:
+            self._pending_subscriptions.clear()
+            self._subscribed_event.clear()
+
         for topic in self._topic_event_map.keys():
             self.subscribe(topic)
 
+        # Nothing to wait for when there are no topics. Safe to check here:
+        # on_connect and on_subscribe both run on paho's network thread, so no
+        # SUBACK can be processed while this callback is still running.
+        with self._subscriptions_lock:
+            if not self._pending_subscriptions:
+                self._subscribed_event.set()
+
         self._connected_event.set()
+
+    def on_subscribe(
+        self,
+        client: mqtt.Client,
+        userdata: Any,
+        mid: int,
+        reason_code_list: Any | None = None,
+        properties: Any | None = None,
+    ) -> None:
+        """
+        Callback for when the broker acknowledges a SUBSCRIBE.
+
+        Clears the mid from the pending set so start() can tell when every
+        subscription is actually live, rather than merely requested.
+
+        Args:
+            client (mqtt.Client): The MQTT client instance.
+            userdata (Any): The private user data as set in
+                            Client() or userdata_set().
+            mid (int): Message id of the SUBSCRIBE being acknowledged.
+            reason_code_list (Optional[Any]): Per-subscription reason codes.
+            properties (Optional[Any]): Additional metadata (if any).
+        """
+        with self._subscriptions_lock:
+            self._pending_subscriptions.discard(mid)
+            if not self._pending_subscriptions:
+                self._subscribed_event.set()
 
     def on_connect_fail(
         self,
