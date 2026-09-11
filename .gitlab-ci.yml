@@ -34,7 +34,6 @@ test:
     - mosquitto -d
     - redis-server --daemonize yes
     - source /venv/bin/activate
-    - poetry lock
     - poetry install --with test,dev
     # leaf-example is normally installed by end users via the UI marketplace
     # (see leaf/ui/tabs/adapters.py), not bundled as a project dependency.
@@ -86,7 +85,6 @@ coverage:
     - mosquitto -d
     - redis-server --daemonize yes
     - source /venv/bin/activate
-    - poetry lock
     - poetry install --with test,dev
     - pip install --no-deps "git+https://gitlab.com/leaf-framework/leaf-adapters/leaf-example.git"
   script:
