@@ -38,19 +38,6 @@
   repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-example.git
   name: LEAF-Example
 
-# - adapter_id: MockFunctionalAdapter
-#   image: ""
-#   description: "" # TODO: Add description
-#   equipment_data:
-#     version: "1.0"
-#     manufacturer: Demo Manufacturer
-#     device_type: DEMO
-#     application: DEMO application
-#   requirements:
-#     interval: int
-#   repo_url: https://gitlab.com/leaf-framework/leaf-adapters/leaf-examples
-#   name: LEAF-Examples
-
 - adapter_id: BiolectorXT
   image: ./images/biolector-xt.jpg
   description: "A LEAF adapter for the Biolector XT microbioreactor system by Beckman Coulter. This plugin uses the gRPC API provided by Beckman Coulter to connect to the Biolector XT device and retrieve real-time data on microbial cultures."
