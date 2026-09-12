@@ -105,53 +105,66 @@ coverage:
   timeout: 30m
 
 
+# The version is derived from the tag, once, here -- every downstream job
+# (packaging, release, cleanup) reads LEAF_VERSION from this dotenv rather
+# than re-parsing $CI_COMMIT_TAG, so they can never disagree. A vMAJOR.MINOR
+# tag is padded to MAJOR.MINOR.0 because pyproject/PyPI want three segments.
+#
+# The tag is typed by a human, so this job also vets it before anything
+# irreversible happens -- it runs first in the pipeline's first tag-only
+# stage, so a bad tag costs one fast failed job and nothing else. See the
+# checks in check_tag.py for what "bad" means and why.
+determine_version:
+  stage: publish
+  image: python:3.12
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  script:
+    - |
+      tag_version="${CI_COMMIT_TAG#v}"
+      case "$tag_version" in
+        *.*.*) leaf_version="$tag_version" ;;
+        *) leaf_version="${tag_version}.0" ;;
+      esac
+    # Tags aren't fetched by a tag-pipeline checkout, and the highest-in-line
+    # check below needs the full list.
+    - git fetch --tags --force --quiet
+    - python ci/check_tag.py "$CI_COMMIT_TAG" "$leaf_version"
+    # Written only after the checks pass, so a rejected tag produces no
+    # dotenv and every downstream job is skipped rather than running with a
+    # version nobody vetted.
+    - echo "LEAF_VERSION=$leaf_version" | tee build.env
+  artifacts:
+    reports:
+      dotenv: build.env
+
+# Releases are deliberate: merging to main publishes nothing. You cut a
+# release by creating the tag -- `git tag v0.11.0 && git push origin v0.11.0`,
+# or Repository > Tags > New tag in the UI -- and this job ships exactly that
+# version. Runs in the same pipeline as the packaging jobs below (which
+# `needs:` it), so an installer can never try to pip-install a version that
+# isn't on PyPI yet; lint and test have no rules, so they gate this too.
 publish:
   stage: publish
   image: python:3.12
+  needs:
+    - determine_version
+  rules:
+    - if: '$CI_COMMIT_TAG'
   before_script:
     - pip install poetry
     - poetry config virtualenvs.create false
     - poetry config pypi-token.pypi "$PYPI_TOKEN"
   script:
-    # Highest semver tag, not nearest-ancestor tag (git describe --abbrev=0
-    # picks by commit-graph distance, which breaks if a tag ever gets
-    # created on a commit behind an already-tagged one).
-    - git fetch --tags --force
-    - latest_tag=$(git tag --list 'v*' | sort -V | tail -n1)
-    - pypi_version=$(python -c "import json,urllib.request; print(json.load(urllib.request.urlopen('https://pypi.org/pypi/leaf-framework/json'))['info']['version'])" || echo 0.0.0)
-    - base_version=$(printf '%s\n%s\n' "${latest_tag#v}" "$pypi_version" | sort -V | tail -n1)
-    - major=$(echo $base_version | cut -d. -f1)
-    - minor=$(echo $base_version | cut -d. -f2)
-    - patch=$(echo $base_version | cut -d. -f3)
-    - patch=${patch:-0}
-    - |
-      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        new_patch=$((patch + 1))
-        new_version="${major}.${minor}.${new_patch}"
-        # Tag the release via GitLab API so dev builds count commits from this
-        # point. Tag is the full MAJOR.MINOR.PATCH version, not just
-        # MAJOR.MINOR -- matters because packaging/'s installer pipeline
-        # triggers off any tag and derives its own version from the tag name;
-        # a mismatched format here previously caused duplicate releases.
-        curl --silent --fail --request POST \
-          --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-          --data "tag_name=v${new_version}&ref=${CI_COMMIT_SHA}" \
-          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags"
-      else
-        commit_count=$(git rev-list ${latest_tag}..HEAD --count)
-        new_version="${base_version}.${commit_count}"
-      fi
-    - echo "New version $new_version"
-    # update version in pyproject.toml without committing or tagging
-    - sed -i -E "s/^(version\s*=\s*\")0\.0\.0(\".*)$/\1${new_version}\2/" pyproject.toml
+    - echo "Publishing $LEAF_VERSION from tag $CI_COMMIT_TAG"
+    # pyproject.toml keeps a 0.0.0 placeholder in git -- the tag is the single
+    # source of truth, so the real version is stamped in at build time only
+    # and never committed.
+    - sed -i -E "s/^(version\s*=\s*\")0\.0\.0(\".*)$/\1${LEAF_VERSION}\2/" pyproject.toml
     - head -n 10 pyproject.toml
-    # And publish
     - poetry build
     - ls -l dist/
     - poetry publish
-  only:
-    - main
-    - dev
 
 verify-marketplace:
   stage: verify
@@ -174,30 +187,11 @@ verify-marketplace:
     - tags
 
 # --- Desktop installers -----------------------------------------------------
-# Runs only on the tag pipeline that `publish` triggers when it releases from
-# main (the API call above creates tag vMAJOR.MINOR, which fires a fresh
-# pipeline for that tag). Needs self-hosted runners tagged `macos` / `windows`
+# Runs only on tag pipelines, after `publish` has put the wheel on PyPI --
+# these builds pip-install leaf-framework==$LEAF_VERSION from there, hence the
+# `needs: publish`. Needs self-hosted runners tagged `macos` / `windows`
 # -- see packaging/README.md for what each machine needs installed
 # (PyInstaller comes from pip; Windows also needs Inno Setup's ISCC.exe).
-
-# publish tags as vMAJOR.MINOR but pyproject/PyPI use MAJOR.MINOR.0 -- pad it
-# here once so both packaging jobs and the release job agree on one version.
-determine_version:
-  stage: package
-  image: python:3.12
-  rules:
-    - if: '$CI_COMMIT_TAG'
-  script:
-    - |
-      tag_version="${CI_COMMIT_TAG#v}"
-      case "$tag_version" in
-        *.*.*) leaf_version="$tag_version" ;;
-        *) leaf_version="${tag_version}.0" ;;
-      esac
-      echo "LEAF_VERSION=$leaf_version" | tee build.env
-  artifacts:
-    reports:
-      dotenv: build.env
 
 package:macos:
   stage: package
@@ -205,6 +199,7 @@ package:macos:
     - macos
   needs:
     - determine_version
+    - publish
   rules:
     - if: '$CI_COMMIT_TAG'
   script:
@@ -235,6 +230,7 @@ package:linux:
   image: python:3.12-slim-bullseye
   needs:
     - determine_version
+    - publish
   rules:
     - if: '$CI_COMMIT_TAG'
   before_script:
@@ -269,6 +265,7 @@ package:linux:arm64:
     - linux-arm64
   needs:
     - determine_version
+    - publish
   rules:
     - if: '$CI_COMMIT_TAG'
   before_script:
@@ -306,6 +303,7 @@ package:windows:
     - windows
   needs:
     - determine_version
+    - publish
   rules:
     - if: '$CI_COMMIT_TAG && $WINDOWS_RUNNER_READY == "true"'
   script:
@@ -345,6 +343,7 @@ package:windows:arm64:
     - windows
   needs:
     - determine_version
+    - publish
   rules:
     - if: '$CI_COMMIT_TAG && $WINDOWS_RUNNER_READY == "true"'
   script:
@@ -466,20 +465,24 @@ release:linux-arm64-asset:
         --data "url=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leaf-desktop/${LEAF_VERSION}/${LINUX_ARM64_ASSET_NAME}" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases/${CI_COMMIT_TAG}/assets/links"
 
-# Keep only the newest patch per MAJOR.MINOR line: once `release` has gone
-# out (i.e. macOS + Linux packaging actually succeeded for this tag), delete
-# every other vMAJOR.MINOR.* tag and every other leaf-desktop package whose
-# version shares this tag's MAJOR.MINOR. Deliberately not part of `publish`
-# (which mints the tag) - pruning only after `release` succeeds means a
-# packaging failure never leaves a minor line with zero working releases.
-# Only needs `release` itself (not the windows-gated release: jobs, which
-# may not even exist in the pipeline) - same reasoning as `release`'s own
-# needs above.
+# Installers are big (five platforms x a bundled Python runtime), so keep only
+# the newest patch per MAJOR.MINOR line: once `release` has gone out (i.e.
+# macOS + Linux packaging actually succeeded for this tag), delete the
+# leaf-desktop generic packages of every *other* version sharing this tag's
+# MAJOR.MINOR. Other minor lines are left alone, so v0.10.x installers survive
+# a v0.11.x release.
 #
-# Note: deleting a tag also deletes its attached GitLab Release. Requires
-# GITLAB_TOKEN to have permission to delete tags - if `v*` tags are
-# protected against deletion, add an exception for this job's token/role.
-cleanup:old-patches:
+# Tags and GitLab Releases are deliberately NOT pruned -- every tag is now a
+# release someone chose to cut, and deleting a tag takes its Release page with
+# it. The tradeoff is that a superseded patch's Release page keeps asset links
+# that 404; point people at the newest patch in that line.
+#
+# Runs after `release` rather than as part of `publish`: pruning only once the
+# new installers exist means a packaging failure never leaves a minor line
+# with no downloadable build at all. Only needs `release` itself (not the
+# windows-gated release: jobs, which may not even exist in the pipeline) --
+# same reasoning as `release`'s own needs above.
+cleanup:old-installers:
   stage: release
   image: alpine:latest
   needs:
@@ -488,34 +491,11 @@ cleanup:old-patches:
   rules:
     - if: '$CI_COMMIT_TAG'
   script:
-    - apk add --no-cache curl jq git
+    - apk add --no-cache curl jq
     - |
       major_minor="${LEAF_VERSION%.*}"
-      current_tag="${CI_COMMIT_TAG}"
-      echo "Keeping only ${current_tag}; pruning older v${major_minor}.* tags and packages."
-
-      # --- Prune older tags for this minor line (also removes their GitLab Releases) ---
-      git fetch --tags --force --quiet
+      echo "Keeping leaf-desktop ${LEAF_VERSION}; pruning other ${major_minor}.* installers."
       failed=0
-      for old_tag in $(git tag --list "v${major_minor}.*"); do
-        if [ "$old_tag" != "$current_tag" ]; then
-          echo "Deleting tag $old_tag"
-          # No `|| true` here. Swallowing the status made this job green while
-          # deleting nothing: a 403 (v* tags protected against deletion, or a
-          # GITLAB_TOKEN without the rights) printed the line above and moved
-          # on, so every patch tag and its packages accumulated unnoticed.
-          code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            --request DELETE --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-            "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags/${old_tag}")
-          # 404 is fine - already gone is the state we want.
-          case "$code" in
-            2*|404) ;;
-            *) echo "  FAILED to delete tag $old_tag (HTTP $code)"; failed=1 ;;
-          esac
-        fi
-      done
-
-      # --- Prune older leaf-desktop generic packages for this minor line ---
       page=1
       while :; do
         packages=$(curl --silent --fail --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
@@ -529,9 +509,13 @@ cleanup:old-patches:
         for pkg_id in $(echo "$packages" | jq -r --arg mm "${major_minor}." --arg cur "${LEAF_VERSION}" \
           '.[] | select(.version | startswith($mm)) | select(.version != $cur) | .id'); do
           echo "Deleting package id $pkg_id"
+          # No `|| true` here. Swallowing the status made this job green while
+          # deleting nothing: a 403 (GITLAB_TOKEN without the rights) printed
+          # the line above and moved on, so packages accumulated unnoticed.
           code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
             --request DELETE --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
             "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/${pkg_id}")
+          # 404 is fine - already gone is the state we want.
           case "$code" in
             2*|404) ;;
             *) echo "  FAILED to delete package $pkg_id (HTTP $code)"; failed=1 ;;
@@ -542,8 +526,8 @@ cleanup:old-patches:
 
       if [ "$failed" -ne 0 ]; then
         echo "Pruning did not complete - see the FAILED lines above."
-        echo "Most likely cause: v* tags are protected against deletion, or"
-        echo "GITLAB_TOKEN lacks the rights. Storage will keep growing until"
-        echo "this is fixed, so this job fails rather than reporting success."
+        echo "Most likely cause: GITLAB_TOKEN lacks package-delete rights."
+        echo "Storage will keep growing until this is fixed, so this job fails"
+        echo "rather than reporting success."
         exit 1
       fi
