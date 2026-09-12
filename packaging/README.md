@@ -221,9 +221,36 @@ build one by default.
 
 ### GitLab CI
 
-`.gitlab-ci.yml` has `package`/`release` stages that run automatically on the
-tag pipeline `publish` triggers (i.e. only for actual releases from `main`,
-not every commit).
+### Cutting a release
+
+```sh
+git tag v0.11.0 && git push origin v0.11.0
+```
+
+(or Repository > Tags > New tag in the GitLab UI). That one tag pipeline runs
+lint and tests, publishes the wheel to PyPI, builds every installer, creates
+the GitLab release, and prunes the superseded installers of that MAJOR.MINOR
+line. `pyproject.toml` stays at the `0.0.0` placeholder in git -- the tag is
+the version, stamped in at build time.
+
+`ci/check_tag.py` vets the tag first, before anything irreversible. It must be
+`vMAJOR.MINOR.PATCH`, must not already exist on PyPI, and must be the next
+version: exactly one component up by exactly one, with the smaller components
+at zero. From `v0.10.20` that means `v0.10.21`, `v0.11.0` or `v1.0.0` -- and a
+patch on an older line (`v0.9.20`) for a backport. This catches both directions
+of typo: too low would prune a newer release's installers, too high is
+permanent, since a version on PyPI can never be reused.
+
+A rejected tag fails the first job and nothing else runs -- delete the tag, fix
+it, tag again. For a deliberate jump, set the `LEAF_ALLOW_VERSION_JUMP` CI/CD
+variable and re-run the pipeline for the tag (Pipelines > Run pipeline > pick
+the tag); it skips only the step check, not the shape or PyPI ones.
+
+`.gitlab-ci.yml` runs its `publish`/`package`/`release` stages only on tag
+pipelines, so a release happens when someone creates a `vX.Y.Z` tag -- not on
+every commit to `main`. Within that one pipeline `publish` uploads the wheel
+to PyPI first, and the packaging jobs `needs:` it, since they install
+`leaf-framework==$LEAF_VERSION` from PyPI.
 
 `package:linux` needs no special runner -- it runs in a plain
 `python:3.12-slim-bullseye` Docker image on whatever untagged shared runner
