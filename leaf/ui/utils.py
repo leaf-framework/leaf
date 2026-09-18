@@ -1,5 +1,6 @@
 """Utility functions and classes for LEAF UI."""
 
+import asyncio
 import logging
 import subprocess
 import sys
@@ -37,7 +38,28 @@ class LogElementHandler(logging.Handler):
             self._emitting = False
 
 
-def install_adapter(adapter: dict[Any, Any]) -> None:
+def _run_pip(*args: str) -> subprocess.CompletedProcess:
+    """
+    Run pip in the interpreter currently running LEAF.
+
+    Blocking; call it off the event loop (asyncio.to_thread) so the UI keeps
+    responding while pip works.
+
+    Args:
+        *args: Arguments passed to pip, e.g. "install", "--upgrade", "git+<url>"
+
+    Returns:
+        The completed pip process, for the caller to check returncode/stderr
+    """
+    return subprocess.run(
+        [sys.executable, "-m", "pip", *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+async def install_adapter(adapter: dict[Any, Any]) -> None:
     """
     Install a LEAF adapter from a Git repository.
 
@@ -56,12 +78,18 @@ def install_adapter(adapter: dict[Any, Any]) -> None:
     # don't get bumped per commit, so a plain `pip install` would see the
     # already-installed version as satisfying the requirement and skip
     # fetching the newer commit entirely.
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", f"git+{repository}"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    try:
+        result = await asyncio.to_thread(_run_pip, "install", "--upgrade", "--force-reinstall", f"git+{repository}")
+    except Exception as e:
+        logger.error(f"Could not run pip to install {adapter_name}: {e}", exc_info=True)
+        ui.notify(
+            f"Could not start the installation of {adapter_name}",
+            type="negative",
+            position="top",
+            close_button=True,
+            timeout=8000,
+        )
+        return
 
     if result.returncode != 0:
         logger.error(f"Failed to install {adapter_name}: {result.stderr}")
@@ -78,18 +106,17 @@ def install_adapter(adapter: dict[Any, Any]) -> None:
     )
 
 
-def uninstall_adapter(installed_adapter: dict) -> None:
+async def uninstall_adapter(installed_adapter: dict) -> None:
     """
     Uninstall a LEAF adapter package.
 
     Args:
         installed_adapter: Dictionary containing adapter metadata with 'name' field
     """
-    print(f"Uninstalling {installed_adapter}...")
     package_name = installed_adapter.get("name")
 
     if not package_name:
-        print(f"Cannot uninstall adapter without package name: {installed_adapter}")
+        logger.error(f"Cannot uninstall adapter without package name: {installed_adapter}")
         ui.notify(
             "Cannot uninstall adapter without package name",
             type="negative",
@@ -102,26 +129,31 @@ def uninstall_adapter(installed_adapter: dict) -> None:
     logger.info(f"Uninstalling {package_name}...")
     ui.notify(f"Uninstalling {package_name}... This may take a moment.", type="info", position="top", timeout=3000)
 
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "uninstall", "-y", package_name],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-
-    if result.returncode == 0:
-        print(f"Uninstalled {package_name} successfully.")
-        logger.info(f"Uninstalled {package_name} successfully.")
+    try:
+        result = await asyncio.to_thread(_run_pip, "uninstall", "-y", package_name)
+    except Exception as e:
+        logger.error(f"Could not run pip to uninstall {package_name}: {e}", exc_info=True)
         ui.notify(
-            f"Successfully uninstalled {package_name}! Click the Refresh button to update the list.",
-            type="positive",
+            f"Could not start the removal of {package_name}",
+            type="negative",
             position="top",
             close_button=True,
-            timeout=10000,
+            timeout=8000,
         )
-    else:
-        print(f"Failed to uninstall {package_name}.\nError: {result.stderr}")
+        return
+
+    if result.returncode != 0:
         logger.error(f"Failed to uninstall {package_name}: {result.stderr}")
         ui.notify(
             f"Failed to uninstall {package_name}", type="negative", position="top", close_button=True, timeout=8000
         )
+        return
+
+    logger.info(f"Uninstalled {package_name} successfully.")
+    ui.notify(
+        f"Successfully uninstalled {package_name}! Click the Refresh button to update the list.",
+        type="positive",
+        position="top",
+        close_button=True,
+        timeout=10000,
+    )
