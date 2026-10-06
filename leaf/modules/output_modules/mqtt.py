@@ -48,8 +48,9 @@ class MQTT(OutputModule):
         error_holder: ErrorHolder | None = None,
         name: str | None = None,
         # Heartbeat
+        heartbeat_interval: float = 300.0,
+        # Removed options, still accepted so existing configs keep loading.
         heartbeat_topic: str | None = None,
-        heartbeat_interval: float = 30.0,
         heartbeat_payload: str | dict | None = None,
     ) -> None:
         """
@@ -67,12 +68,12 @@ class MQTT(OutputModule):
             transport (Literal['tcp', 'websockets', 'unix']): The transport method, either TCP, WebSockets, or Unix socket.
             tls (bool): Boolean flag to enable or disable TLS encryption.
             error_holder (Optional[ErrorHolder]): An instance of ErrorHolder for tracking errors.
-            heartbeat_topic (Optional[str]): Topic to publish heartbeat messages on. If not set,
-                heartbeat and LWT are disabled.
-            heartbeat_interval (float): Seconds between heartbeat publishes. Defaults to 30.
-                Set to 0 to disable.
-            heartbeat_payload (Optional[str | dict]): Payload for heartbeat messages. Defaults to
-                ``{"status": "alive", "timestamp": <epoch>, "datetime": <datetime>}`` with the timestamp filled in at publish time.
+            heartbeat_interval (float): Seconds between heartbeat publishes. Defaults to 300.
+                Set to 0 to disable. Each equipment instance gets its own heartbeat on
+                <root>/<organisation>/<department>/<adapter_id>/<instance_id>/heartbeat.
+                The payload is always ``{"status": "alive", "interval": <seconds>,
+                "timestamp": <epoch>, "datetime": <datetime>}``.
+            heartbeat_topic, heartbeat_payload: Removed; ignored with a warning.
         """
 
         super().__init__(fallback=fallback, error_holder=error_holder, name=name)
@@ -110,10 +111,16 @@ class MQTT(OutputModule):
         # still False, tripping into the fallback path unnecessarily.
         self._connected_event: threading.Event = threading.Event()
 
-        self._heartbeat_topic: str | None = heartbeat_topic
-
+        # One output module is shared by all equipment instances, so each
+        # adapter registers its own heartbeat topic via on_adapter_ready.
+        self._heartbeat_topics: set[str] = set()
+        self._heartbeat_lock: threading.Lock = threading.Lock()
         self._heartbeat_interval: float = heartbeat_interval
-        self._heartbeat_payload: str | dict | None = heartbeat_payload
+        if heartbeat_topic is not None or heartbeat_payload is not None:
+            logger.warning(
+                "heartbeat_topic and heartbeat_payload are no longer supported and are ignored; "
+                "each instance publishes on its own .../<instance_id>/heartbeat topic."
+            )
         self._heartbeat_stop: threading.Event = threading.Event()
         self._heartbeat_thread: threading.Thread | None = None
 
@@ -147,12 +154,6 @@ class MQTT(OutputModule):
             except Exception as e:
                 raise AdapterBuildError(f"Failed to set up TLS: {e}")
 
-        if self._heartbeat_topic:
-            self.client.will_set(
-                self._heartbeat_topic, payload=json.dumps({"status": "disconnected"}), qos=1, retain=True
-            )
-            logger.info(f"LWT registered on '{self._heartbeat_topic}'")
-
         self.connect()
 
     def connect(self) -> None:
@@ -167,7 +168,7 @@ class MQTT(OutputModule):
             self._connected_event.clear()
             self.client.connect(self._broker, self._port, 20)
             self.client.loop_start()
-            if self._heartbeat_topic and self._heartbeat_interval > 0:
+            if self._heartbeat_interval > 0:
                 self._start_heartbeat()
         except (gaierror, OSError) as e:
             self._handle_exception(ClientUnreachableError(f"Error connecting to broker: {e}", output_module=self))
@@ -531,7 +532,7 @@ class MQTT(OutputModule):
             target=self._heartbeat_loop, name=f"HeartbeatThread-{self._name}", daemon=True
         )
         self._heartbeat_thread.start()
-        logger.info(f"Heartbeat started on '{self._heartbeat_topic}' every {self._heartbeat_interval}s")
+        logger.info(f"Heartbeat started every {self._heartbeat_interval}s")
 
     def _stop_heartbeat(self) -> None:
         """Signal the heartbeat thread to stop and wait for it to exit."""
@@ -541,30 +542,47 @@ class MQTT(OutputModule):
             self._heartbeat_thread = None
             logger.info("Heartbeat stopped.")
 
+    def on_adapter_ready(self, metadata_manager: Any) -> None:
+        """Register the instance's heartbeat topic and publish a first beat right away."""
+        topic = metadata_manager.heartbeat()
+        with self._heartbeat_lock:
+            self._heartbeat_topics.add(topic)
+        self._publish_heartbeat(topic)
+
+    def on_adapter_stop(self, metadata_manager: Any) -> None:
+        """Unregister the instance's heartbeat topic and mark it as stopped."""
+        topic = metadata_manager.heartbeat()
+        with self._heartbeat_lock:
+            self._heartbeat_topics.discard(topic)
+        self._publish_heartbeat(topic, "stopped")
+
+    def _publish_heartbeat(self, topic: str, status: str = "alive") -> None:
+        """Publish a single heartbeat, never raising."""
+        payload = {
+            "status": status,
+            # Lets consumers judge staleness without knowing the config.
+            "interval": self._heartbeat_interval,
+            "timestamp": time.time(),
+            "datetime": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+        }
+        logger.debug(f"Publishing heartbeat to '{topic}': {payload}")
+        try:
+            # use_fallback=False: a heartbeat is only meaningful live, so a
+            # failed publish is dropped rather than buffered in the fallback
+            # and replayed as a stale "alive" once the broker is back.
+            self.transmit(topic, payload, retain=True, use_fallback=False)
+        except LEAFError as e:
+            # Must not propagate - an unhandled exception in the heartbeat thread
+            # would silently kill it and stop all future heartbeats.
+            logger.debug(f"Heartbeat publish failed, will retry next interval: {e}")
+
     def _heartbeat_loop(self) -> None:
-        """Publish a heartbeat message at regular intervals until stopped."""
-        while True:
-            if self._heartbeat_payload is not None:
-                payload = self._heartbeat_payload
-            else:
-                payload = {
-                    "status": "alive",
-                    "timestamp": time.time(),
-                    "datetime": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
-                }
-            logger.debug(f"Publishing heartbeat to '{self._heartbeat_topic}': {payload}")
-            try:
-                # use_fallback=False: a heartbeat is only meaningful live, so a
-                # failed publish is dropped rather than buffered in the fallback
-                # and replayed as a stale "alive" once the broker is back.
-                self.transmit(self._heartbeat_topic, payload, use_fallback=False)
-            except LEAFError as e:
-                # Must not propagate - an unhandled exception here (e.g. the broker
-                # connection not being fully up yet) would silently kill this daemon
-                # thread and stop all future heartbeats.
-                logger.debug(f"Heartbeat publish failed, will retry next interval: {e}")
-            if self._heartbeat_stop.wait(self._heartbeat_interval):
-                break
+        """Publish a heartbeat for every registered instance at regular intervals until stopped."""
+        while not self._heartbeat_stop.wait(self._heartbeat_interval):
+            with self._heartbeat_lock:
+                topics = list(self._heartbeat_topics)
+            for topic in topics:
+                self._publish_heartbeat(topic)
 
     def _handle_return_code(self, return_code: int) -> ClientUnreachableError | None:
         """

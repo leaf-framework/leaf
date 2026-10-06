@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import unittest
+from unittest.mock import MagicMock
 
 import yaml
 
@@ -76,25 +77,31 @@ class TestMQTT(unittest.TestCase):
         adapter = MQTT(
             self._adapter._broker,
             self._adapter._port,
-            heartbeat_topic=heartbeat_topic,
             heartbeat_interval=interval,
         )
+        metadata_manager = MagicMock()
+        metadata_manager.heartbeat.return_value = heartbeat_topic
+        adapter.on_adapter_ready(metadata_manager)
 
-        # Poll until the heartbeat message arrives, allowing extra time on
-        # slower/parallel CI runners for the connection and first publish.
+        # Poll until the first beat plus one interval beat arrive, allowing
+        # extra time on slower/parallel CI runners.
         deadline = time.time() + interval * 3 + 5
         while time.time() < deadline:
-            if heartbeat_topic in self._mock_client.messages:
+            if len(self._mock_client.messages.get(heartbeat_topic, [])) >= 2:
                 break
             time.sleep(0.5)
 
+        adapter.on_adapter_stop(metadata_manager)
+        time.sleep(0.5)
         adapter.disconnect()
 
         self.assertIn(heartbeat_topic, self._mock_client.messages)
         msgs = self._mock_client.messages[heartbeat_topic]
-        self.assertGreaterEqual(len(msgs), 1)
+        self.assertGreaterEqual(len(msgs), 3)
         self.assertEqual(msgs[0]["status"], "alive")
         self.assertIn("timestamp", msgs[0])
+        self.assertEqual(msgs[0]["interval"], interval)
+        self.assertEqual(msgs[-1]["status"], "stopped")
 
 
 if __name__ == "__main__":

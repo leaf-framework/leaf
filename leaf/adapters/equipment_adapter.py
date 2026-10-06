@@ -315,7 +315,7 @@ class EquipmentAdapter(ABC):
         Stop the adapter and all associated processes and watchers.
         """
         self._stop_event.set()
-        self._output.on_adapter_stop()
+        self._output.on_adapter_stop(self._metadata_manager)
         if self._watcher.is_running():
             self._watcher.stop()
 

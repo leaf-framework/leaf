@@ -147,7 +147,7 @@ class TestFallbacks(unittest.TestCase):
         self._keydb.disconnect()
         time.sleep(1)
 
-        self._module._heartbeat_topic = heartbeat_topic
+        self._module._heartbeat_topics = {heartbeat_topic}
         self._module._heartbeat_interval = 0.5
         self._module._start_heartbeat()
         time.sleep(2)

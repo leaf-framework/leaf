@@ -367,7 +367,7 @@ class OutputModule(ABC):
         Output modules that need instance identity (e.g. MQTT heartbeat) override this.
         """
 
-    def on_adapter_stop(self) -> None:  # noqa: B027
+    def on_adapter_stop(self, metadata_manager: Any) -> None:  # noqa: B027
         """
         Called by EquipmentAdapter when the adapter is stopping.
         Output modules that started background tasks in on_adapter_ready override this.
