@@ -38,7 +38,7 @@ class LogElementHandler(logging.Handler):
             self._emitting = False
 
 
-def _run_pip(*args: str) -> subprocess.CompletedProcess:
+def _run_pip(*args: str) -> subprocess.CompletedProcess[str]:
     """
     Run pip in the interpreter currently running LEAF.
 
@@ -77,9 +77,15 @@ async def install_adapter(adapter: dict[Any, Any]) -> None:
     # repo's default branch HEAD -- these adapters' pyproject.toml versions
     # don't get bumped per commit, so a plain `pip install` would see the
     # already-installed version as satisfying the requirement and skip
-    # fetching the newer commit entirely.
+    # fetching the newer commit entirely. --no-deps keeps the force away from
+    # the dependency tree (which may include LEAF itself); the second, plain
+    # install then only adds dependencies that are still missing.
     try:
-        result = await asyncio.to_thread(_run_pip, "install", "--upgrade", "--force-reinstall", f"git+{repository}")
+        result = await asyncio.to_thread(
+            _run_pip, "install", "--upgrade", "--force-reinstall", "--no-deps", f"git+{repository}"
+        )
+        if result.returncode == 0:
+            result = await asyncio.to_thread(_run_pip, "install", f"git+{repository}")
     except Exception as e:
         logger.error(f"Could not run pip to install {adapter_name}: {e}", exc_info=True)
         ui.notify(
@@ -106,7 +112,7 @@ async def install_adapter(adapter: dict[Any, Any]) -> None:
     )
 
 
-async def uninstall_adapter(installed_adapter: dict) -> None:
+async def uninstall_adapter(installed_adapter: dict[Any, Any]) -> None:
     """
     Uninstall a LEAF adapter package.
 
