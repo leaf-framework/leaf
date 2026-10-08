@@ -228,6 +228,9 @@ package:macos:
 package:linux:
   stage: package
   image: python:3.12-slim-bullseye
+  # Pinned to an amd64 runner; an untagged arm64 runner once built this.
+  tags:
+    - amd64
   needs:
     - determine_version
     - publish
