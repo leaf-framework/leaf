@@ -47,6 +47,11 @@ SolidCompression=yes
 SetupIconFile=..\..\leaf\ui\images\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 WizardStyle=modern
+; Signs the setup and the uninstaller inside it with the "leafsign" tool,
+; which the CI job defines (ISCC /Sleafsign=...). Local builds stay unsigned.
+#if GetEnv("LEAF_SIGN") == "true"
+SignTool=leafsign
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
