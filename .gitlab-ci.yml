@@ -288,6 +288,19 @@ package:linux:arm64:
     reports:
       dotenv: linux_arm64_asset.env
 
+# Code signing for the Windows jobs, with UNLOCK's Azure Artifact Signing
+# certificate (see packaging/windows/sign.ps1). The ID token is exchanged
+# for managed identity euw-id-sign-unlock-p, which trusts only tag
+# pipelines of this project; v* tags are protected to maintainers.
+.windows-signing:
+  id_tokens:
+    AZURE_ID_TOKEN:
+      aud: api://AzureADTokenExchange
+  variables:
+    AZURE_TENANT_ID: "27d137e5-761f-4dc1-af88-d26430abb18f"
+    AZURE_CLIENT_ID: "63a1f847-3d10-4ad3-b6de-d91d2fd1b1c1"
+    LEAF_SIGN: "true"
+
 # Assumes a PowerShell-shell Windows runner with Inno Setup pre-installed.
 # Python/ISCC discovery lives in packaging/windows/find_python.ps1 and
 # find_iscc.ps1 (see those for the full reasoning) -- shared with
@@ -298,9 +311,10 @@ package:linux:arm64:
 # even created in the pipeline until then -- otherwise it sits pending
 # forever with no runner to pick it up, and blocks `release` behind it.
 package:windows:
+  extends: .windows-signing
   stage: package
   tags:
-    - windows
+    - windows-amd64
   needs:
     - determine_version
     - publish
@@ -316,6 +330,7 @@ package:windows:
       Set-Content -Path dist/LEAF/leaf-framework.version -Value "leaf-framework==$env:LEAF_VERSION" -Encoding ascii
       & $goodPython packaging/runtime/build_wheelhouse.py --runtime-archive dist/LEAF/python-runtime-windows-amd64.tar.gz --requirement "leaf-framework==$env:LEAF_VERSION" --out build/wheelhouse-staging
     - tar czf dist/LEAF/wheelhouse.tar.gz -C build/wheelhouse-staging .
+    - packaging/windows/sign.ps1 dist/LEAF/LEAF.exe
     - |
       $isccPath = packaging/windows/find_iscc.ps1
       Write-Host "Using ISCC at $isccPath"
@@ -323,7 +338,10 @@ package:windows:
       # convention -- not just cosmetic: without it, a second Windows arch
       # build would silently overwrite this release asset.
       $env:LEAF_WIN_ARCH = "amd64"
-      & $isccPath packaging/windows/leaf.iss
+      # Inno calls this for the setup and its uninstaller; $q and $f are
+      # its placeholders for a quote and the file to sign.
+      $signScript = (Resolve-Path packaging/windows/sign.ps1).Path
+      & $isccPath "/Sleafsign=powershell.exe -NoProfile -ExecutionPolicy Bypass -File `$q$signScript`$q `$f" packaging/windows/leaf.iss
     - |
       curl --fail --header "JOB-TOKEN: $env:CI_JOB_TOKEN" `
         --upload-file "packaging/windows/Output/LEAF-Setup-amd64.exe" `
@@ -334,18 +352,20 @@ package:windows:
   # installer for no consumer - nothing downstream reads dist/ (release and
   # the release:*-asset jobs use only the dotenv variables below).
 
-# Same build, targeting arm64 instead -- this runner's own hardware IS
-# ARM64 (Windows-on-ARM under UTM on Apple Silicon), so this one builds
-# natively with no emulation involved, unlike package:windows above.
+# Same build, targeting arm64 instead. Needs a native Windows-on-ARM
+# runner (tag windows-arm64), so it has its own gate,
+# $WINDOWS_ARM64_RUNNER_READY; the amd64 runner (tag windows-amd64) is
+# an x64 VM that can't run ARM64 Python or compilers.
 package:windows:arm64:
+  extends: .windows-signing
   stage: package
   tags:
-    - windows
+    - windows-arm64
   needs:
     - determine_version
     - publish
   rules:
-    - if: '$CI_COMMIT_TAG && $WINDOWS_RUNNER_READY == "true"'
+    - if: '$CI_COMMIT_TAG && $WINDOWS_ARM64_RUNNER_READY == "true"'
   script:
     - |
       $goodPython = packaging/windows/find_python.ps1 -Arch arm64
@@ -366,11 +386,15 @@ package:windows:arm64:
       Enter-VsDevShell -VsInstallPath $vsPath -DevCmdArguments "-arch=arm64 -host_arch=arm64" -SkipAutomaticLocation
       & $goodPython packaging/runtime/build_wheelhouse.py --runtime-archive dist/LEAF/python-runtime-windows-arm64.tar.gz --requirement "leaf-framework==$env:LEAF_VERSION" --out build/wheelhouse-staging-arm64
     - tar czf dist/LEAF/wheelhouse.tar.gz -C build/wheelhouse-staging-arm64 .
+    - packaging/windows/sign.ps1 dist/LEAF/LEAF.exe
     - |
       $isccPath = packaging/windows/find_iscc.ps1
       Write-Host "Using ISCC at $isccPath"
       $env:LEAF_WIN_ARCH = "arm64"
-      & $isccPath packaging/windows/leaf.iss
+      # Inno calls this for the setup and its uninstaller; $q and $f are
+      # its placeholders for a quote and the file to sign.
+      $signScript = (Resolve-Path packaging/windows/sign.ps1).Path
+      & $isccPath "/Sleafsign=powershell.exe -NoProfile -ExecutionPolicy Bypass -File `$q$signScript`$q `$f" packaging/windows/leaf.iss
     - |
       curl --fail --header "JOB-TOKEN: $env:CI_JOB_TOKEN" `
         --upload-file "packaging/windows/Output/LEAF-Setup-arm64.exe" `
@@ -426,7 +450,7 @@ release:windows-asset:
         --data "url=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leaf-desktop/${LEAF_VERSION}/LEAF-Setup-amd64.exe" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases/${CI_COMMIT_TAG}/assets/links"
 
-# Adds the Windows arm64 asset link, same gate as windows-asset above.
+# Adds the Windows arm64 asset link, same gate as package:windows:arm64.
 release:windows-arm64-asset:
   stage: release
   image: alpine:latest
@@ -435,7 +459,7 @@ release:windows-arm64-asset:
     - package:windows:arm64
     - release
   rules:
-    - if: '$CI_COMMIT_TAG && $WINDOWS_RUNNER_READY == "true"'
+    - if: '$CI_COMMIT_TAG && $WINDOWS_ARM64_RUNNER_READY == "true"'
   script:
     - apk add --no-cache curl
     - |
