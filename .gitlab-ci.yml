@@ -237,6 +237,8 @@ package:linux:
   rules:
     - if: '$CI_COMMIT_TAG'
   before_script:
+    # Bullseye has moved to archive.debian.org; deb.debian.org now 404s on it.
+    - sed -i -e 's|http://deb.debian.org|http://archive.debian.org|' /etc/apt/sources.list
     - apt-get update -qq
     - apt-get install -y -qq python3-tk tk8.6 curl binutils file > /dev/null
   script:
@@ -272,6 +274,8 @@ package:linux:arm64:
   rules:
     - if: '$CI_COMMIT_TAG'
   before_script:
+    # Bullseye has moved to archive.debian.org; deb.debian.org now 404s on it.
+    - sed -i -e 's|http://deb.debian.org|http://archive.debian.org|' /etc/apt/sources.list
     - apt-get update -qq
     - apt-get install -y -qq python3-tk tk8.6 curl binutils file > /dev/null
   script:
