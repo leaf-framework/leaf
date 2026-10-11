@@ -17,7 +17,9 @@
 #
 # Optional: set CODESIGN_IDENTITY to a "Developer ID Application: ..." identity
 # to sign LEAF.app before packaging. Unsigned builds work fine locally but will
-# trigger Gatekeeper warnings for other users.
+# trigger Gatekeeper warnings for other users. With NOTARY_PROFILE (a
+# `xcrun notarytool store-credentials` keychain profile) as well, the .dmg is
+# signed, notarised by Apple and stapled, so it opens without any warning.
 
 set -euo pipefail
 
@@ -90,6 +92,13 @@ fi
 echo "==> Fetching portable Python runtime for darwin-$ARCH"
 "$GOOD_PYTHON3" packaging/runtime/fetch_python.py "darwin-$ARCH" --out "$CONTENTS_MACOS"
 
+# Notarisation looks inside the archives too, so their native code is signed before packing
+if [ -n "${CODESIGN_IDENTITY:-}" ]; then
+    echo "==> Signing the native code in the Python runtime"
+    "$GOOD_PYTHON3" packaging/macos/sign_payload.py --identity "$CODESIGN_IDENTITY" \
+        runtime "$CONTENTS_MACOS/python-runtime-darwin-$ARCH.tar.gz"
+fi
+
 if [ -n "$VERSION_SPEC" ]; then
     echo "==> Pinning $VERSION_SPEC"
     echo "$VERSION_SPEC" > "$CONTENTS_MACOS/leaf-framework.version"
@@ -110,6 +119,11 @@ if [ -n "$VERSION_SPEC" ]; then
         # first launch) can loop forever instead of the normal ~10-20s.
         # bootstrap.py extracts this to a normal writable, non-quarantined
         # directory before pip ever touches the wheels.
+        if [ -n "${CODESIGN_IDENTITY:-}" ]; then
+            echo "==> Signing the native code in the wheelhouse"
+            "$GOOD_PYTHON3" packaging/macos/sign_payload.py --identity "$CODESIGN_IDENTITY" \
+                wheels "$WHEELHOUSE_TMP"
+        fi
         tar czf "$CONTENTS_MACOS/wheelhouse.tar.gz" -C "$WHEELHOUSE_TMP" .
         rm -rf "$WHEELHOUSE_TMP"
     else
@@ -121,7 +135,8 @@ fi
 
 if [ -n "${CODESIGN_IDENTITY:-}" ]; then
     echo "==> Codesigning with identity: $CODESIGN_IDENTITY"
-    codesign --deep --force --options runtime --sign "$CODESIGN_IDENTITY" "$APP_PATH"
+    # Notarisation needs the hardened runtime and a secure timestamp
+    codesign --deep --force --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$APP_PATH"
 else
     # PyInstaller ad-hoc-signs the bundle during the build above, but the
     # runtime/wheelhouse/version files staged into Contents/MacOS just now
@@ -155,5 +170,19 @@ DMG_PATH="$DIST_DIR/LEAF-macos-$ARCH.dmg"
 rm -f "$DMG_PATH"
 hdiutil create -volname "LEAF" -srcfolder "$DMG_STAGING" -ov -format UDZO "$DMG_PATH"
 rm -rf "$DMG_STAGING"
+
+if [ -n "${CODESIGN_IDENTITY:-}" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
+    echo "==> Notarising $DMG_PATH (takes a few minutes)"
+    codesign --force --timestamp --sign "$CODESIGN_IDENTITY" "$DMG_PATH"
+    result="$(xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait --output-format json)"
+    echo "$result"
+    if [ "$(echo "$result" | plutil -extract status raw -)" != "Accepted" ]; then
+        # Apple's log names every file it rejected
+        xcrun notarytool log "$(echo "$result" | plutil -extract id raw -)" --keychain-profile "$NOTARY_PROFILE"
+        exit 1
+    fi
+    xcrun stapler staple "$DMG_PATH"
+    spctl --assess --type open --context context:primary-signature --verbose "$DMG_PATH"
+fi
 
 echo "==> Done: $DMG_PATH"
