@@ -202,6 +202,10 @@ package:macos:
     - publish
   rules:
     - if: '$CI_COMMIT_TAG'
+  # The runner's login keychain holds this identity and the notary profile (packaging/README.md)
+  variables:
+    CODESIGN_IDENTITY: "Developer ID Application: Jasper Koehorst (T3L4QUM69E)"
+    NOTARY_PROFILE: apple-notary
   script:
     # PyInstaller is installed inside build_dmg.sh itself, into whichever
     # python3 it picks (see there for why bare `python3` isn't trusted).

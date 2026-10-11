@@ -152,8 +152,21 @@ packaging/macos/build_dmg.sh "leaf-framework==<version>"
 Produces `dist/LEAF-macos-<arch>.dmg`. Run natively per architecture
 (arm64/x86_64) — this is not cross-compiled. Set `CODESIGN_IDENTITY` to a
 "Developer ID Application: ..." identity to sign the app before packaging
-(unsigned builds work locally but trigger Gatekeeper warnings for others;
-notarization is not yet wired up).
+(unsigned builds work locally but trigger Gatekeeper warnings for others),
+and `NOTARY_PROFILE` to a `xcrun notarytool store-credentials` profile to
+have Apple notarise the `.dmg` and staple it.
+
+Notarisation looks inside the Python runtime archive and the wheels too, and
+rejects any native binary there that lacks a Developer ID signature, so
+`macos/sign_payload.py` signs them all (hardened runtime, timestamp) before
+they are packed, updating each wheel's `RECORD`. The bundled `python` gets
+`macos/python.entitlements`, so it can still load extensions pip installs
+later, which are not signed by us.
+
+In CI the `macos` runner (a shell runner on Jasper Koehorst's MacBook) has
+the *Developer ID Application: Jasper Koehorst (T3L4QUM69E)* certificate and
+the notarytool profile `apple-notary` in its login keychain, so GitLab stores
+no Apple secrets.
 
 When you pass a version, the script also builds an offline wheelhouse (see
 below) so the resulting `.dmg` needs no internet on first run. Set
