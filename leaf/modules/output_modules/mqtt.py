@@ -2,6 +2,7 @@ import json
 import re
 import threading
 import time
+from collections.abc import Callable
 from socket import gaierror
 from typing import Any, Literal
 
@@ -102,6 +103,8 @@ class MQTT(OutputModule):
         self.messages: dict[str, list[str]] = {}
         self.sending_success: dict[str, bool] = {}
         self._sanitized_topic_warned: set[str] = set()
+        # Topics with a callback; kept so they are resubscribed after a reconnect (clean session).
+        self._subscriptions: dict[str, Callable[[str, str], None]] = {}
         # paho's connect() returns once the socket is open and the CONNECT
         # packet is sent, but the broker's CONNACK (which is what actually
         # flips is_connected() to True) is only processed once loop_start()'s
@@ -365,6 +368,8 @@ class MQTT(OutputModule):
             self._handle_exception(ClientUnreachableError(f"Connection refused: {message}", output_module=self))
             return
 
+        for topic in list(self._subscriptions):
+            self.client.subscribe(topic)
         self._connected_event.set()
 
     def on_connect_fail(
@@ -453,6 +458,9 @@ class MQTT(OutputModule):
         if topic not in self.messages:
             self.messages[topic] = []
         self.messages[topic].append(payload)
+        callback = self._subscriptions.get(topic)
+        if callback is not None:
+            callback(topic, payload)
 
     def reset_messages(self) -> None:
         """
@@ -460,17 +468,20 @@ class MQTT(OutputModule):
         """
         self.messages = {}
 
-    def subscribe(self, topic: str) -> str:
+    def subscribe(self, topic: str, callback: Callable[[str, str], None] | None = None) -> str:
         """
         Subscribe to a topic on the MQTT broker.
 
         Args:
             topic (str): The topic to subscribe to.
+            callback (Optional[Callable]): Called with (topic, payload) for each message on this exact topic.
 
         Returns:
             str: The subscribed topic.
         """
         logger.info(f"Subscribing to {topic}")
+        if callback is not None:
+            self._subscriptions[topic] = callback
         self.client.subscribe(topic)
         return topic
 
@@ -485,6 +496,7 @@ class MQTT(OutputModule):
             str: The unsubscribed topic.
         """
         logger.info(f"Unsubscribing from {topic}")
+        self._subscriptions.pop(topic, None)
         self.client.unsubscribe(topic)
         return topic
 

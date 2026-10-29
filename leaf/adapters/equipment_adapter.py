@@ -119,6 +119,29 @@ class AbstractInterpreter(ABC):
             raise exception
 
 
+class AbstractController(ABC):
+    """
+    Base class for an adapter's controller.py.
+
+    When an instance is configured with ``control: true``, LEAF subscribes to
+    <root>/<organisation>/<department>/<adapter_id>/<instance_id>/control and
+    hands every message to control(). ``self.adapter`` is the running adapter.
+    """
+
+    def __init__(self) -> None:
+        self.adapter: EquipmentAdapter | None = None
+
+    @abstractmethod
+    def control(self, topic: str, data: str) -> None:
+        """
+        Act on a control message.
+
+        Args:
+            topic (str): The control topic the message arrived on.
+            data (str): Raw message payload.
+        """
+
+
 class EquipmentAdapter(ABC):
     """
     Base class for all equipment adapters.
@@ -201,6 +224,27 @@ class EquipmentAdapter(ABC):
             self._external_process.set_interpreter(interpreter)
             self._external_watcher.add_callback(self._external_process.process_input)
 
+        self._controller: AbstractController | None = None
+
+    def set_controller(self, controller: AbstractController) -> None:
+        """Attach a controller; its control() runs for each message on the instance's control topic."""
+        controller.adapter = self
+        self._controller = controller
+
+    def _on_control(self, topic: str, data: str) -> None:
+        # Runs on the MQTT network thread, so never let an exception escape.
+        if self._controller is None:
+            return
+        try:
+            self._logger.info(f"Control message on {topic}: {data}")
+            self._controller.control(topic, data)
+        except Exception as e:
+            self._handle_exception(exceptions.AdapterLogicError(f"Controller failed: {e}"))
+
+    def _subscribe_control(self) -> None:
+        if self._controller is not None:
+            self._output.subscribe(self._metadata_manager.control(), self._on_control)
+
     def is_running(self) -> bool:
         """
         Check if the adapter is actively running.
@@ -233,6 +277,7 @@ class EquipmentAdapter(ABC):
             if self._external_watcher:
                 self._external_watcher.start()
             self._output.on_adapter_ready(self._metadata_manager)
+            self._subscribe_control()
 
             self._stop_event.clear()
             # Expose adapter on all channels.
@@ -316,6 +361,8 @@ class EquipmentAdapter(ABC):
         """
         self._stop_event.set()
         self._output.on_adapter_stop(self._metadata_manager)
+        if self._controller is not None:
+            self._output.unsubscribe(self._metadata_manager.control())
         if self._watcher.is_running():
             self._watcher.stop()
 
