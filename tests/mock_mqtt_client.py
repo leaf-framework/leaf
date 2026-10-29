@@ -61,7 +61,7 @@ class MockBioreactorClient(MQTT):
         self.messages[topic].append(payload)
         self.num_msg += 1
 
-    def subscribe(self, topic: str) -> str:
+    def subscribe(self, topic: str, callback=None) -> str:
         topic = topic.strip().replace(" ", "")
         topic = re.sub(r"\s+", "", topic)
         self.client.subscribe(topic)

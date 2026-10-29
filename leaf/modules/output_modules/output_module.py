@@ -1,5 +1,6 @@
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any, Optional
 
 from leaf.error_handler.error_holder import ErrorHolder
@@ -119,15 +120,27 @@ class OutputModule(ABC):
         if self._fallback is not None:
             self._fallback.flush(topic)
 
-    def subscribe(self, topic: str) -> None:
+    def subscribe(self, topic: str, callback: Callable[[str, str], None] | None = None) -> None:
         """
         Listen on the specified topic if supported by the module.
 
         Args:
             topic (str): Topic to subscribe to.
+            callback (Optional[Callable]): Called with (topic, payload) for each message, if supported.
         """
         if self._fallback is not None:
-            self._fallback.subscribe(topic)
+            self._fallback.subscribe(topic, callback)
+
+    def unsubscribe(self, topic: str) -> str | None:
+        """
+        Stop listening on the specified topic if supported by the module.
+
+        Args:
+            topic (str): Topic to unsubscribe from.
+        """
+        if self._fallback is not None:
+            return self._fallback.unsubscribe(topic)
+        return None
 
     def fallback(self, topic: str, data: str | dict[Any, Any] | None = None) -> bool:
         """

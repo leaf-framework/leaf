@@ -2,6 +2,7 @@ details: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/details
 running: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/running
 heartbeat: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/heartbeat
 error: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/error
+control: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/control
 experiment:
   start: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/experiment/start
   stop: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/experiment/stop

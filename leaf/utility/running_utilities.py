@@ -5,13 +5,14 @@ import threading
 import time
 from typing import Any
 
-from leaf.adapters.equipment_adapter import EquipmentAdapter
+from leaf.adapters.equipment_adapter import AbstractController, EquipmentAdapter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterBuildError
 from leaf.modules.output_modules.file import FILE
 from leaf.modules.output_modules.mqtt import MQTT
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.register.topic_utilities import topic_utilities
+from leaf.registry.loader import load_class_from_file
 from leaf.registry.registry import get_equipment_adapter, get_external_input, get_output_adapter
 from leaf.utility.logger.logger_utils import get_logger
 
@@ -157,6 +158,8 @@ def process_instance(instance: dict[str, Any], output: OutputModule) -> Equipmen
     else:
         external_watcher = None
 
+    control = instance.pop("control", False)
+
     adapter_cls = get_equipment_adapter(equipment_code)
 
     try:
@@ -199,7 +202,7 @@ def process_instance(instance: dict[str, Any], output: OutputModule) -> Equipmen
         logger.debug(f"Parameters: {instance_data}, {output}, {error_holder}")
         logger.debug(f"Requirements: {requirements}")
         logger.debug(f"Additional arguments: {instance}")
-        return adapter_cls(
+        adapter = adapter_cls(
             instance_data,
             output,
             error_holder=error_holder,
@@ -209,6 +212,25 @@ def process_instance(instance: dict[str, Any], output: OutputModule) -> Equipmen
         )
     except ValueError as ex:
         raise AdapterBuildError(f"Error initializing {instance_id}: {ex}")
+
+    _attach_controller(adapter, adapter_cls, output, control)
+    return adapter
+
+
+def _attach_controller(
+    adapter: EquipmentAdapter, adapter_cls: type[EquipmentAdapter], output: OutputModule, control: bool
+) -> None:
+    """With control enabled, attach the AbstractController from the controller.py next to the adapter's module."""
+    if not control:
+        return
+    if not isinstance(output, MQTT):
+        raise AdapterBuildError("'control' requires an MQTT output.")
+    # Locally loaded adapters are not in sys.modules, so take the path from __init__'s code object.
+    controller_fp = os.path.join(os.path.dirname(inspect.getfile(adapter_cls.__init__)), "controller.py")
+    if not os.path.isfile(controller_fp):
+        raise AdapterBuildError(f"'control' is enabled but {controller_fp} does not exist.")
+    controller_cls = load_class_from_file(controller_fp, base_class=AbstractController)
+    adapter.set_controller(controller_cls())
 
 
 def start_all_adapters_in_threads(adapters: list[EquipmentAdapter]) -> list[threading.Thread]:
