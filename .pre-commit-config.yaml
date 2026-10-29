@@ -1,3 +1,6 @@
+# Install once per clone: `poetry run pre-commit install`.
+# Whole-project runs (not per-file): both tools need the full set to match
+# their baselines, and basedpyright needs cross-file context anyway.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.10
@@ -5,3 +8,19 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: basedpyright
+        name: basedpyright
+        entry: poetry run basedpyright
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+      - id: complexipy
+        name: complexipy
+        entry: poetry run complexipy -q
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true

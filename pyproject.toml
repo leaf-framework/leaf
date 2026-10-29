@@ -56,6 +56,9 @@ pyinstaller = "^6.19.0"
 cairosvg = "^2.8.2"
 pillow = "^12.1.1"
 ruff = "^0.15.2"
+basedpyright = ">=1.40.2,<2"
+complexipy = ">=8.3.0,<9"
+pre-commit = ">=4,<5"
 
 [build-system]
 requires = ["poetry-core"]
@@ -158,3 +161,13 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.basedpyright]
+# Existing findings live in .basedpyright/baseline.json; only new ones fail.
+# Regenerate after fixing some: `basedpyright --writebaseline`.
+include = ["leaf", "tests"]
+
+[tool.complexipy]
+# Same ratchet: complexipy-snapshot.json holds the functions already over
+# the limit, so only new or worsened ones fail.
+paths = ["leaf", "tests"]

@@ -26,6 +26,18 @@ lint:
     - ruff check leaf/ tests/
     - ruff format --check leaf/ tests/
 
+# Type check and cognitive complexity, both ratcheted against a committed
+# baseline (see pyproject.toml). Needs the project installed for imports.
+typecheck-complexity:
+  stage: lint
+  image: registry.gitlab.com/leaf-framework/leaf:runner
+  before_script:
+    - source /venv/bin/activate
+    - poetry install --with test,dev
+  script:
+    - poetry run basedpyright
+    - poetry run complexipy -q
+
 # Job to run tests
 test:
   stage: test
