@@ -24,7 +24,6 @@ import shutil
 import subprocess
 import sys
 import tarfile
-import time
 import zipfile
 from pathlib import Path
 
@@ -262,39 +261,45 @@ def show_error(message: str) -> None:
 
 
 def run_pumping_ui(cmd: list[str], progress) -> None:
-    """subprocess.run, but keeps the Tk progress window's event loop alive.
+    """subprocess.run, but keeps the Tk progress window responsive.
 
-    A single root.update() paints the window once; a blocking subprocess
-    lasting 30-90s (venv creation, pip install) then leaves it un-repainted
-    for that whole time, which macOS renders as a blank, "Not Responding"
-    window even though nothing is actually wrong. Polling via Popen instead
-    of subprocess.run lets us pump the event loop every tick to keep it
-    genuinely responsive throughout.
-
-    Deliberately update_idletasks(), not update(): update() processes the
-    *entire* event queue (all pending input/window-manager events, not just
-    redraws), which Tk's own documentation warns can cause reentrant/
-    recursive callback processing. Confirmed via a real Python-level
-    traceback (faulthandler) that the main thread was the one spinning, not
-    a subprocess -- and this reentrancy is a well-known class of bug for
-    exactly this "call update() in a tight polling loop" pattern.
-    update_idletasks() only flushes pending redraws, which is all this
-    actually needs.
+    A blocking subprocess lasting 30-90s (venv creation, pip install) leaves
+    an un-pumped window that macOS and Windows both flag as "Not Responding".
+    update_idletasks() only flushes Tk redraws and never drains the Win32
+    message queue, and update() was seen to spin reentrantly on macOS, so
+    run Tk's own mainloop and poll the child from an after() callback.
     """
-    proc = subprocess.Popen(cmd)
+    popen_kwargs = {}
+    if platform.system() == "Windows":
+        # The launcher is a windowed exe, so each console-subsystem child
+        # (python.exe -m venv / pip) would otherwise pop its own console.
+        popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    proc = subprocess.Popen(cmd, **popen_kwargs)
     try:
-        while proc.poll() is None:
-            if progress is not None:
-                try:
-                    progress.update_idletasks()
-                except Exception:
-                    progress = None
-            time.sleep(0.05)
+        if progress is not None:
+            try:
+                _wait_in_mainloop(proc, progress)
+            except Exception:
+                pass
+        proc.wait()
     except BaseException:
         proc.kill()
         raise
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode, cmd)
+
+
+def _wait_in_mainloop(proc: subprocess.Popen, progress) -> None:
+    def check() -> None:
+        if proc.poll() is None:
+            progress.after(100, check)
+        else:
+            progress.quit()
+
+    # Closing the window mid-install must not end mainloop with pip still running.
+    progress.protocol("WM_DELETE_WINDOW", lambda: None)
+    progress.after(100, check)
+    progress.mainloop()
 
 
 def bootstrap_environment(data_dir: Path) -> Path:
