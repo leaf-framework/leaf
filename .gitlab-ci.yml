@@ -151,10 +151,15 @@ publish:
     - determine_version
   rules:
     - if: '$CI_COMMIT_TAG'
+  # Trusted publishing + Sigstore attestations give the release provenance on PyPI.
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: pypi
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
   before_script:
-    - pip install poetry
+    - pip install poetry twine id pypi-attestations
     - poetry config virtualenvs.create false
-    - poetry config pypi-token.pypi "$PYPI_TOKEN"
   script:
     - echo "Publishing $LEAF_VERSION from tag $CI_COMMIT_TAG"
     # pyproject.toml keeps a 0.0.0 placeholder in git -- the tag is the single
@@ -164,7 +169,10 @@ publish:
     - head -n 10 pyproject.toml
     - poetry build
     - ls -l dist/
-    - poetry publish
+    - python -m pypi_attestations sign dist/*
+    - oidc_token=$(python -m id pypi)
+    - api_token=$(curl -sf -X POST https://pypi.org/_/oidc/mint-token -d "{\"token\":\"${oidc_token}\"}" | python -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+    - twine upload --attestations -u __token__ -p "$api_token" --non-interactive dist/*
 
 verify-marketplace:
   stage: verify
