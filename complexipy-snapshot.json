@@ -1,0 +1,212 @@
+[
+  {
+    "path": "leaf/adapters/equipment_adapter.py",
+    "file_name": "equipment_adapter.py",
+    "functions": [
+      {
+        "name": "EquipmentAdapter::start",
+        "complexity": 22
+      }
+    ]
+  },
+  {
+    "path": "leaf/modules/input_modules/ble_watcher.py",
+    "file_name": "ble_watcher.py",
+    "functions": [
+      {
+        "name": "BLEEventWatcher::_scan_loop",
+        "complexity": 16
+      },
+      {
+        "name": "BLEEventWatcher::_detection_callback",
+        "complexity": 23
+      }
+    ]
+  },
+  {
+    "path": "leaf/modules/input_modules/file_watcher.py",
+    "file_name": "file_watcher.py",
+    "functions": [
+      {
+        "name": "FileWatcher::_process_existing_files",
+        "complexity": 22
+      }
+    ]
+  },
+  {
+    "path": "leaf/modules/output_modules/mqtt.py",
+    "file_name": "mqtt.py",
+    "functions": [
+      {
+        "name": "MQTT::__init__",
+        "complexity": 16
+      },
+      {
+        "name": "MQTT::transmit",
+        "complexity": 30
+      }
+    ]
+  },
+  {
+    "path": "leaf/modules/phase_modules/measure.py",
+    "file_name": "measure.py",
+    "functions": [
+      {
+        "name": "MeasurePhase::_form_message",
+        "complexity": 17
+      },
+      {
+        "name": "MeasurePhase::update",
+        "complexity": 48
+      }
+    ]
+  },
+  {
+    "path": "leaf/registry/discovery.py",
+    "file_name": "discovery.py",
+    "functions": [
+      {
+        "name": "discover_local_equipment",
+        "complexity": 18
+      },
+      {
+        "name": "discover_entry_point_equipment",
+        "complexity": 19
+      }
+    ]
+  },
+  {
+    "path": "leaf/start.py",
+    "file_name": "start.py",
+    "functions": [
+      {
+        "name": "run_adapters",
+        "complexity": 68
+      },
+      {
+        "name": "main",
+        "complexity": 83
+      }
+    ]
+  },
+  {
+    "path": "leaf/ui/interface.py",
+    "file_name": "interface.py",
+    "functions": [
+      {
+        "name": "start_nicegui",
+        "complexity": 30
+      }
+    ]
+  },
+  {
+    "path": "leaf/ui/tabs/adapters.py",
+    "file_name": "adapters.py",
+    "functions": [
+      {
+        "name": "show_adapter_details",
+        "complexity": 22
+      },
+      {
+        "name": "build_adapters_content",
+        "complexity": 39
+      }
+    ]
+  },
+  {
+    "path": "leaf/ui/tabs/configuration.py",
+    "file_name": "configuration.py",
+    "functions": [
+      {
+        "name": "create_configuration_tab",
+        "complexity": 23
+      }
+    ]
+  },
+  {
+    "path": "leaf/ui/tabs/logs.py",
+    "file_name": "logs.py",
+    "functions": [
+      {
+        "name": "create_logs_tab",
+        "complexity": 21
+      }
+    ]
+  },
+  {
+    "path": "leaf/utility/running_utilities.py",
+    "file_name": "running_utilities.py",
+    "functions": [
+      {
+        "name": "process_instance",
+        "complexity": 22
+      },
+      {
+        "name": "build_output_module",
+        "complexity": 28
+      }
+    ]
+  },
+  {
+    "path": "tests/test_adapters/test_equipment_adapter.py",
+    "file_name": "test_equipment_adapter.py",
+    "functions": [
+      {
+        "name": "TestEquipmentAdapter::test_experiment_timeout",
+        "complexity": 17
+      }
+    ]
+  },
+  {
+    "path": "tests/test_exceptions.py",
+    "file_name": "test_exceptions.py",
+    "functions": [
+      {
+        "name": "TestExceptionsGeneral::test_start_handler_no_connection",
+        "complexity": 16
+      },
+      {
+        "name": "TestExceptionsGeneral::test_start_handler_no_fallback",
+        "complexity": 18
+      }
+    ]
+  },
+  {
+    "path": "tests/test_modules/test_output_modules/test_fallback.py",
+    "file_name": "test_fallback.py",
+    "functions": [
+      {
+        "name": "TestFallbacks::test_pop_all_messages",
+        "complexity": 21
+      },
+      {
+        "name": "TestFallbacks::test_pop_all_messages_multi_output",
+        "complexity": 39
+      }
+    ]
+  },
+  {
+    "path": "tests/test_modules/test_output_modules/test_keydb.py",
+    "file_name": "test_keydb.py",
+    "functions": [
+      {
+        "name": "TestKeyDB::test_leaf",
+        "complexity": 30
+      },
+      {
+        "name": "TestKeyDB::test_keydb_switch_to_mqtt",
+        "complexity": 35
+      }
+    ]
+  },
+  {
+    "path": "tests/test_modules/test_process_modules/test_process_module.py",
+    "file_name": "test_process_module.py",
+    "functions": [
+      {
+        "name": "TestDiscreteProcess::test_discrete_process",
+        "complexity": 30
+      }
+    ]
+  }
+]
