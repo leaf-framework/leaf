@@ -84,11 +84,14 @@ test:
 # process isolation is for) - not something this job should paper over.
 # allow_failure is set because those two failures are therefore expected
 # here; this job exists to publish an accurate coverage number, not to gate
-# correctness (that's still `test`'s job).
+# correctness (that's still `test`'s job). Only on main: a second full run on
+# every branch push doubled the queue on our single runner.
 coverage:
   stage: test
   image: registry.gitlab.com/leaf-framework/leaf:runner
   allow_failure: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   variables:
     # Overrides the global PYTEST_ADDOPTS (which injects --forked into every
     # job) - the whole point of this job is running without --forked.
