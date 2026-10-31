@@ -3,7 +3,7 @@
 
 - adapter_id: Table
   image: "./images/table.png"
-  description: "File conversion module to parse tabular data from various file formats into InfluxObject messages."
+  description: "File conversion module to parse tabular data from various file formats into LeafPoint messages."
   equipment_data:
     version: "1.0"
     manufacturer: LEAF

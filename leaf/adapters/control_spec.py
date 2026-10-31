@@ -7,10 +7,10 @@ so the limits hold however the message arrives. An adapter that declares no cont
 
 import json
 import os
-import time
 from typing import cast
 
 import yaml
+from leafobject import LeafPoint  # pyright: ignore[reportMissingTypeStubs]
 
 Control = dict[str, object]
 
@@ -133,13 +133,21 @@ def _part(point: dict[str, object], key: str) -> dict[str, object]:
     return {}
 
 
+def _field_value(value: object) -> int | float | str:
+    """value as a LeafPoint field allows it: a number or text, anything else as its JSON."""
+    if isinstance(value, (int, float, str)):
+        return value
+    return json.dumps(value)
+
+
 def applied_record(data: str, source: str, error: Exception | None = None) -> dict[str, object]:
     """
     A control message as the LeafPoint LEAF publishes on <control topic>/applied, so that what was
     sent to the equipment is stored with the measurements.
 
-    source ("ui" or "mqtt") and status ("applied" or "rejected") are tags, for consumers to filter
-    on; a rejection's reason is the "error" field. Unparseable messages keep their text there too.
+    source ("ui" or "mqtt"), status ("applied" or "rejected") and a rejection's "error" are tags,
+    for consumers to filter on. Built as a leafobject LeafPoint, so tags are text and there is
+    always a field: a message without fields keeps its raw text in "message".
     """
     point: dict[str, object] = {}
     try:
@@ -148,19 +156,21 @@ def applied_record(data: str, source: str, error: Exception | None = None) -> di
             point = cast(dict[str, object], parsed)
     except ValueError:
         pass
-    tags = _part(point, "tags")
-    fields = _part(point, "fields")
-    status = "applied"
-    if error is not None:
-        status = "rejected"
-        fields["error"] = str(error)
-    if not point:
-        fields["message"] = data
+    tags: dict[str, str] = {}
+    for key, value in _part(point, "tags").items():
+        tags[key] = str(value)
+    fields: dict[str, int | float | str] = {}
+    for key, value in _part(point, "fields").items():
+        fields[key] = _field_value(value)
     tags["source"] = source
-    tags["status"] = status
-    return {
-        "measurement": point.get("measurement", "control"),
-        "tags": tags,
-        "fields": fields,
-        "timestamp": time.time(),
-    }
+    tags["status"] = "applied"
+    if error is not None:
+        tags["status"] = "rejected"
+        tags["error"] = str(error)
+    if not fields:
+        fields["message"] = data
+    record = LeafPoint()
+    record.set_measurement(str(point.get("measurement", "control")))
+    record.set_tags(tags)
+    record.set_fields(fields)
+    return {**record.to_json()}

@@ -6,7 +6,7 @@ import unittest
 from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
-from influxobject import InfluxPoint
+from leafobject import LeafPoint  # pyright: ignore[reportMissingTypeStubs]
 
 from leaf.adapters.core_adapters.discrete_experiment_adapter import DiscreteExperimentAdapter
 from leaf.adapters.equipment_adapter import AbstractInterpreter
@@ -58,15 +58,17 @@ class MBPOPCInterpreter(AbstractInterpreter):
         if value is None:
             return False
 
-        influx_object = InfluxPoint()
-        influx_object.measurement = "opc_ua_device"
-        influx_object.time = timestamp if timestamp else datetime.now(UTC)
-        influx_object.set_entity_tag(f"node_{node}")
-        influx_object.set_metric("value")
-        influx_object.add_field("value", float(value))
-        influx_object.add_field("message_count", self.message_count)
+        point = LeafPoint()
+        point.set_measurement("opc_ua_device")
+        if not timestamp:
+            timestamp = datetime.now(UTC)
+        point.set_timestamp(timestamp)
+        point.set_entity_tag(f"node_{node}")
+        point.set_metric("value")
+        point.add_field("value", float(value))
+        point.add_field("message_count", self.message_count)
 
-        return [influx_object]
+        return [point]
 
     def simulate(self):
         return
@@ -161,7 +163,7 @@ class TestOpcWatcher(unittest.TestCase):
 
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
-        self.assertIsInstance(result[0], InfluxPoint)
+        self.assertIsInstance(result[0], LeafPoint)
         self.assertEqual(result[0].measurement, "opc_ua_device")
         self.assertEqual(self.interpreter.message_count, 1)
 

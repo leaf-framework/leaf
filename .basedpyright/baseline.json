@@ -21234,14 +21234,6 @@
         ],
         "./tests/test_adapters/opc/test_opc_watcher.py": [
             {
-                "code": "reportMissingTypeStubs",
-                "range": {
-                    "startColumn": 5,
-                    "endColumn": 17,
-                    "lineCount": 1
-                }
-            },
-            {
                 "code": "reportUnknownParameterType",
                 "range": {
                     "startColumn": 23,
@@ -21370,18 +21362,18 @@
                 }
             },
             {
-                "code": "reportAttributeAccessIssue",
+                "code": "reportUnknownArgumentType",
                 "range": {
-                    "startColumn": 22,
-                    "endColumn": 26,
+                    "startColumn": 28,
+                    "endColumn": 37,
                     "lineCount": 1
                 }
             },
             {
                 "code": "reportUnknownArgumentType",
                 "range": {
-                    "startColumn": 47,
-                    "endColumn": 52,
+                    "startColumn": 39,
+                    "endColumn": 44,
                     "lineCount": 1
                 }
             },
@@ -40267,14 +40259,6 @@
             }
         ],
         "./tests/test_modules/test_input_modules/test_mqtt_input_module.py": [
-            {
-                "code": "reportMissingTypeStubs",
-                "range": {
-                    "startColumn": 5,
-                    "endColumn": 17,
-                    "lineCount": 1
-                }
-            },
             {
                 "code": "reportAny",
                 "range": {

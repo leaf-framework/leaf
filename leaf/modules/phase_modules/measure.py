@@ -291,7 +291,7 @@ class MeasurePhase(PhaseModule):
 
 
 def point_json_of(item: object) -> dict[str, object] | None:
-    """JSON of an InfluxPoint or leafobject LeafPoint, recognised by to_json() so LEAF need not depend on leafobject."""
+    """JSON of a leafobject LeafPoint (or anything else with to_json()), else None."""
     if isinstance(item, dict):
         return None
     to_json: object = getattr(item, "to_json", None)

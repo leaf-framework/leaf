@@ -8,7 +8,7 @@ from threading import Thread
 from unittest.mock import patch
 
 import yaml
-from influxobject import InfluxPoint
+from leafobject import LeafPoint  # pyright: ignore[reportMissingTypeStubs]
 
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
@@ -524,7 +524,7 @@ class MQTTInputMockInterpreter(AbstractInterpreter):
         return payload
 
     def measurement(self, data):
-        inf_obj = InfluxPoint()
+        inf_obj = LeafPoint()
         if "topic" not in data:
             excp = InterpreterError("Recieved measurement without original topic.")
             self._handle_exception(excp)

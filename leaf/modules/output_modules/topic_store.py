@@ -98,7 +98,7 @@ def history_key(topic: str, point: object) -> str:
 
 
 def _point_sample(point: object) -> tuple[float, float] | None:
-    """(timestamp, value) of a LeafPoint/InfluxPoint JSON dict with a numeric fields.value, or None."""
+    """(timestamp, value) of a LeafPoint JSON dict with a numeric fields.value, or None."""
     if not isinstance(point, dict):
         return None
     point_dict = cast(dict[str, object], point)

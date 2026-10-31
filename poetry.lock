@@ -1303,18 +1303,6 @@ files = [
 ]
 
 [[package]]
-name = "influxobject"
-version = "0.0.13"
-description = "Influx Object Package"
-optional = false
-python-versions = "<4.0,>=3.9"
-groups = ["main"]
-files = [
-    {file = "influxobject-0.0.13-py3-none-any.whl", hash = "sha256:0e3640bd5bcb1fd34f1a0f030fb219751f7ce97a8cc298b003c9799ef9a35c02"},
-    {file = "influxobject-0.0.13.tar.gz", hash = "sha256:61fe69e18b1b09c6870c27a8f337b066f85214c2cf1685e1a4e33c628dd4a677"},
-]
-
-[[package]]
 name = "iniconfig"
 version = "2.3.0"
 description = "brain-dead simple config-ini parsing"
@@ -1355,6 +1343,18 @@ MarkupSafe = ">=2.0"
 
 [package.extras]
 i18n = ["Babel (>=2.7)"]
+
+[[package]]
+name = "leafobject"
+version = "0.0.14"
+description = "LEAF Object Package"
+optional = false
+python-versions = "<4.0,>=3.9"
+groups = ["main"]
+files = [
+    {file = "leafobject-0.0.14-py3-none-any.whl", hash = "sha256:997b6b34c1feb46755b073de620c302ca29c5166d381cdb6a25bbc0060035e51"},
+    {file = "leafobject-0.0.14.tar.gz", hash = "sha256:54ab0e1d99611df743ee75b621603f07fbe31670b9ab3d3f4a430f81a076de1f"},
+]
 
 [[package]]
 name = "librt"
@@ -3964,4 +3964,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "6e2bb4096ac1bd645d362d56464bef4c0694d49414fa26ce60313b58f61f16de"
+content-hash = "2c42522a913b7eeeab61c4b9a233056703396484ce6e573f01ee6ccbe59862fc"
