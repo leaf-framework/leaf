@@ -1,5 +1,6 @@
 import importlib.util
 import inspect
+from types import ModuleType
 from typing import Any
 
 from leaf.adapters.equipment_adapter import EquipmentAdapter
@@ -44,6 +45,11 @@ def load_class_from_file(path: str, class_name: str | None = None, base_class: t
         raise AdapterBuildError(f"Class '{class_name}' not found in {path}")
 
     # No class_name given, so auto-detect the best subclass of base_class
+    return most_specific_subclass(module, base_class, path)
+
+
+def most_specific_subclass(module: ModuleType, base_class: type, origin: str) -> type:
+    """The deepest subclass of base_class in a module; origin names the module in errors."""
     candidates = [
         obj
         for _, obj in inspect.getmembers(module, inspect.isclass)
@@ -51,7 +57,7 @@ def load_class_from_file(path: str, class_name: str | None = None, base_class: t
     ]
 
     if not candidates:
-        raise AdapterBuildError(f"No subclass of {base_class.__name__} found in {path}")
+        raise AdapterBuildError(f"No subclass of {base_class.__name__} found in {origin}")
 
     # Return the most specific subclass (deepest in the inheritance tree)
     return max(candidates, key=lambda cls: inheritance_depth(cls, base_class))
