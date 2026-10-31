@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from threading import Event
 from typing import Any
 
-from leaf.adapters.control_spec import Control, check_control
+from leaf.adapters.control_spec import Control, applied_record, check_control
 from leaf.error_handler import exceptions
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import LEAFError
@@ -254,7 +254,10 @@ class EquipmentAdapter(ABC):
         except Exception as e:
             # The error holder reports it later; log it now so the sender can see why nothing happened
             self._logger.warning(f"Control message on {topic} rejected: {e}")
+            self._report_control(topic, data, "mqtt", e)
             self._handle_exception(exceptions.AdapterLogicError(f"Controller failed: {e}"))
+            return
+        self._report_control(topic, data, "mqtt")
 
     def has_controller(self) -> bool:
         """True when the instance runs with control: true and a controller is attached."""
@@ -281,8 +284,18 @@ class EquipmentAdapter(ABC):
             self._controller.control(topic, data)
         except Exception as e:
             # Reported like a control message from MQTT, so it also reaches the error topic
+            self._report_control(topic, data, "ui", e)
             self._handle_exception(exceptions.AdapterLogicError(f"Controller failed: {e}"))
             raise
+        self._report_control(topic, data, "ui")
+
+    def _report_control(self, topic: str, data: str, source: str, error: Exception | None = None) -> None:
+        """Publish what happened to a control message on <control topic>/applied, so it is stored with the data."""
+        # Never let the record break the command it describes
+        try:
+            _ = self._output.transmit(f"{topic}/applied", applied_record(data, source, error))
+        except Exception as e:
+            self._logger.warning(f"Could not publish the control record for {topic}: {e}")
 
     def _subscribe_control(self) -> None:
         if self._controller is not None:
