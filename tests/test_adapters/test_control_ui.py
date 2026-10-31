@@ -155,17 +155,17 @@ def test_errors_are_published_once_not_once_per_process() -> None:
     assert second.sent == []
 
 
-def test_applied_record_puts_source_and_status_in_the_tags() -> None:
-    from leaf.adapters.control_spec import applied_record
+def test_result_record_puts_source_and_status_in_the_tags() -> None:
+    from leaf.adapters.control_spec import result_record
 
     sent = '{"measurement": "leaf_test", "tags": {"metric": "T_sp"}, "fields": {"value": 303.0}}'
-    record = applied_record(sent, "ui")
+    record = result_record(sent, "ui")
     assert record["measurement"] == "leaf_test"
     assert record["tags"] == {"metric": "T_sp", "source": "ui", "status": "applied"}
     assert record["fields"] == {"value": 303.0}
     assert isinstance(record["timestamp"], float)
 
-    rejected = applied_record(sent, "mqtt", ValueError("T_sp = 2000.0 is above its maximum 373.15"))
+    rejected = result_record(sent, "mqtt", ValueError("T_sp = 2000.0 is above its maximum 373.15"))
     assert rejected["tags"] == {
         "metric": "T_sp",
         "source": "mqtt",
@@ -174,7 +174,7 @@ def test_applied_record_puts_source_and_status_in_the_tags() -> None:
     }
     assert rejected["fields"] == {"value": 303.0}
 
-    unreadable = applied_record("not json", "mqtt", ValueError("bad"))
+    unreadable = result_record("not json", "mqtt", ValueError("bad"))
     assert unreadable["tags"] == {"source": "mqtt", "status": "rejected", "error": "bad"}
     assert unreadable["fields"] == {"message": "not json"}
 
@@ -201,14 +201,14 @@ def _adapter_with(controller: AbstractController, output: OutputRecorder) -> moc
     return adapter
 
 
-def test_ui_and_mqtt_commands_are_published_on_control_applied() -> None:
+def test_ui_and_mqtt_commands_are_published_on_control_result() -> None:
     output = OutputRecorder()
     adapter = _adapter_with(Recorder(), output)
     message = '{"tags": {"metric": "step"}, "fields": {"value": "next"}}'
     EquipmentAdapter.send_control(adapter, message)
     EquipmentAdapter._on_control(adapter, "leaf/wur/ssb/leaf_test/r1/control", message)  # pyright: ignore[reportPrivateUsage]
     topics = [topic for topic, _ in output.sent]
-    assert all(topic.endswith("/r1/control/applied") for topic in topics)
+    assert all(topic.endswith("/r1/control/result") for topic in topics)
     sources = [cast(dict[str, dict[str, str]], record)["tags"]["source"] for _, record in output.sent]
     assert sources == ["ui", "mqtt"]
 
@@ -222,11 +222,11 @@ def test_rejected_commands_are_published_too() -> None:
     assert cast(dict[str, dict[str, str]], record)["tags"]["status"] == "rejected"
 
 
-def test_applied_record_is_a_valid_leafpoint() -> None:
-    from leaf.adapters.control_spec import applied_record
+def test_result_record_is_a_valid_leafpoint() -> None:
+    from leaf.adapters.control_spec import result_record
 
     # Messages LEAF rejects still become a LeafPoint: tags as text, at least one field
-    record = applied_record('{"tags": {"metric": "T_sp", "reactor": 1}}', "mqtt", ValueError("needs fields"))
+    record = result_record('{"tags": {"metric": "T_sp", "reactor": 1}}', "mqtt", ValueError("needs fields"))
     assert record["tags"] == {
         "metric": "T_sp",
         "reactor": "1",
@@ -236,5 +236,16 @@ def test_applied_record_is_a_valid_leafpoint() -> None:
     }
     assert record["fields"] == {"message": '{"tags": {"metric": "T_sp", "reactor": 1}}'}
 
-    nested = applied_record('{"tags": {"metric": "x"}, "fields": {"value": {"a": 1}}}', "ui")
+    nested = result_record('{"tags": {"metric": "x"}, "fields": {"value": {"a": 1}}}', "ui")
     assert nested["fields"] == {"value": '{"a": 1}'}
+
+
+def test_control_result_topic_is_the_one_published_on() -> None:
+    # The registered topic must match <control topic>/result, which _report_control builds
+    manager = MetadataManager()
+    manager.add_equipment_value("adapter_id", "leaf_test")
+    manager.add_instance_value("organisation", "wur")
+    manager.add_instance_value("department", "ssb")
+    manager.add_instance_value("instance_id", "r1")
+    # Topic builders are generated at runtime, so the checker sees them as Any
+    assert manager.control_result() == f"{manager.control()}/result"  # pyright: ignore[reportAny]
