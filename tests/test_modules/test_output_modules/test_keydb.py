@@ -4,6 +4,7 @@ import os
 import threading
 import time
 import unittest
+from typing import cast
 
 import pytest
 import redis
@@ -47,7 +48,8 @@ class TestKeyDB(unittest.TestCase):
         """
         # Set a key-value pair and verify that it can be retrieved
         self.db.set("key", "value")
-        result = self.db.get("key").decode("utf-8")  # Decode from bytes to string
+        # redis types replies as bytes | str; this client returns bytes
+        result = cast(bytes, self.db.get("key")).decode("utf-8")
         self.assertEqual(result, "value")
 
     def test_delete(self):
@@ -149,7 +151,7 @@ class TestKeyDB(unittest.TestCase):
             try:
                 # Check timeout
                 if time.time() - start_time > timeout:
-                    current_keys = sorted(keydb_client.keys("keydb_test_instance*"))
+                    current_keys = sorted(cast(list[bytes], keydb_client.keys("keydb_test_instance*")))
                     error_dump = ""
                     for key in current_keys:
                         if b"/error" in key:
@@ -168,7 +170,7 @@ class TestKeyDB(unittest.TestCase):
                         f"Expected {expected_key_count} keys but found {len(current_keys)}: {current_keys}"
                     )
                 # Obtain data from KeyDB
-                keys = sorted(keydb_client.keys("keydb_test_instance*"))
+                keys = sorted(cast(list[bytes], keydb_client.keys("keydb_test_instance*")))
                 self.logger.info("Current keys in KeyDB: %s", keys)
                 if len(keys) == expected_key_count:
                     # Find keys by pattern instead of assuming order
@@ -292,13 +294,13 @@ class TestKeyDB(unittest.TestCase):
             p.join(1)
 
         # Obtain all messages from KeyDB to check if they are sent over MQTT
-        keys = keydb_client.keys()
+        keys = cast(list[bytes], keydb_client.keys())
         message_store = {}
-        for key in keys:
-            key = key.decode("utf-8")  # Decode bytes to string
+        for raw_key in keys:
+            key = raw_key.decode("utf-8")  # Decode bytes to string
             message_store[key] = set()
             self.logger.info("Key: %s", key)
-            messages = keydb_client.lrange(key, 0, -1)
+            messages = cast(list[bytes], keydb_client.lrange(key, 0, -1))
             for message in messages:
                 self.logger.info("Message: %s", message.decode("utf-8"))
                 message_store[key].add(message.decode("utf-8"))
