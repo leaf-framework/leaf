@@ -6,6 +6,7 @@ from pathlib import Path
 
 from nicegui import ui
 
+from leaf.ui.components.app_control import create_app_controls
 from leaf.ui.components.update_notice import create_update_notice
 
 
@@ -42,6 +43,8 @@ def create_header(dark_mode: ui.dark_mode, curr_dir: Path, drawer=None) -> None:
                 with ui.row().classes("items-center mr-4 hidden md:flex"):
                     ui.html('<span class="status-indicator status-online"></span>', sanitize=False)
                     ui.label("System Online").classes("text-sm opacity-90")
+
+                create_app_controls()
 
                 # Dark mode toggle with manual DOM class management
                 def toggle_dark_mode():

@@ -1,12 +1,11 @@
 """Header indicator offering the update found by leaf.ui.update_checker."""
 
 import asyncio
-import os
-import sys
 
 from nicegui import ui
 
 from leaf import __version__
+from leaf.ui.components.app_control import restart_leaf
 from leaf.ui.update_checker import (
     PYPI_PROJECT_URL,
     UNKNOWN_VERSION,
@@ -23,12 +22,6 @@ logger = get_logger(__name__, log_file="interface.log")
 # itself runs at most weekly in the background; this only decides how quickly
 # an already-open tab notices its result.
 POLL_INTERVAL_SECONDS = 60.0
-
-
-def _restart_leaf() -> None:
-    """Re-exec LEAF so the freshly installed version takes over, as Save & Restart does."""
-    logger.info("Restarting LEAF to load the updated version...")
-    os.execl(sys.executable, sys.executable, *sys.argv)
 
 
 async def _perform_update(dialog: ui.dialog, update_button: ui.button, latest_version: str | None) -> None:
@@ -81,7 +74,7 @@ async def _perform_update(dialog: ui.dialog, update_button: ui.button, latest_ve
         timeout=10000,
     )
     # Let the notification render before the process is replaced
-    ui.timer(1.5, _restart_leaf, once=True)
+    _ = ui.timer(1.5, restart_leaf, once=True)
 
 
 def _open_update_dialog() -> None:

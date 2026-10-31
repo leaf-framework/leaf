@@ -1,16 +1,24 @@
 """LEAF Configuration tab."""
 
 import os
-import sys
-from functools import partial
 from pathlib import Path
 
 from nicegui import ui
 
 from leaf.registry.discovery import get_all_adapter_codes
+from leaf.ui.components.app_control import restart_leaf
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")
+
+
+def read_adapter_readme(adapter_dir: str) -> str:
+    """Extra help (requirements, control messages) an adapter ships as README.md in its package, or ""."""
+    readme_path = os.path.join(adapter_dir, "README.md")
+    if not os.path.exists(readme_path):
+        return ""
+    with open(readme_path) as f:
+        return "\n" + f.read()
 
 
 def create_configuration_tab(config_tab: ui.tab, config_path: Path | None) -> None:
@@ -46,19 +54,19 @@ def create_configuration_tab(config_tab: ui.tab, config_path: Path | None) -> No
             logger.error("Configuration file not found")
             config_yaml = """# No configuration file found"""
 
-        # Full width layout for editor and help - using flex to prevent wrapping
-        with ui.row().classes("w-full px-6 flex flex-nowrap"):
-            # Configuration editor - Left side (flexible, takes remaining space)
-            with ui.column().classes("flex-1 min-w-0 mr-6"):
+        # Editor and help fill the window height; 300px leaves room for the header, title and Save button
+        with ui.row().classes("w-full px-6 flex flex-nowrap h-[calc(100vh-300px)] min-h-96"):
+            # Configuration editor - Left half
+            with ui.column().classes("flex-1 min-w-0 mr-6 h-full"):
                 ui.label("Configuration Editor").classes("text-lg font-semibold mb-3 text-heading")
-                with ui.card().classes("leaf-card h-96 w-full overflow-hidden"):
+                with ui.card().classes("leaf-card flex-grow min-h-0 w-full overflow-hidden"):
                     with ui.card_section().classes("p-0 w-full h-full"):
                         editor = ui.codemirror(value=config_yaml, language="YAML", theme="basicDark").classes(
                             "w-full h-full"
                         )
 
-            # Help section - Right side (fixed width, no shrink)
-            with ui.column().classes("w-[35%] flex-shrink-0"):
+            # Help section - Right side, same width as the editor
+            with ui.column().classes("flex-1 min-w-0 h-full"):
                 ui.label("Adapter Help").classes("text-lg font-semibold mb-3 text-heading")
 
                 # Dropdown to select adapter
@@ -67,10 +75,12 @@ def create_configuration_tab(config_tab: ui.tab, config_path: Path | None) -> No
                 )
 
                 # Help text display area
-                help_container = ui.column().classes("w-full")
+                help_container = ui.column().classes("w-full flex-grow min-h-0")
 
                 with help_container:
-                    with ui.card().classes("bg-info-card border border-default h-80 overflow-y-auto shadow-sm p-4"):
+                    with ui.card().classes(
+                        "bg-info-card border border-default w-full h-full overflow-y-auto shadow-sm p-4"
+                    ):
                         help_text = ui.markdown(
                             "Select an adapter from the dropdown to see configuration examples."
                         ).classes("text-sm text-body-secondary")
@@ -138,9 +148,9 @@ def create_configuration_tab(config_tab: ui.tab, config_path: Path | None) -> No
                                 # Load yaml to get the pretty-printed version
                                 import yaml
 
-                                yaml_content = yaml.safe_load(example_content)
+                                yaml_content: dict[str, object] = yaml.safe_load(example_content)
                                 # Remove OUTPUTS
-                                del yaml_content["OUTPUTS"]
+                                _ = yaml_content.pop("OUTPUTS", None)
                                 example_content = yaml.dump(yaml_content, indent=2)
 
                             help_md = f"""### {selected} Adapter Configuration
@@ -182,7 +192,7 @@ EQUIPMENT_INSTANCES:
 **Tip:** Check the adapter documentation or repository for specific configuration requirements.
 """
 
-                        help_text.set_content(help_md)
+                        _ = help_text.set_content(help_md + read_adapter_readme(adapter_dir))
 
                     except Exception as e:
                         logger.error(f"Error loading help for {selected}: {e}", exc_info=True)
@@ -198,65 +208,43 @@ Check the logs for more details.
                 adapter_select.on("focus", load_adapters)
                 adapter_select.on("update:model-value", show_adapter_help)
 
-        # Button to start/restart the adapters
-        def restart_app(restart: bool) -> None:
-            # Write new configuration to file
-            if restart:
-                abs_path = os.path.abspath(configuration_path)
-                logger.info(f"Saving configuration to: {abs_path}")
-                logger.debug(f"Configuration content length: {len(editor.value)} characters")
+        # Save the editor to the configuration file, then restart the adapters
+        def save_and_restart() -> None:
+            abs_path = os.path.abspath(configuration_path)
+            logger.info(f"Saving configuration to: {abs_path}")
+            logger.debug(f"Configuration content length: {len(editor.value)} characters")
 
-                # Log first 200 chars to see what's being saved
-                preview = editor.value[:200].replace("\n", "\\n")
-                logger.info(f"Configuration preview (first 200 chars): {preview}")
+            # Log first 200 chars to see what's being saved
+            preview = editor.value[:200].replace("\n", "\\n")
+            logger.info(f"Configuration preview (first 200 chars): {preview}")
 
-                try:
-                    with open(configuration_path, "w") as config_file:
-                        config_file.write(editor.value)
-                    logger.info(f"Configuration saved successfully to {abs_path}")
+            try:
+                with open(configuration_path, "w") as config_file:
+                    _ = config_file.write(editor.value)
+                logger.info(f"Configuration saved successfully to {abs_path}")
 
-                    # Verify what was actually written
-                    with open(configuration_path) as verify_file:
-                        written_content = verify_file.read()
-                    logger.info(f"Verification: File now contains {len(written_content)} characters")
-                    logger.debug(f"Verification preview: {written_content[:200].replace(chr(10), '\\n')}")
-                    ui.notify(
-                        f"Configuration saved to {os.path.basename(abs_path)}! Restarting...",
-                        icon="check_circle",
-                        color="positive",
-                        timeout=2000,
-                    )
-                    logger.info("Restarting LEAF with saved configuration...")
-                    # Give the notification time to display
-                    import time
+                # Verify what was actually written
+                with open(configuration_path) as verify_file:
+                    written_content = verify_file.read()
+                logger.info(f"Verification: File now contains {len(written_content)} characters")
+                logger.debug(f"Verification preview: {written_content[:200].replace(chr(10), '\\n')}")
+                ui.notify(
+                    f"Configuration saved to {os.path.basename(abs_path)}! Restarting...",
+                    icon="check_circle",
+                    color="positive",
+                    timeout=2000,
+                )
+                # Give the notification time to display
+                import time
 
-                    time.sleep(0.5)
-                    os.execl(sys.executable, sys.executable, *sys.argv)
-                except Exception as e:
-                    logger.error(f"Failed to save configuration: {e}", exc_info=True)
-                    ui.notify(f"Error saving configuration: {e}", icon="error", color="negative")
-            else:
-                # Shutdown the app and show a message to close the tab
-                logger.info("Stopping LEAF system...")
-                # Replace page content with a shutdown message (browsers block window.close() for security)
-                ui.run_javascript("""
-                    document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#1a1a2e;color:#eee;">' +
-                        '<h1 style="margin-bottom:1rem;">LEAF has stopped</h1>' +
-                        '<p style="color:#888;">You can now close this tab.</p>' +
-                    '</div>';
-                """)
+                time.sleep(0.5)
+                restart_leaf()
+            except Exception as e:
+                logger.error(f"Failed to save configuration: {e}", exc_info=True)
+                ui.notify(f"Error saving configuration: {e}", icon="error", color="negative")
 
-                def do_shutdown():
-                    os.execl(sys.executable, sys.executable, sys.argv[0], "--shutdown")
-
-                # Delay shutdown to allow JavaScript to execute
-                ui.timer(1.0, do_shutdown, once=True)
-
-        # Action buttons at the bottom - aligned with tab headers
+        # Save stays here because it saves this editor; restart and stop live in the header
         with ui.row().classes("w-full gap-4 py-4 border-t border-default bg-panel-light pl-4"):
-            ui.button("Save & Restart", icon="save", on_click=partial(restart_app, True)).classes(
+            ui.button("Save & Restart", icon="save", on_click=save_and_restart).classes(
                 "btn-primary px-6 py-3 rounded-lg transition-colors shadow-md"
-            )
-            ui.button("Stop App", icon="stop", on_click=partial(restart_app, False)).classes(
-                "btn-danger px-6 py-3 rounded-lg transition-colors shadow-md"
             )

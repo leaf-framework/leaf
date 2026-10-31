@@ -119,7 +119,7 @@
     "functions": [
       {
         "name": "create_configuration_tab",
-        "complexity": 23
+        "complexity": 20
       }
     ]
   },
