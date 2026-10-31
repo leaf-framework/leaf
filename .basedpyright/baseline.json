@@ -15162,14 +15162,6 @@
             {
                 "code": "reportUnusedCallResult",
                 "range": {
-                    "startColumn": 4,
-                    "endColumn": 43,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportUnusedCallResult",
-                "range": {
                     "startColumn": 12,
                     "endColumn": 72,
                     "lineCount": 1
@@ -17683,14 +17675,6 @@
                 "code": "reportUnusedCallResult",
                 "range": {
                     "startColumn": 24,
-                    "endColumn": 54,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportUnusedCallResult",
-                "range": {
-                    "startColumn": 24,
                     "endColumn": 4,
                     "lineCount": 8
                 }
@@ -17717,38 +17701,6 @@
                     "startColumn": 56,
                     "endColumn": 73,
                     "lineCount": 1
-                }
-            },
-            {
-                "code": "reportUnusedCallResult",
-                "range": {
-                    "startColumn": 24,
-                    "endColumn": 55,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportUnusedCallResult",
-                "range": {
-                    "startColumn": 16,
-                    "endColumn": 20,
-                    "lineCount": 6
-                }
-            },
-            {
-                "code": "reportUnusedCallResult",
-                "range": {
-                    "startColumn": 16,
-                    "endColumn": 53,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportUnusedCallResult",
-                "range": {
-                    "startColumn": 12,
-                    "endColumn": 13,
-                    "lineCount": 3
                 }
             },
             {
