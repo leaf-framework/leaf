@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from threading import Event
 from typing import Any
 
+from leaf.adapters.control_spec import Control, check_control
 from leaf.error_handler import exceptions
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import LEAFError
@@ -225,11 +226,22 @@ class EquipmentAdapter(ABC):
             self._external_watcher.add_callback(self._external_process.process_input)
 
         self._controller: AbstractController | None = None
+        self._controls: list[Control] = []
 
-    def set_controller(self, controller: AbstractController) -> None:
-        """Attach a controller; its control() runs for each message on the instance's control topic."""
+    def set_controller(self, controller: AbstractController, controls: list[Control] | None = None) -> None:
+        """
+        Attach a controller; its control() runs for each message on the instance's control topic.
+
+        Messages are first checked against controls (from device.json, with the instance's limits).
+        """
         controller.adapter = self
         self._controller = controller
+        self._controls = controls or []
+
+    @property
+    def controls(self) -> list[Control]:
+        """The declared controls with this instance's limits, as used to check control messages."""
+        return self._controls
 
     def _on_control(self, topic: str, data: str) -> None:
         # Runs on the MQTT network thread, so never let an exception escape.
@@ -237,9 +249,35 @@ class EquipmentAdapter(ABC):
             return
         try:
             self._logger.info(f"Control message on {topic}: {data}")
+            check_control(self._controls, data)
             self._controller.control(topic, data)
         except Exception as e:
+            # The error holder reports it later; log it now so the sender can see why nothing happened
+            self._logger.warning(f"Control message on {topic} rejected: {e}")
             self._handle_exception(exceptions.AdapterLogicError(f"Controller failed: {e}"))
+
+    def has_controller(self) -> bool:
+        """True when the instance runs with control: true and a controller is attached."""
+        return self._controller is not None
+
+    @property
+    def metadata_manager(self) -> MetadataManager:
+        """Instance and equipment metadata, e.g. to tag control points sent from the UI."""
+        return self._metadata_manager
+
+    def send_control(self, data: str) -> None:
+        """
+        Hand a control message from inside LEAF (the UI) to the controller, as if it came in on the control topic.
+
+        Unlike messages from MQTT, errors propagate so the caller can show them.
+        """
+        if self._controller is None:
+            raise exceptions.AdapterLogicError("this instance has no controller; set control: true")
+        # Topic builders are generated at runtime, so the checker sees them as Any
+        topic = str(self._metadata_manager.control())  # pyright: ignore[reportAny]
+        self._logger.info(f"Control message from the UI on {topic}: {data}")
+        check_control(self._controls, data)
+        self._controller.control(topic, data)
 
     def _subscribe_control(self) -> None:
         if self._controller is not None:
