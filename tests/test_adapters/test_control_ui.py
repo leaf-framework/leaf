@@ -166,12 +166,17 @@ def test_applied_record_puts_source_and_status_in_the_tags() -> None:
     assert isinstance(record["timestamp"], float)
 
     rejected = applied_record(sent, "mqtt", ValueError("T_sp = 2000.0 is above its maximum 373.15"))
-    assert rejected["tags"] == {"metric": "T_sp", "source": "mqtt", "status": "rejected"}
-    assert rejected["fields"] == {"value": 303.0, "error": "T_sp = 2000.0 is above its maximum 373.15"}
+    assert rejected["tags"] == {
+        "metric": "T_sp",
+        "source": "mqtt",
+        "status": "rejected",
+        "error": "T_sp = 2000.0 is above its maximum 373.15",
+    }
+    assert rejected["fields"] == {"value": 303.0}
 
     unreadable = applied_record("not json", "mqtt", ValueError("bad"))
-    assert unreadable["tags"] == {"source": "mqtt", "status": "rejected"}
-    assert unreadable["fields"] == {"error": "bad", "message": "not json"}
+    assert unreadable["tags"] == {"source": "mqtt", "status": "rejected", "error": "bad"}
+    assert unreadable["fields"] == {"message": "not json"}
 
 
 class OutputRecorder:
@@ -215,3 +220,21 @@ def test_rejected_commands_are_published_too() -> None:
         EquipmentAdapter.send_control(adapter, '{"tags": {"metric": "step"}, "fields": {"value": "next"}}')
     [(_, record)] = output.sent
     assert cast(dict[str, dict[str, str]], record)["tags"]["status"] == "rejected"
+
+
+def test_applied_record_is_a_valid_leafpoint() -> None:
+    from leaf.adapters.control_spec import applied_record
+
+    # Messages LEAF rejects still become a LeafPoint: tags as text, at least one field
+    record = applied_record('{"tags": {"metric": "T_sp", "reactor": 1}}', "mqtt", ValueError("needs fields"))
+    assert record["tags"] == {
+        "metric": "T_sp",
+        "reactor": "1",
+        "source": "mqtt",
+        "status": "rejected",
+        "error": "needs fields",
+    }
+    assert record["fields"] == {"message": '{"tags": {"metric": "T_sp", "reactor": 1}}'}
+
+    nested = applied_record('{"tags": {"metric": "x"}, "fields": {"value": {"a": 1}}}', "ui")
+    assert nested["fields"] == {"value": '{"a": 1}'}
