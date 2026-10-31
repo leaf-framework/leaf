@@ -147,3 +147,20 @@ def test_tile_label_leaves_the_instance_to_its_group() -> None:
     assert tile_label(reactor, [reactor]) == "pH"
     assert instance_name("mqtt/a/T") == ""
     assert tile_label("mqtt/a/T", ["mqtt/a/T"]) == "a/T"
+
+
+def test_mqtt_transmit_feeds_the_plot_history() -> None:
+    from unittest.mock import MagicMock, patch
+
+    from leaf.modules.output_modules.mqtt import MQTT
+    from leaf.modules.output_modules.output_module import OutputModule
+
+    # A connected client whose publish succeeds
+    client = MagicMock()
+    client.configure_mock(**{"is_connected.return_value": True, "publish.return_value.rc": 0})
+    with patch("paho.mqtt.client.Client", return_value=client):
+        output: OutputModule = MQTT(broker="localhost", port=1883, clientid="plot_history")
+        # transmit() takes an unparametrised dict
+        assert output.transmit("plot/history/T", FakeLeafPoint().to_json())  # pyright: ignore[reportUnknownMemberType]
+    # MQTT publishes JSON text, but the plot needs the points themselves
+    assert OutputModule.get_global_topic_store().get_history()[f"{output.name}/plot/history/T"] == [(10.0, 298.0)]

@@ -4,7 +4,7 @@ import threading
 import time
 from collections.abc import Callable
 from socket import gaierror
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
@@ -260,6 +260,8 @@ class MQTT(OutputModule):
                 return self.fallback(topic, data)
         if data == "":
             data = {}
+        # The topic store keeps the dict, which the Monitoring plot reads points from
+        message = cast(object, data)
         if isinstance(data, (dict, list)):
             data = json.dumps(data)
 
@@ -302,7 +304,7 @@ class MQTT(OutputModule):
         # Reset global failure counter only after successful transmission AND fallback processing
         OutputModule.reset_failure_count()
 
-        self.store_latest(topic, data)
+        self.store_latest(topic, message)
 
         # Transmit to parallel outputs (best-effort, failures don't affect primary result)
         self.transmit_to_parallels(topic, data)
