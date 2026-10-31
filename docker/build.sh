@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define variables
-IMAGE_NAME="docker-registry.wur.nl/m-unlock/docker/leaf:dev"
+IMAGE_NAME="harbor.containers.wurnet.nl/m-unlock/leaf:dev"
 PLATFORMS="linux/amd64,linux/arm64"
 
 # Check if Docker is installed
@@ -29,7 +29,7 @@ fi
 
 # Log in to Docker registry
 echo "Logging in to Docker registry..."
-docker login docker-registry.wur.nl
+docker login harbor.containers.wurnet.nl
 
 # Build and push for both amd64 and arm64
 echo "Building and pushing image for platforms: $PLATFORMS"
