@@ -1,5 +1,6 @@
 """LEAF Adapters tab."""
 
+from collections.abc import Mapping
 from pathlib import Path
 
 import httpx
@@ -8,7 +9,7 @@ from nicegui import ui
 
 from leaf.registry.discovery import get_all_adapter_codes
 from leaf.ui.constants import CARD_CLASSES, CARD_WIDTH_CLASS, MARKETPLACE_URL
-from leaf.ui.utils import install_adapter, uninstall_adapter
+from leaf.ui.utils import adapter_install_disabled, install_adapter, uninstall_adapter
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")
@@ -160,6 +161,32 @@ def load_bundled_marketplace() -> list | None:
     return None
 
 
+# install_adapter/uninstall_adapter refuse too; these only leave out buttons that would not work
+def _install_button(adapter: Mapping[str, object]) -> None:
+    """The marketplace card's Install button, unless adapter installs are disabled."""
+    if adapter_install_disabled():
+        return
+    _ = ui.button("Install", icon="download", on_click=lambda: install_adapter(dict(adapter))).classes(
+        "btn-secondary w-full rounded-lg transition-colors"
+    )
+
+
+def _uninstall_button(adapter: Mapping[str, object]) -> None:
+    """The installed adapter card's Uninstall button, unless adapter installs are disabled."""
+    if adapter_install_disabled():
+        return
+    _ = ui.button("Uninstall", icon="delete", on_click=lambda: uninstall_adapter(dict(adapter))).classes(
+        "btn-tertiary w-full rounded-lg transition-colors"
+    )
+
+
+def _install_disabled_note() -> None:
+    """Says why the marketplace has no Install buttons."""
+    if not adapter_install_disabled():
+        return
+    _ = ui.label("Installing and uninstalling adapters is disabled on this LEAF.").classes("text-body mb-4")
+
+
 def build_adapters_content(container: ui.column) -> None:
     """
     Build the adapters content (installed and marketplace).
@@ -228,12 +255,7 @@ def build_adapters_content(container: ui.column) -> None:
                         ui.label(installed_adapter["code"]).classes("text-lg font-bold text-heading mb-1")
                         ui.label(installed_adapter["name"]).classes("text-sm text-body mb-3")
 
-                        def make_uninstall_handler(adapter):
-                            return lambda: uninstall_adapter(adapter)
-
-                        ui.button(
-                            "Uninstall", icon="delete", on_click=make_uninstall_handler(installed_adapter)
-                        ).classes("btn-tertiary w-full rounded-lg transition-colors")
+                        _uninstall_button(installed_adapter)
         else:
             with ui.card().classes("bg-info-card border border-default p-4 mb-8"):
                 with ui.row().classes("items-center"):
@@ -246,6 +268,7 @@ def build_adapters_content(container: ui.column) -> None:
         with ui.row().classes("items-center mb-4"):
             ui.icon("store", size="1.5rem").classes("text-icon")
             ui.label("Adapter Marketplace").classes("text-xl font-semibold text-subheading ml-2")
+        _install_disabled_note()
 
         # Container for marketplace adapters
         marketplace_container = ui.column().classes("w-full")
@@ -350,12 +373,7 @@ def build_adapters_content(container: ui.column) -> None:
                                     ui.label(adapter["adapter_id"]).classes("text-lg font-bold text-heading mb-1")
                                     ui.label(adapter.get("name", "No description")).classes("text-sm text-body mb-3")
 
-                                    def make_install_handler(adptr):
-                                        return lambda: install_adapter(adptr)
-
-                                    ui.button(
-                                        "Install", icon="download", on_click=make_install_handler(adapter)
-                                    ).classes("btn-secondary w-full rounded-lg transition-colors")
+                                    _install_button(adapter)
             except Exception as e:
                 logger.error(f"Failed to load marketplace: {e}", exc_info=True)
                 # Remove loading indicator
