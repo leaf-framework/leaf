@@ -269,15 +269,20 @@ class EquipmentAdapter(ABC):
         """
         Hand a control message from inside LEAF (the UI) to the controller, as if it came in on the control topic.
 
-        Unlike messages from MQTT, errors propagate so the caller can show them.
+        Errors are reported like those of messages from MQTT, and also propagate so the caller can show them.
         """
         if self._controller is None:
             raise exceptions.AdapterLogicError("this instance has no controller; set control: true")
         # Topic builders are generated at runtime, so the checker sees them as Any
         topic = str(self._metadata_manager.control())  # pyright: ignore[reportAny]
         self._logger.info(f"Control message from the UI on {topic}: {data}")
-        check_control(self._controls, data)
-        self._controller.control(topic, data)
+        try:
+            check_control(self._controls, data)
+            self._controller.control(topic, data)
+        except Exception as e:
+            # Reported like a control message from MQTT, so it also reaches the error topic
+            self._handle_exception(exceptions.AdapterLogicError(f"Controller failed: {e}"))
+            raise
 
     def _subscribe_control(self) -> None:
         if self._controller is not None:
@@ -433,7 +438,8 @@ class EquipmentAdapter(ABC):
                 return self.stop()
 
             error_json = error.to_json()
-            for process in self._processes:
+            # Every process publishes to the instance's one error topic, so one of them is enough
+            for process in self._processes[:1]:
                 process.transmit_error(error_json)
                 time.sleep(0.1)
 
