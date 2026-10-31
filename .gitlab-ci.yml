@@ -189,12 +189,17 @@ publish:
     # Keep PyPI's answer: on a refusal it says why (e.g. which claims matched no publisher)
     - mint_response=$(curl -s -X POST https://pypi.org/_/oidc/mint-token -d "{\"token\":\"${oidc_token}\"}")
     - api_token=$(printf '%s' "$mint_response" | python -c 'import json,sys; print(json.load(sys.stdin).get("token", ""))' 2>/dev/null || true)
+    # This project's ID-token sub claim starts with project_id (it reclaimed a used path), which
+    # PyPI's GitLab publisher cannot match; then upload with the group's PYPI_TOKEN, as leaf-portal does.
+    # PyPI only takes attestations from trusted publishers, so the fallback uploads the dists alone.
     - |
-      if [ -z "$api_token" ]; then
+      if [ -n "$api_token" ]; then
+        twine upload --attestations -u __token__ -p "$api_token" --non-interactive dist/*
+      else
         echo "PyPI refused the trusted-publishing token exchange: $mint_response"
-        exit 1
+        echo "Uploading with PYPI_TOKEN instead, without attestations"
+        twine upload -u __token__ -p "$PYPI_TOKEN" --non-interactive dist/*.whl dist/*.tar.gz
       fi
-    - twine upload --attestations -u __token__ -p "$api_token" --non-interactive dist/*
 
 verify-marketplace:
   stage: verify
