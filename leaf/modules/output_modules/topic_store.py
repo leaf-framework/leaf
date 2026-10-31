@@ -1,4 +1,10 @@
-from typing import Any
+import threading
+import time
+from collections import deque
+from typing import Any, cast
+
+# Points kept per topic (one metric each) for the Monitoring plot; in memory, so it starts empty after a restart
+HISTORY_LENGTH = 1000
 
 
 class TopicStore:
@@ -14,6 +20,9 @@ class TopicStore:
 
     def __init__(self) -> None:
         self._store: dict = {}
+        self._history: dict[str, deque[tuple[float, float]]] = {}
+        # Adapters write from their own threads while the UI reads
+        self._history_lock: threading.Lock = threading.Lock()
 
     def set(self, topic: str, message: Any) -> None:
         """Split topic by '/' and store message at the deepest level."""
@@ -24,6 +33,27 @@ class TopicStore:
                 node[part] = {}
             node = node[part]
         node["_value"] = message
+        payload = cast(object, message)
+        self._record_history(topic, payload)
+
+    def _record_history(self, topic: str, message: object) -> None:
+        """Keep the numeric "value" field of point messages (a point dict or a list of them)."""
+        if isinstance(message, list):
+            points = cast(list[object], message)
+        else:
+            points = [message]
+        for point in points:
+            sample = _point_sample(point)
+            if sample is None:
+                continue
+            with self._history_lock:
+                history = self._history.setdefault(topic, deque(maxlen=HISTORY_LENGTH))
+                history.append(sample)
+
+    def get_history(self) -> dict[str, list[tuple[float, float]]]:
+        """(timestamp, value) pairs per topic, oldest first."""
+        with self._history_lock:
+            return {topic: list(points) for topic, points in self._history.items()}
 
     def get(self, topic: str) -> Any:
         """Retrieve the latest message for a topic, or None."""
@@ -50,3 +80,20 @@ class TopicStore:
     def get_all(self) -> dict:
         """Return the full nested store."""
         return self._store
+
+
+def _point_sample(point: object) -> tuple[float, float] | None:
+    """(timestamp, value) of a LeafPoint/InfluxPoint JSON dict with a numeric fields.value, or None."""
+    if not isinstance(point, dict):
+        return None
+    point_dict = cast(dict[str, object], point)
+    fields = point_dict.get("fields")
+    if not isinstance(fields, dict):
+        return None
+    value = cast(dict[str, object], fields).get("value")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    timestamp = point_dict.get("timestamp")
+    if isinstance(timestamp, bool) or not isinstance(timestamp, (int, float)):
+        timestamp = time.time()
+    return (float(timestamp), float(value))

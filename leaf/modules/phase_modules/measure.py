@@ -1,9 +1,7 @@
 import inspect
 import threading
 import time
-from typing import TYPE_CHECKING, Any
-
-from influxobject import InfluxPoint
+from typing import TYPE_CHECKING, Any, cast
 
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterLogicError, InterpreterError
@@ -237,17 +235,20 @@ class MeasurePhase(PhaseModule):
             action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
             return [(action, result)]
 
-        if isinstance(result, InfluxPoint):
-            result = result.to_json()
+        payload = cast(object, result)
+        point_json = point_json_of(payload)
+        if point_json is not None:
+            result = point_json
             measurement = self._resolve_measurement(result)
             action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
             return [(action, result)]
 
         if isinstance(result, list):
             converted = []
-            for item in result:
-                if isinstance(item, InfluxPoint):
-                    converted.append(item.to_json())
+            for item in cast(list[object], result):
+                point_json = point_json_of(item)
+                if point_json is not None:
+                    converted.append(point_json)
                 else:
                     converted.append(item)
 
@@ -287,3 +288,13 @@ class MeasurePhase(PhaseModule):
             return item["measurement"]
 
         return "unknown"
+
+
+def point_json_of(item: object) -> dict[str, object] | None:
+    """JSON of an InfluxPoint or leafobject LeafPoint, recognised by to_json() so LEAF need not depend on leafobject."""
+    if isinstance(item, dict):
+        return None
+    to_json: object = getattr(item, "to_json", None)
+    if not callable(to_json):
+        return None
+    return cast(dict[str, object], to_json())
