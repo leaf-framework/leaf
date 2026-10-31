@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import subprocess
 import sys
 from typing import Any
@@ -59,6 +60,24 @@ def _run_pip(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+# Set (1/true/yes) where the adapters are fixed, e.g. a shared deployment whose adapters come from its image
+ADAPTER_INSTALL_DISABLE_ENV = "LEAF_DISABLE_ADAPTER_INSTALL"
+
+
+def adapter_install_disabled() -> bool:
+    """True when installing and uninstalling adapters from the web interface is switched off."""
+    return os.environ.get(ADAPTER_INSTALL_DISABLE_ENV, "").strip().lower() in ("1", "true", "yes")
+
+
+def _refused(action: str) -> bool:
+    """Tell the user and return True when adapter installs are switched off, so pip never runs."""
+    if not adapter_install_disabled():
+        return False
+    logger.warning(f"{action} adapters is disabled via {ADAPTER_INSTALL_DISABLE_ENV}")
+    ui.notify(f"{action} adapters is disabled on this LEAF", type="warning", position="top", timeout=5000)
+    return True
+
+
 async def install_adapter(adapter: dict[Any, Any]) -> None:
     """
     Install a LEAF adapter from a Git repository.
@@ -66,6 +85,8 @@ async def install_adapter(adapter: dict[Any, Any]) -> None:
     Args:
         adapter: Dictionary containing adapter metadata including 'repo_url' and 'name'
     """
+    if _refused("Installing"):
+        return
     adapter_name = adapter.get("name") or adapter.get("adapter_id", "adapter")
     logger.info(f"Installing {adapter_name}...")
     repository = adapter["repo_url"]
@@ -119,6 +140,8 @@ async def uninstall_adapter(installed_adapter: dict[Any, Any]) -> None:
     Args:
         installed_adapter: Dictionary containing adapter metadata with 'name' field
     """
+    if _refused("Uninstalling"):
+        return
     package_name = installed_adapter.get("name")
 
     if not package_name:

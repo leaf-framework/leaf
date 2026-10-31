@@ -24,7 +24,7 @@ LEAF checks PyPI for a newer release one hour after it starts, and weekly from t
 
 To check without waiting for the schedule, **click the version number** in the header. The result appears as a banner: green when this install is current, amber when a newer release exists, red when PyPI could not be reached.
 
-Set `LEAF_DISABLE_UPDATE_CHECK=1` to switch the check off entirely. Installs running from a source checkout are told about the new version but never overwritten -- update those with `git pull`. To update by hand:
+Set `LEAF_DISABLE_UPDATE_CHECK=1` to switch the check off entirely. Set `LEAF_DISABLE_ADAPTER_INSTALL=1` to stop the web interface from installing or uninstalling adapters, e.g. on a shared deployment whose adapters come from its image. Installs running from a source checkout are told about the new version but never overwritten -- update those with `git pull`. To update by hand:
 
 ```bash
 pip install --upgrade leaf-framework
