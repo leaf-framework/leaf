@@ -107,3 +107,15 @@ class TestAPIWatcher(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_url_state_without_headers_only_changed_content_counts() -> None:
+    # Servers like the IndPenSim reactor API send neither ETag nor Last-Modified
+    state = URLState("measurement")
+    results: list[object] = []
+    for data in ({"k": 1}, {"k": 1}, {"k": 2}):
+        response = MagicMock(spec=Response)
+        response.configure_mock(headers={}, **{"json.return_value": data})
+        # update_from_response() returns an unparametrised dict
+        results.append(state.update_from_response(response))  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    assert results == [{"k": 1}, None, {"k": 2}]

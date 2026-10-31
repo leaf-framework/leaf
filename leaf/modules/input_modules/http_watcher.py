@@ -41,19 +41,22 @@ class URLState:
         Returns:
             Optional[dict]: Parsed JSON if the response is new; else None.
         """
-        if response.headers.get("ETag") == self.etag:
+        etag = response.headers.get("ETag")
+        last_modified = response.headers.get("Last-Modified")
+        # Only a header the server sent can say "unchanged"; two missing ones are not a match
+        if etag is not None and etag == self.etag:
             return None
-        if response.headers.get("Last-Modified") == self.last_modified:
+        if last_modified is not None and last_modified == self.last_modified:
             return None
 
         current_data = response.json()
 
-        if self.etag is None and self.last_modified is None:
+        if etag is None and last_modified is None:
             if current_data == self.previous_data:
                 return None
 
-        self.etag = response.headers.get("ETag")
-        self.last_modified = response.headers.get("Last-Modified")
+        self.etag = etag
+        self.last_modified = last_modified
         self.previous_data = current_data
 
         return current_data
