@@ -2,7 +2,6 @@ import json
 from typing import Any
 
 import redis
-from redis.typing import ResponseT
 
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import ClientUnreachableError, SeverityLevel
@@ -153,7 +152,9 @@ class KEYDB(OutputModule):
         if topics:
             logger.info(f"Found existing keys in KeyDB: {topics}")
             for topic in topics:
-                topic = topic.decode("utf-8")
+                # Keys are bytes unless the client decodes responses
+                if isinstance(topic, bytes):
+                    topic = topic.decode("utf-8")
                 self.pop(topic)
         else:
             logger.debug("No existing keys found in KeyDB.")
@@ -203,13 +204,14 @@ class KEYDB(OutputModule):
                     return key, json.loads(result.decode("utf-8"))
                 return None
 
-            random_key: ResponseT = self._client.randomkey()
-            if not random_key:
+            raw_key = self._client.randomkey()
+            if not raw_key:
                 logger.info("No keys available in KeyDB.")
                 return None
-            if isinstance(random_key, bytes):
+            random_key = str(raw_key)
+            if isinstance(raw_key, bytes):
                 # Decode bytes to string if necessary
-                random_key = random_key.decode("utf-8")
+                random_key = raw_key.decode("utf-8")
 
             logger.info(f"Popping from key '{random_key}' in KeyDB.")
             result = self._client.lpop(random_key)
