@@ -3,8 +3,9 @@ import os
 import tempfile
 import threading
 import time
-from typing import Any
+from typing import Any, cast
 
+from leaf.adapters.control_spec import apply_limits, read_controls
 from leaf.adapters.equipment_adapter import AbstractController, EquipmentAdapter
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import AdapterBuildError
@@ -159,6 +160,7 @@ def process_instance(instance: dict[str, Any], output: OutputModule) -> Equipmen
         external_watcher = None
 
     control = instance.pop("control", False)
+    control_limits = cast(object, instance.pop("control_limits", None))
 
     adapter_cls = get_equipment_adapter(equipment_code)
 
@@ -213,15 +215,21 @@ def process_instance(instance: dict[str, Any], output: OutputModule) -> Equipmen
     except ValueError as ex:
         raise AdapterBuildError(f"Error initializing {instance_id}: {ex}")
 
-    _attach_controller(adapter, adapter_cls, output, control)
+    _attach_controller(adapter, adapter_cls, output, control, control_limits)
     return adapter
 
 
 def _attach_controller(
-    adapter: EquipmentAdapter, adapter_cls: type[EquipmentAdapter], output: OutputModule, control: bool
+    adapter: EquipmentAdapter,
+    adapter_cls: type[EquipmentAdapter],
+    output: OutputModule,
+    control: bool,
+    control_limits: object = None,
 ) -> None:
     """With control enabled, attach the AbstractController from the controller.py next to the adapter's module."""
     if not control:
+        if control_limits is not None:
+            raise AdapterBuildError("'control_limits' needs 'control: true'.")
         return
     if not isinstance(output, MQTT):
         raise AdapterBuildError("'control' requires an MQTT output.")
@@ -230,7 +238,15 @@ def _attach_controller(
     if not os.path.isfile(controller_fp):
         raise AdapterBuildError(f"'control' is enabled but {controller_fp} does not exist.")
     controller_cls = load_class_from_file(controller_fp, base_class=AbstractController)
-    adapter.set_controller(controller_cls())
+    if control_limits is not None and not isinstance(control_limits, dict):
+        raise AdapterBuildError("'control_limits' must map control names to min/max.")
+    try:
+        controls = apply_limits(
+            read_controls(os.path.dirname(controller_fp)), cast(dict[str, object], control_limits or {})
+        )
+    except ValueError as e:
+        raise AdapterBuildError(str(e))
+    adapter.set_controller(controller_cls(), controls)
 
 
 def start_all_adapters_in_threads(adapters: list[EquipmentAdapter]) -> list[threading.Thread]:

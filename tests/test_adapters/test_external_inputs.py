@@ -25,7 +25,8 @@ from leaf.modules.phase_modules.measure import MeasurePhase
 from leaf.modules.process_modules.discrete_module import DiscreteProcess
 from leaf.register.metadata import MetadataManager
 from leaf.registry.registry import discover_from_config
-from leaf.start import adapters, run_adapters, stop_all_adapters
+from leaf.start import run_adapters, stop_all_adapters
+from leaf.utility.running_adapters import adapters
 from tests.mock_mqtt_client import MockBioreactorClient
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))

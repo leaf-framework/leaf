@@ -23,6 +23,7 @@ from leaf.registry.registry import discover_from_config
 from leaf.ui.interface import start_nicegui
 from leaf.utility.config_utils import substitute_env_variables
 from leaf.utility.logger.logger_utils import get_logger, set_global_log_level, set_log_dir
+from leaf.utility.running_adapters import adapters, startup_done
 from leaf.utility.running_utilities import (
     build_output_module,
     handle_disabled_modules,
@@ -46,7 +47,6 @@ CONFIG_FILE_NAME = "configuration.yaml"
 set_log_dir(ERROR_LOG_DIR)
 logger = get_logger(__name__, log_file=LOG_FILE, error_log_file=ERROR_LOG_FILE)
 
-adapters: list[Any] = []
 adapter_threads: list[threading.Thread] = []
 
 output_disable_time = 10
@@ -283,6 +283,8 @@ def run_adapters(
                 )
                 logger.warning("Continuing with other adapters...")
 
+        startup_done.set()
+
         # If no adapters started successfully, log warning but don't crash
         if len(adapters) == 0:
             logger.warning(
@@ -485,6 +487,8 @@ def main(args: list[str] | None = None) -> None:
     def run_ui_error_mode(error_msg: str):
         """Run in UI-only mode when there's a configuration error, so user can fix it."""
         logger.error(error_msg)
+        # No adapters will start, so the UI can stop waiting for them
+        startup_done.set()
         if not context.args.nogui and nicegui_thread is not None and nicegui_thread.is_alive():
             try:
                 from leaf.ui.interface import set_startup_error
@@ -592,6 +596,7 @@ def main(args: list[str] | None = None) -> None:
             if config.get("EQUIPMENT_INSTANCES", None) is None or len(config.get("EQUIPMENT_INSTANCES", [])) == 0:
                 logger.warning("No equipment instances found in configuration.")
                 logger.info("LEAF will run in UI-only mode.")
+                startup_done.set()
 
                 # Just keep alive for UI access
                 def run_empty_loop():
@@ -629,6 +634,7 @@ def main(args: list[str] | None = None) -> None:
             if config.get("EQUIPMENT_INSTANCES", None) is None or len(config.get("EQUIPMENT_INSTANCES", [])) == 0:
                 logger.warning("No equipment instances found in configuration.")
                 logger.info("LEAF will run in UI-only mode. Use the Configuration tab to add equipment instances.")
+                startup_done.set()
                 # Keep running for UI access even with no adapters
                 if nicegui_thread is not None and nicegui_thread.is_alive():
                     logger.info("Running in UI-only mode. Press Ctrl+C to stop.")

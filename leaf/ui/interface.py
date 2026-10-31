@@ -12,6 +12,7 @@ from leaf.ui.components.header import create_header
 from leaf.ui.constants import DEFAULT_PORT, TAB_CLASSES
 from leaf.ui.tabs.adapters import create_adapters_tab
 from leaf.ui.tabs.configuration import create_configuration_tab
+from leaf.ui.tabs.control import create_control_tab
 from leaf.ui.tabs.documentation import create_documentation_tab
 from leaf.ui.tabs.logs import create_logs_tab
 from leaf.ui.tabs.monitoring import create_monitoring_tab
@@ -149,6 +150,7 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
                     logs_tab = ui.tab("Logs", icon="article").classes(TAB_CLASSES)
                     docs_tab = ui.tab("Documentation", icon="help").classes(TAB_CLASSES)
                     monitor_tab = ui.tab("Monitoring", icon="monitor").classes(TAB_CLASSES)
+                    control_tab = ui.tab("Control", icon="tune").classes(TAB_CLASSES)
                     adapters_tab = ui.tab("Adapters", icon="extension").classes(TAB_CLASSES)
 
                     # Dynamically create tabs for adapter UI extensions
@@ -205,6 +207,7 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
 
                 logger.debug(f"[PERF] Creating monitoring tab: {time.time() - start_time:.3f}s")
                 create_monitoring_tab(monitor_tab=monitor_tab)
+                create_control_tab(control_tab)
                 logger.debug(f"[PERF] Monitoring tab done: {time.time() - start_time:.3f}s")
 
                 # Dynamically create panels for adapter UI extensions

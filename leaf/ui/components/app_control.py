@@ -1,5 +1,6 @@
 """Restart and stop LEAF, from the header or the configuration tab."""
 
+import inspect
 import os
 import sys
 from collections.abc import Callable
@@ -35,8 +36,10 @@ def stop_leaf() -> None:
     _ = ui.timer(1.0, do_shutdown, once=True)
 
 
-def confirm(title: str, text: str, action_label: str, icon: str, button_class: str, action: Callable[[], None]) -> None:
-    """Ask before running an action that interrupts every adapter."""
+def confirm(
+    title: str, text: str, action_label: str, icon: str, button_class: str, action: Callable[[], object]
+) -> None:
+    """Ask before running an action that interrupts an adapter; the action may be async."""
     with ui.dialog() as dialog, ui.card().classes("w-96"):
         with ui.row().classes("items-center gap-2"):
             _ = ui.icon(icon, size="1.5rem").classes("text-icon")
@@ -45,9 +48,11 @@ def confirm(title: str, text: str, action_label: str, icon: str, button_class: s
         with ui.row().classes("w-full justify-end gap-2 mt-2"):
             _ = ui.button("Cancel", on_click=dialog.close).classes("btn-tertiary")
 
-            def run():
+            async def run():
                 _ = dialog.close()
-                action()
+                result = action()
+                if inspect.isawaitable(result):
+                    await result
 
             _ = ui.button(action_label, icon=icon, on_click=run).classes(button_class)
     _ = dialog.open()
