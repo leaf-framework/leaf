@@ -138,8 +138,21 @@ def create_monitoring_tab(monitor_tab: ui.tab) -> None:
                 tile_values: dict[str, ui.label] = {}
 
                 # Metrics with different scales do not share an axis well, so the user picks which to plot
-                metric_select = ui.select(options={}, multiple=True, label="Metrics to plot").classes("w-full")
-                _ = metric_select.props("use-chips")
+                with ui.row().classes("w-full items-center no-wrap"):
+                    metric_select = ui.select(options={}, multiple=True, label="Metrics to plot").classes("grow")
+                    _ = metric_select.props("use-chips")
+                    _ = ui.button(
+                        "Add all",
+                        icon="done_all",
+                        on_click=lambda: metric_select.set_value(
+                            sorted(OutputModule.get_global_topic_store().get_history())
+                        ),
+                    ).props("flat")
+                    _ = ui.button("Clear all", icon="clear_all", on_click=lambda: metric_select.set_value([])).props(
+                        "flat"
+                    )
+                # The first metric is picked for the user once; after "Clear all" the plot stays empty
+                picked_default = False
                 layout = chart_layout(0)
                 chart = ui.echart(
                     {
@@ -159,6 +172,7 @@ def create_monitoring_tab(monitor_tab: ui.tab) -> None:
                 _ = chart.style(f"height: {layout['height']}px")
 
                 def refresh_chart() -> None:
+                    nonlocal picked_default
                     history = OutputModule.get_global_topic_store().get_history()
                     topics = sorted(history)
                     for topic in topics:
@@ -179,9 +193,10 @@ def create_monitoring_tab(monitor_tab: ui.tab) -> None:
                     # NiceGUI leaves the options type unparametrised
                     _ = metric_select.set_options({topic: series_label(topic, topics) for topic in topics})  # pyright: ignore[reportUnknownMemberType]
                     selected = cast(list[str], metric_select.value or [])
-                    if not selected and topics:
+                    if not selected and topics and not picked_default:
                         selected = [topics[0]]
                         _ = metric_select.set_value(selected)
+                        picked_default = True
                     layout = chart_layout(len(selected))
                     chart.options.update(  # pyright: ignore[reportUnknownMemberType]
                         {
