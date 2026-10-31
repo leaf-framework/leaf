@@ -186,20 +186,6 @@
     ]
   },
   {
-    "path": "tests/test_modules/test_output_modules/test_keydb.py",
-    "file_name": "test_keydb.py",
-    "functions": [
-      {
-        "name": "TestKeyDB::test_leaf",
-        "complexity": 30
-      },
-      {
-        "name": "TestKeyDB::test_keydb_switch_to_mqtt",
-        "complexity": 35
-      }
-    ]
-  },
-  {
     "path": "tests/test_modules/test_process_modules/test_process_module.py",
     "file_name": "test_process_module.py",
     "functions": [

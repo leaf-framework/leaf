@@ -37,7 +37,7 @@ class TestSubstituteEnvVariables(unittest.TestCase):
         os.environ["DB"] = "3"
         content = """
 OUTPUTS:
-  - plugin: KEYDB
+  - plugin: MQTT
     host: ${HOST}
     port: ${PORT}
     db: ${DB}
@@ -133,7 +133,7 @@ EQUIPMENT_INSTANCES:
         os.environ["REDIS_PORT"] = "6379"
         content = """
 OUTPUTS:
-  - plugin: KEYDB
+  - plugin: MQTT
     host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:6379}
     db: ${REDIS_DB:0}

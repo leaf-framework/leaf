@@ -527,7 +527,7 @@ class MQTT(OutputModule):
         Retrieve and remove a stored message from the fallback.
 
         MQTT does not buffer messages locally, so this delegates to the fallback
-        module (e.g., KeyDB or FILE) to retrieve buffered messages.
+        module (e.g., SQL or FILE) to retrieve buffered messages.
 
         Args:
             key (Optional[str]): A key for which to pop data. Defaults to None.

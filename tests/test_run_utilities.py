@@ -12,8 +12,8 @@ sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
 from leaf.modules.output_modules.file import FILE
-from leaf.modules.output_modules.keydb import KEYDB
 from leaf.modules.output_modules.mqtt import MQTT
+from leaf.modules.output_modules.sql import SQL
 from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
 from leaf.utility.running_utilities import handle_disabled_modules
@@ -38,8 +38,6 @@ except KeyError:
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 mock_functional_adapter_path = os.path.join(curr_dir, "mock_functional_adapter")
 
-db_host = "localhost"
-
 
 class TestRunUtilities(unittest.TestCase):
     def setUp(self) -> None:
@@ -47,16 +45,12 @@ class TestRunUtilities(unittest.TestCase):
         self.file_store_path = os.path.join(self.temp_dir.name, "local.json")
 
         self._file = FILE(self.file_store_path)
-        self._keydb: KEYDB = KEYDB(db_host, fallback=self._file)
-        self._keydb.connect()
-        self._module = MQTT(broker, port, username=un, password=pw, clientid=None, fallback=self._keydb)
+        self._sql = SQL(os.path.join(self.temp_dir.name, "fallback.db"), fallback=self._file)
+        self._module = MQTT(broker, port, username=un, password=pw, clientid=None, fallback=self._sql)
         self._mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
         time.sleep(2)
 
     def test_handle_disabled_modules(self):
-        self._keydb.connect()
-        self._keydb._client.flushall()
-
         timeout = 2
         organisation = "test_pop_all_messages_organisation"
         adapter_id = "test_pop_all_messages_adapter_id"
@@ -82,7 +76,7 @@ class TestRunUtilities(unittest.TestCase):
 
         for topic, messages in inp_messages.items():
             for message in messages:
-                self._keydb.transmit(topic, message)
+                self._sql.transmit(topic, json.loads(message))
                 time.sleep(0.1)
         self._module.disable()
         time.sleep(timeout * 2)
@@ -102,8 +96,6 @@ class TestRunUtilities(unittest.TestCase):
 
             self.assertEqual(len(v), len(inp_messages[k]))
             self.assertEqual(v, w)
-        # keydb_pop = self._keydb.pop()
-        # self.assertIsNone(keydb_pop)
         file_pop = self._file.pop()
         self.assertIsNone(file_pop)
 

@@ -34,14 +34,6 @@ OUTPUTS:
 #    filename: messages.db
 #    fallback: FILE #OPTIONAL expects "MQTT", "FILE"
 
-# KEYDB output (deprecated, use FILE or SQL) requires 'host', 'port', 'db'
-# and optionally an alternative 'fallback' output
-#  - plugin: KEYDB
-#    host: localhost
-#    port: 6379
-#    db: 0
-#    fallback: FILE #OPTIONAL expects "MQTT", "SQL", "FILE"
-
 # FILE output requires 'filename'
 # and optionally an alternative 'fallback' output
 #  - plugin: FILE

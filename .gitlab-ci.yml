@@ -11,8 +11,6 @@ variables:
   GIT_DEPTH: 0  # Full history
   # Parallel test isolation settings
   PYTEST_ADDOPTS: "--forked --dist=loadscope --tb=short"
-  # Prevent Redis conflicts in parallel execution
-  REDIS_URL: "redis://localhost:6379"
   # Use temporary directories for test isolation
   TMPDIR: "/tmp"
 
@@ -44,13 +42,12 @@ test:
   image: registry.gitlab.com/leaf-framework/leaf:runner
   before_script:
     - mosquitto -d
-    - redis-server --daemonize yes
     - source /venv/bin/activate
     - poetry install --with test,dev
     # leaf-example is normally installed by end users via the UI marketplace
     # (see leaf/ui/tabs/adapters.py), not bundled as a project dependency.
-    # tests/static_files/test_config_keydb.yaml exercises it though, so pull
-    # it in here. --no-deps because its own leaf-framework>=0.10.0 pin can't
+    # Tests that run the Example adapter need it though, so pull it in here.
+    # --no-deps because its own leaf-framework>=0.10.0 pin can't
     # resolve against this checkout's dev placeholder version (0.0.0) - the
     # leaf-framework already installed via this editable checkout satisfies
     # it at runtime regardless of the declared version number.
@@ -79,8 +76,8 @@ test:
 
 # Same suite as `test`, minus --forked, so coverage.py can actually see what
 # ran. --forked stays in `test` because it's load-bearing: without it,
-# test_parallel_does_not_affect_primary_return and test_fallback_keydb fail
-# on shared Redis/keydb state leaking between tests (exactly what per-test
+# test_parallel_does_not_affect_primary_return and test_fallback_sql fail
+# on shared state leaking between tests (exactly what per-test
 # process isolation is for) - not something this job should paper over.
 # allow_failure is set because those two failures are therefore expected
 # here; this job exists to publish an accurate coverage number, not to gate
@@ -98,7 +95,6 @@ coverage:
     PYTEST_ADDOPTS: "--dist=loadscope --tb=short"
   before_script:
     - mosquitto -d
-    - redis-server --daemonize yes
     - source /venv/bin/activate
     - poetry install --with test,dev
     - pip install --no-deps "git+https://gitlab.com/leaf-framework/leaf-adapters/leaf-example.git"

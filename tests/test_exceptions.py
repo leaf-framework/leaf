@@ -34,7 +34,6 @@ from leaf.error_handler.exceptions import (
 )
 from leaf.modules.input_modules.file_watcher import FileWatcher
 from leaf.modules.output_modules.file import FILE
-from leaf.modules.output_modules.keydb import KEYDB
 from leaf.modules.output_modules.mqtt import MQTT
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.modules.phase_modules.control import ControlPhase
@@ -125,15 +124,9 @@ class TestExceptionsInit(unittest.TestCase):
                     "plugin": "MQTTT",
                     "broker": "localhost",
                     "port": 1883,
-                    "fallback": "KEYDB",
+                    "fallback": "SQL",
                 },
-                {
-                    "plugin": "KEYDB",
-                    "host": "localhost",
-                    "port": 6379,
-                    "db": 0,
-                    "fallback": "FILE",
-                },
+                {"plugin": "SQL", "filename": "local.db", "fallback": "FILE"},
                 {"plugin": "FILE", "filename": "local.json", "fallback": None},
             ],
         }
@@ -147,15 +140,9 @@ class TestExceptionsInit(unittest.TestCase):
                     "plugin": "MQTT",
                     "broker": "localhost",
                     "port": 1883,
-                    "fallback": "KEYDBB",
+                    "fallback": "SQLL",
                 },
-                {
-                    "plugin": "KEYDB",
-                    "host": "localhost",
-                    "port": 6379,
-                    "db": 0,
-                    "fallback": "FILE",
-                },
+                {"plugin": "SQL", "filename": "local.db", "fallback": "FILE"},
                 {"plugin": "FILE", "filename": "local.json", "fallback": None},
             ],
         }
@@ -168,15 +155,9 @@ class TestExceptionsInit(unittest.TestCase):
                 {
                     "plugin": "MQTT",
                     "port": 1883,
-                    "fallback": "KEYDB",
+                    "fallback": "SQL",
                 },
-                {
-                    "plugin": "KEYDB",
-                    "host": "localhost",
-                    "port": 6379,
-                    "db": 0,
-                    "fallback": "FILE",
-                },
+                {"plugin": "SQL", "filename": "local.db", "fallback": "FILE"},
                 {"plugin": "FILE", "filename": "local.json", "fallback": None},
             ],
         }
@@ -253,7 +234,6 @@ class TestExceptionsGeneral(unittest.TestCase):
         self.port = 1883
         self.host = "localhost"
         self.mqtt_client = MQTT(broker=self.broker, port=self.port, error_holder=self.error_holder)
-        self.keydb_client = KEYDB(host=self.host, port=self.port, error_holder=self.error_holder)
         self.file_client = FILE(filename="test.json", error_holder=self.error_holder)
 
     def tearDown(self) -> None:
@@ -299,13 +279,6 @@ class TestExceptionsGeneral(unittest.TestCase):
         mock_connect.side_effect = ClientUnreachableError("Server unavailable")
         with self.assertRaises(ClientUnreachableError):
             self.mqtt_client.__init__(broker=self.broker, port=self.port, error_holder=self.error_holder)
-
-    @patch("leaf.modules.output_modules.keydb.KEYDB._handle_redis_error")
-    @patch("leaf.modules.output_modules.keydb.redis.StrictRedis")
-    def test_keydb_connect_cant_access_client(self, mock_redis, mock_handle_error) -> None:
-        mock_redis.side_effect = ClientUnreachableError("Connection to KeyDB failed")
-        with self.assertRaises(ClientUnreachableError):
-            self.keydb_client.connect()
 
     @patch("leaf.modules.output_modules.mqtt.logger")
     def test_mqtt_module_on_disconnect_logs_warning(self, mock_logger: MagicMock) -> None:
