@@ -3,6 +3,7 @@ from typing import Any, cast
 from nicegui import ui
 
 from leaf.modules.output_modules.output_module import OutputModule
+from leaf.modules.output_modules.topic_store import ENTITY_SEPARATOR
 
 
 def _store_to_tree_nodes(store: dict, parent_path: str = "") -> list[dict[str, Any]]:
@@ -23,8 +24,9 @@ def _store_to_tree_nodes(store: dict, parent_path: str = "") -> list[dict[str, A
     return nodes
 
 
-def metric_name(topic: str) -> str:
-    """Last topic segment, e.g. "T" for ".../reactor1/T"."""
+def metric_name(key: str) -> str:
+    """Last topic segment of a history key, e.g. "T" for ".../reactor1/T#well A1"."""
+    topic = key.split(ENTITY_SEPARATOR, 1)[0]
     return topic.rsplit("/", 1)[-1]
 
 
@@ -33,9 +35,45 @@ def format_value(value: float) -> str:
     return f"{value:.6g}"
 
 
-def _series_label(topic: str) -> str:
-    """Topic without the output module name it is stored under."""
-    return topic.split("/", 1)[-1]
+def full_label(key: str) -> str:
+    """History key without the output module name it is stored under."""
+    return key.split("/", 1)[-1]
+
+
+def instance_name(key: str) -> str:
+    """Instance ID of a measurement topic, which ends in <instance_id>/experiment/<experiment_id>/measurement/<metric>; else ""."""
+    parts = key.partition(ENTITY_SEPARATOR)[0].split("/")
+    if len(parts) < 5 or parts[-2] != "measurement" or parts[-4] != "experiment":
+        return ""
+    return parts[-5]
+
+
+def series_label(key: str, all_keys: list[str]) -> str:
+    """ "<instance_id> · <entity> · <metric>" for a measurement topic, else the full label.
+
+    The entity only shows when several entities share the topic (e.g. wells of a plate); a single
+    entity per topic usually just names the instance again (leaf-example tags every point "bioreactor 1").
+    """
+    topic, _, entity = key.partition(ENTITY_SEPARATOR)
+    instance = instance_name(key)
+    if not instance:
+        return full_label(key)
+    # Instance stays in: entity names repeat across instances
+    names = [instance]
+    shared = [other for other in all_keys if other.partition(ENTITY_SEPARATOR)[0] == topic]
+    if entity and len(shared) > 1:
+        names.append(entity)
+    names.append(metric_name(topic))
+    return " · ".join(names)
+
+
+def tile_label(key: str, all_keys: list[str]) -> str:
+    """Series label without the instance, which the tile's group box already names."""
+    instance = instance_name(key)
+    label = series_label(key, all_keys)
+    if instance:
+        return label.removeprefix(f"{instance} · ")
+    return label
 
 
 # ECharts' default palette, assigned per metric rather than per selected line
@@ -54,7 +92,7 @@ def chart_series(history: dict[str, list[tuple[float, float]]], topics: list[str
         points = [[timestamp * 1000, value] for timestamp, value in history.get(topic, [])]
         series.append(
             {
-                "name": _series_label(topic),
+                "name": series_label(topic, list(history)),
                 "type": "line",
                 "showSymbol": False,
                 "color": metric_color(topic, list(history)),
@@ -94,8 +132,9 @@ def create_monitoring_tab(monitor_tab: ui.tab) -> None:
             tree_view = ui.tab("Topic tree", icon="account_tree")
         with ui.tab_panels(views, value=plot_view).classes("w-full"):
             with ui.tab_panel(plot_view):
-                # Latest value per metric; the full topic is in the tooltip
+                # Latest value per series, boxed per instance; the full topic is in the tooltip
                 tiles = ui.row().classes("w-full gap-3")
+                tile_groups: dict[str, ui.row] = {}
                 tile_values: dict[str, ui.label] = {}
 
                 # Metrics with different scales do not share an axis well, so the user picks which to plot
@@ -124,13 +163,21 @@ def create_monitoring_tab(monitor_tab: ui.tab) -> None:
                     topics = sorted(history)
                     for topic in topics:
                         if topic not in tile_values:
+                            instance = instance_name(topic)
+                            if instance not in tile_groups:
+                                with tiles, ui.card().props("flat bordered").classes("p-3 gap-2"):
+                                    _ = ui.label(instance or "Other").classes("text-sm font-medium")
+                                    tile_groups[instance] = ui.row().classes("gap-3")
                             stripe = f"border-left: 4px solid {metric_color(topic, topics)}"
-                            with tiles, ui.card().classes("p-3 min-w-32").style(stripe).tooltip(_series_label(topic)):
-                                _ = ui.label(metric_name(topic)).classes("text-xs text-body-secondary")
+                            with (
+                                tile_groups[instance],
+                                ui.card().classes("p-3 min-w-32").style(stripe).tooltip(full_label(topic)),
+                            ):
+                                _ = ui.label(tile_label(topic, topics)).classes("text-xs text-body-secondary")
                                 tile_values[topic] = ui.label().classes("text-2xl font-bold text-heading")
                         _ = tile_values[topic].set_text(format_value(history[topic][-1][1]))
                     # NiceGUI leaves the options type unparametrised
-                    _ = metric_select.set_options({topic: _series_label(topic) for topic in topics})  # pyright: ignore[reportUnknownMemberType]
+                    _ = metric_select.set_options({topic: series_label(topic, topics) for topic in topics})  # pyright: ignore[reportUnknownMemberType]
                     selected = cast(list[str], metric_select.value or [])
                     if not selected and topics:
                         selected = [topics[0]]
