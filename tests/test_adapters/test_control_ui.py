@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import override
+from typing import cast, override
 from unittest import mock
 
 import pytest
@@ -153,3 +153,65 @@ def test_errors_are_published_once_not_once_per_process() -> None:
     EquipmentAdapter.transmit_errors(adapter, [(AdapterLogicError("boom"), "now")])
     assert len(first.sent) == 1
     assert second.sent == []
+
+
+def test_applied_record_puts_source_and_status_in_the_tags() -> None:
+    from leaf.adapters.control_spec import applied_record
+
+    sent = '{"measurement": "leaf_test", "tags": {"metric": "T_sp"}, "fields": {"value": 303.0}}'
+    record = applied_record(sent, "ui")
+    assert record["measurement"] == "leaf_test"
+    assert record["tags"] == {"metric": "T_sp", "source": "ui", "status": "applied"}
+    assert record["fields"] == {"value": 303.0}
+    assert isinstance(record["timestamp"], float)
+
+    rejected = applied_record(sent, "mqtt", ValueError("T_sp = 2000.0 is above its maximum 373.15"))
+    assert rejected["tags"] == {"metric": "T_sp", "source": "mqtt", "status": "rejected"}
+    assert rejected["fields"] == {"value": 303.0, "error": "T_sp = 2000.0 is above its maximum 373.15"}
+
+    unreadable = applied_record("not json", "mqtt", ValueError("bad"))
+    assert unreadable["tags"] == {"source": "mqtt", "status": "rejected"}
+    assert unreadable["fields"] == {"error": "bad", "message": "not json"}
+
+
+class OutputRecorder:
+    def __init__(self) -> None:
+        self.sent: list[tuple[str, object]] = []
+
+    def transmit(self, topic: str, data: object) -> bool:
+        self.sent.append((topic, data))
+        return True
+
+
+def _adapter_with(controller: AbstractController, output: OutputRecorder) -> mock.MagicMock:
+    """A stand-in adapter whose _report_control is the real one, publishing to output."""
+    adapter = mock.MagicMock(
+        _controller=controller, _controls=[], _metadata_manager=_metadata(), _logger=logging.getLogger(), _output=output
+    )
+
+    def report(topic: str, data: str, source: str, error: Exception | None = None) -> None:
+        EquipmentAdapter._report_control(adapter, topic, data, source, error)  # pyright: ignore[reportPrivateUsage]
+
+    adapter.configure_mock(_report_control=report)
+    return adapter
+
+
+def test_ui_and_mqtt_commands_are_published_on_control_applied() -> None:
+    output = OutputRecorder()
+    adapter = _adapter_with(Recorder(), output)
+    message = '{"tags": {"metric": "step"}, "fields": {"value": "next"}}'
+    EquipmentAdapter.send_control(adapter, message)
+    EquipmentAdapter._on_control(adapter, "leaf/wur/ssb/leaf_test/r1/control", message)  # pyright: ignore[reportPrivateUsage]
+    topics = [topic for topic, _ in output.sent]
+    assert all(topic.endswith("/r1/control/applied") for topic in topics)
+    sources = [cast(dict[str, dict[str, str]], record)["tags"]["source"] for _, record in output.sent]
+    assert sources == ["ui", "mqtt"]
+
+
+def test_rejected_commands_are_published_too() -> None:
+    output = OutputRecorder()
+    adapter = _adapter_with(Refuser(), output)
+    with pytest.raises(RuntimeError):
+        EquipmentAdapter.send_control(adapter, '{"tags": {"metric": "step"}, "fields": {"value": "next"}}')
+    [(_, record)] = output.sent
+    assert cast(dict[str, dict[str, str]], record)["tags"]["status"] == "rejected"

@@ -7,6 +7,7 @@ so the limits hold however the message arrives. An adapter that declares no cont
 
 import json
 import os
+import time
 from typing import cast
 
 import yaml
@@ -122,3 +123,44 @@ def check_control(controls: list[Control], data: str) -> None:
             raise ValueError(f"{metric} cannot be set to {value!r}")
     elif not isinstance(value, str) or not value:
         raise ValueError(f"{metric} needs a text value")
+
+
+def _part(point: dict[str, object], key: str) -> dict[str, object]:
+    """A copy of point[key] when it is a dict, else an empty dict."""
+    part = point.get(key)
+    if isinstance(part, dict):
+        return dict(cast(dict[str, object], part))
+    return {}
+
+
+def applied_record(data: str, source: str, error: Exception | None = None) -> dict[str, object]:
+    """
+    A control message as the LeafPoint LEAF publishes on <control topic>/applied, so that what was
+    sent to the equipment is stored with the measurements.
+
+    source ("ui" or "mqtt") and status ("applied" or "rejected") are tags, for consumers to filter
+    on; a rejection's reason is the "error" field. Unparseable messages keep their text there too.
+    """
+    point: dict[str, object] = {}
+    try:
+        parsed = cast(object, json.loads(data))
+        if isinstance(parsed, dict):
+            point = cast(dict[str, object], parsed)
+    except ValueError:
+        pass
+    tags = _part(point, "tags")
+    fields = _part(point, "fields")
+    status = "applied"
+    if error is not None:
+        status = "rejected"
+        fields["error"] = str(error)
+    if not point:
+        fields["message"] = data
+    tags["source"] = source
+    tags["status"] = status
+    return {
+        "measurement": point.get("measurement", "control"),
+        "tags": tags,
+        "fields": fields,
+        "timestamp": time.time(),
+    }
