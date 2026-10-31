@@ -5,7 +5,7 @@ from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.modules.output_modules.topic_store import HISTORY_LENGTH, TopicStore
 from leaf.modules.phase_modules.measure import MeasurePhase, point_json_of
 from leaf.register.metadata import MetadataManager
-from leaf.ui.tabs.monitoring import chart_series, format_value, metric_name
+from leaf.ui.tabs.monitoring import chart_series, format_value, metric_name, series_label
 
 
 class FakeLeafPoint:
@@ -111,3 +111,39 @@ def test_chart_grows_one_legend_row_per_series() -> None:
 
     one, three = chart_layout(1), chart_layout(3)
     assert cast(int, three["height"]) - cast(int, one["height"]) == 2 * LEGEND_ROW_HEIGHT
+
+
+def test_history_splits_one_topic_per_entity() -> None:
+    store = TopicStore()
+    wells = [
+        {"tags": {"metric": "biomass", "entity": "A1"}, "fields": {"value": 1}, "timestamp": 1.0},
+        {"tags": {"metric": "biomass", "entity": "A2"}, "fields": {"value": 2}, "timestamp": 1.0},
+        {"tags": {"metric": "biomass"}, "fields": {"value": 3}, "timestamp": 1.0},
+    ]
+    store.set("mqtt/a/biomass", wells)
+    assert store.get_history() == {
+        "mqtt/a/biomass#A1": [(1.0, 1.0)],
+        "mqtt/a/biomass#A2": [(1.0, 2.0)],
+        "mqtt/a/biomass": [(1.0, 3.0)],
+    }
+
+
+def test_series_label_shows_entity_only_when_it_tells_series_apart() -> None:
+    plate = "mqtt/leaf/org/dept/biolector/bl1/experiment/exp1/measurement/biomass"
+    wells = [f"{plate}#A1", f"{plate}#A2"]
+    assert series_label(wells[0], wells) == "bl1 · A1 · biomass"
+    reactor = "mqtt/leaf/org/dept/Example/reactor_a/experiment/exp1/measurement/pH#bioreactor 1"
+    assert series_label(reactor, [reactor]) == "reactor_a · pH"
+    assert series_label(plate, [plate]) == "bl1 · biomass"
+    assert series_label("mqtt/a/T", ["mqtt/a/T"]) == "a/T"
+    assert metric_name(wells[0]) == "biomass"
+
+
+def test_tile_label_leaves_the_instance_to_its_group() -> None:
+    from leaf.ui.tabs.monitoring import instance_name, tile_label
+
+    reactor = "mqtt/leaf/org/dept/Example/reactor_a/experiment/exp1/measurement/pH"
+    assert instance_name(reactor) == "reactor_a"
+    assert tile_label(reactor, [reactor]) == "pH"
+    assert instance_name("mqtt/a/T") == ""
+    assert tile_label("mqtt/a/T", ["mqtt/a/T"]) == "a/T"
