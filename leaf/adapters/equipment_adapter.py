@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from threading import Event
 from typing import Any
 
-from leaf.adapters.control_spec import Control, applied_record, check_control
+from leaf.adapters.control_spec import Control, check_control, result_record
 from leaf.error_handler import exceptions
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.error_handler.exceptions import LEAFError
@@ -290,10 +290,10 @@ class EquipmentAdapter(ABC):
         self._report_control(topic, data, "ui")
 
     def _report_control(self, topic: str, data: str, source: str, error: Exception | None = None) -> None:
-        """Publish what happened to a control message on <control topic>/applied, so it is stored with the data."""
+        """Publish what happened to a control message on <control topic>/result, so it is stored with the data."""
         # Never let the record break the command it describes
         try:
-            _ = self._output.transmit(f"{topic}/applied", applied_record(data, source, error))
+            _ = self._output.transmit(f"{topic}/result", result_record(data, source, error))
         except Exception as e:
             self._logger.warning(f"Could not publish the control record for {topic}: {e}")
 

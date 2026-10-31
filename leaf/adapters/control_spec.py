@@ -140,9 +140,9 @@ def _field_value(value: object) -> int | float | str:
     return json.dumps(value)
 
 
-def applied_record(data: str, source: str, error: Exception | None = None) -> dict[str, object]:
+def result_record(data: str, source: str, error: Exception | None = None) -> dict[str, object]:
     """
-    A control message as the LeafPoint LEAF publishes on <control topic>/applied, so that what was
+    A control message as the LeafPoint LEAF publishes on <control topic>/result, so that what was
     sent to the equipment is stored with the measurements.
 
     source ("ui" or "mqtt"), status ("applied" or "rejected") and a rejection's "error" are tags,
