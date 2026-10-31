@@ -186,7 +186,14 @@ publish:
     - ls -l dist/
     - python -m pypi_attestations sign dist/*
     - oidc_token=$(python -m id pypi)
-    - api_token=$(curl -sf -X POST https://pypi.org/_/oidc/mint-token -d "{\"token\":\"${oidc_token}\"}" | python -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+    # Keep PyPI's answer: on a refusal it says why (e.g. which claims matched no publisher)
+    - mint_response=$(curl -s -X POST https://pypi.org/_/oidc/mint-token -d "{\"token\":\"${oidc_token}\"}")
+    - api_token=$(printf '%s' "$mint_response" | python -c 'import json,sys; print(json.load(sys.stdin).get("token", ""))' 2>/dev/null || true)
+    - |
+      if [ -z "$api_token" ]; then
+        echo "PyPI refused the trusted-publishing token exchange: $mint_response"
+        exit 1
+      fi
     - twine upload --attestations -u __token__ -p "$api_token" --non-interactive dist/*
 
 verify-marketplace:
