@@ -8,6 +8,7 @@ from nicegui import app, ui
 
 from leaf import __version__
 from leaf.registry.discovery import discover_adapter_ui_extensions
+from leaf.ui.auth import require_password
 from leaf.ui.components.header import create_header
 from leaf.ui.constants import DEFAULT_PORT, TAB_CLASSES
 from leaf.ui.tabs.adapters import create_adapters_tab
@@ -245,6 +246,9 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
     # not once per connected browser tab.
     app.on_startup(start_update_checker)
     app.on_shutdown(stop_update_checker)
+
+    # Off unless LEAF_UI_PASSWORD is set, e.g. when the pod's UI is reachable by others.
+    require_password(app)
 
     logger.info(f"Starting web interface on port {port}...")
     logger.info(f"Access the LEAF UI at http://localhost:{port}")
