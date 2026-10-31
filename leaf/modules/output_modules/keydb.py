@@ -11,12 +11,20 @@ from leaf.utility.logger.logger_utils import get_logger
 logger = get_logger(__name__, log_file="output_module.log")
 
 
+DEPRECATION_MESSAGE = (
+    "The KEYDB output is deprecated and will be removed in a future release; "
+    "use FILE or SQL as the fallback, which buffer and replay messages without a server"
+)
+
+
 class KEYDB(OutputModule):
     """
     An output module for interacting with a KeyDB (Redis-compatible)
     server. This class provides methods to connect to KeyDB, transmit
     data, retrieve data, and handle errors consistently. If connection
     or transmission fails, a fallback module can be used if provided.
+
+    Deprecated: FILE and SQL do the same job as a fallback without a server.
     """
 
     def __init__(
@@ -42,6 +50,7 @@ class KEYDB(OutputModule):
                          for tracking errors.
         """
         super().__init__(fallback=fallback, error_holder=error_holder, name=name)
+        logger.warning(DEPRECATION_MESSAGE)
         if not self._name:
             self._name = f"KEYDB({host}:{port})"
         self.host: str = host
