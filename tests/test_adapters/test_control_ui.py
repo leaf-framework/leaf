@@ -42,6 +42,29 @@ def test_send_control_hands_message_to_controller() -> None:
     assert data == '{"fields": {}}'
 
 
+class Refuser(AbstractController):
+    @override
+    def control(self, topic: str, data: str) -> None:
+        raise RuntimeError("409 Conflict")
+
+
+def test_send_control_failure_is_reported_and_raised() -> None:
+    reported: list[Exception] = []
+    adapter = mock.MagicMock(
+        _controller=Refuser(),
+        _controls=[],
+        _metadata_manager=_metadata(),
+        _logger=logging.getLogger(),
+        _handle_exception=reported.append,
+    )
+    with pytest.raises(RuntimeError):
+        EquipmentAdapter.send_control(adapter, '{"fields": {}}')
+    # The UI shows the exception; the error holder puts it on the error topic
+    [error] = reported
+    assert isinstance(error, AdapterLogicError)
+    assert "409 Conflict" in str(error)
+
+
 def test_send_control_without_controller_raises() -> None:
     adapter = mock.MagicMock(_controller=None)
     with pytest.raises(AdapterLogicError):
@@ -114,3 +137,19 @@ def test_controllable_instances_only_lists_adapters_with_a_controller() -> None:
         assert controllable_instances() == [with_controller]
     finally:
         adapters.clear()
+
+
+class ErrorRecorder:
+    def __init__(self) -> None:
+        self.sent: list[dict[str, str]] = []
+
+    def transmit_error(self, error: dict[str, str]) -> None:
+        self.sent.append(error)
+
+
+def test_errors_are_published_once_not_once_per_process() -> None:
+    first, second = ErrorRecorder(), ErrorRecorder()
+    adapter = mock.MagicMock(_processes=[first, second])
+    EquipmentAdapter.transmit_errors(adapter, [(AdapterLogicError("boom"), "now")])
+    assert len(first.sent) == 1
+    assert second.sent == []
