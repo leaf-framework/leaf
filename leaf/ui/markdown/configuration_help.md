@@ -15,10 +15,12 @@ EQUIPMENT_INSTANCES:
 Configure data destinations:
 ```yaml
 OUTPUTS:
-  - plugin: KEYDB
-    host: localhost
-    port: 6379
+  - plugin: MQTT
+    broker: localhost
+    port: 1883
     fallback: FILE
+  - plugin: FILE
+    filename: fallback.json
 ```
 
 #### Available Adapters

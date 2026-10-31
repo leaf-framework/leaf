@@ -26,24 +26,16 @@ OUTPUTS:
 #   protocol: v3   #OPTIONAL expects "v3" "v5"
 #   transport: tcp #OPTIONAL expects "tcp", "websockets", "unix"
 #   tls: False     #OPTIONAL expects True, False
-#   fallback: SQL  #OPTIONAL expects "SQL", "KEYDB", "FILE"
+#   fallback: FILE #OPTIONAL expects "SQL", "FILE"
 
 # SQL output requires 'filename' of database 
 # and optionally an alternative 'fallback' output
 #  - plugin: SQL
 #    filename: messages.db
-#    fallback: KEYDB #OPTIONAL expects "MQTT", "KEYDB", "FILE"
-
-# KEYDB output requires 'host', 'port', 'db'
-# and optionally an alternative 'fallback' output
-#  - plugin: KEYDB
-#    host: localhost
-#    port: 6379
-#    db: 0
-#    fallback: FILE #OPTIONAL expects "MQTT", "SQL", "FILE"
+#    fallback: FILE #OPTIONAL expects "MQTT", "FILE"
 
 # FILE output requires 'filename'
 # and optionally an alternative 'fallback' output
 #  - plugin: FILE
 #    filename: local.json
-#    fallback: FILE #OPTIONAL expects "MQTT", "SQL", "KEYDB"
+#    fallback: SQL #OPTIONAL expects "MQTT", "SQL"

@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
 
 from leaf.modules.output_modules.file import FILE
-from leaf.modules.output_modules.keydb import KEYDB
 from leaf.modules.output_modules.mqtt import MQTT
+from leaf.modules.output_modules.sql import SQL
 from leaf.register.metadata import MetadataManager
 from tests.mock_mqtt_client import MockBioreactorClient
 
@@ -33,8 +33,6 @@ except KeyError:
     un = None
     pw = None
 
-db_host = "localhost"
-
 
 class TestFallbacks(unittest.TestCase):
     def tearDown(self) -> None:
@@ -44,10 +42,6 @@ class TestFallbacks(unittest.TestCase):
             pass
         try:
             self._mock_client.disconnect()
-        except Exception:
-            pass
-        try:
-            self._keydb.disconnect()
         except Exception:
             pass
         self.temp_dir.cleanup()
@@ -60,17 +54,16 @@ class TestFallbacks(unittest.TestCase):
         self.file_store_path = os.path.join(self.temp_dir.name, "local.json")
 
         self._file = FILE(self.file_store_path)
-        self._keydb: KEYDB = KEYDB(db_host, fallback=self._file, db=2)
-        self._keydb.connect()
-        self._module = MQTT(broker, port, username=un, password=pw, clientid=None, fallback=self._keydb)
+        self._sql = SQL(os.path.join(self.temp_dir.name, "fallback.db"), fallback=self._file)
+        self._module = MQTT(broker, port, username=un, password=pw, clientid=None, fallback=self._sql)
         self._mock_client = MockBioreactorClient(broker, port, username=un, password=pw)
         self._mock_client.subscribe(mock_topic)
         time.sleep(2)
 
     def _pop_with_wait(self, topic: str, timeout: float = 5.0, interval: float = 0.1):
-        """Poll keydb.pop() until it returns data or `timeout` elapses.
+        """Poll sql.pop() until it returns data or `timeout` elapses.
 
-        The MQTT-disconnect -> fallback-to-keydb publish this is waiting on
+        The MQTT-disconnect -> fallback-to-sql publish this is waiting on
         happens asynchronously; a single pop() right after a fixed sleep()
         was flaky under CPU contention (e.g. running the suite without
         --forked) because the publish sometimes hadn't landed yet, making
@@ -79,18 +72,17 @@ class TestFallbacks(unittest.TestCase):
         """
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            res = self._keydb.pop(topic)
+            res = self._sql.pop(topic)
             if res is not None:
                 return res
             time.sleep(interval)
-        self.fail(f"keydb.pop({topic!r}) still returned None after {timeout}s")
+        self.fail(f"sql.pop({topic!r}) still returned None after {timeout}s")
 
-    def test_fallback_keydb(self) -> None:
+    def test_fallback_sql(self) -> None:
         mock_topic = f"test_fallback/{uuid4()}"
         self._mock_client.subscribe(mock_topic)
         time.sleep(2)
 
-        res = self._keydb.pop(mock_topic)
         mock_data = {"test_fallback": "test_fallback"}
         self._module.client.loop_stop()
         self._module.client.on_disconnect = None
@@ -112,13 +104,12 @@ class TestFallbacks(unittest.TestCase):
         self._module.client.on_disconnect = None
         self._module.client.loop_start()
         self._module.client.disconnect()
-        self._keydb.disconnect()
+        self._module.set_fallback(self._file)
         time.sleep(1)
         self._module.transmit(mock_topic, mock_data)
         time.sleep(1)
         self.assertNotIn(mock_topic, self._mock_client.messages)
-        res = self._keydb.pop(mock_topic)
-        self.assertEqual(res, None)
+        self.assertIsNone(self._sql.pop(mock_topic))
 
         res = [
             json.loads(n) if not isinstance(n, dict) else n
@@ -144,7 +135,7 @@ class TestFallbacks(unittest.TestCase):
         self._module.client.on_disconnect = None
         self._module.client.loop_start()
         self._module.client.disconnect()
-        self._keydb.disconnect()
+        self._module.set_fallback(self._file)
         time.sleep(1)
 
         self._module._heartbeat_topics = {heartbeat_topic}
@@ -157,7 +148,7 @@ class TestFallbacks(unittest.TestCase):
         self._module.transmit(data_topic, mock_data)
         time.sleep(1)
 
-        self.assertIsNone(self._keydb.pop(heartbeat_topic))
+        self.assertIsNone(self._sql.pop(heartbeat_topic))
         self.assertIsNone(self._file.retrieve(heartbeat_topic))
         self.assertIsNotNone(self._file.retrieve(data_topic))
 
@@ -165,7 +156,6 @@ class TestFallbacks(unittest.TestCase):
         mock_topic = f"test_fallback/{uuid4()}"
         self._mock_client.subscribe(mock_topic)
         time.sleep(2)
-        self._keydb.connect()
         organisation = "test_pop_all_messages_organisation"
         department = "test_pop_all_messages_department"
         adapter_id = "test_pop_all_messages_adapter_id"
@@ -189,7 +179,7 @@ class TestFallbacks(unittest.TestCase):
         }
         for topic, messages in inp_messages.items():
             for message in messages:
-                self._keydb.transmit(topic, message)
+                self._sql.transmit(topic, json.loads(message))
                 time.sleep(0.1)
 
         messages = list(self._module.pop_all_messages())
@@ -198,7 +188,7 @@ class TestFallbacks(unittest.TestCase):
             inp_messages[topic] = [json.loads(item) if isinstance(item, str) else item for item in inp_messages[topic]]
             self.assertIn(topic, inp_messages)
             self.assertIn(message, inp_messages[topic])
-        self.assertIsNone(self._keydb.pop())
+        self.assertIsNone(self._sql.pop())
 
         for topic, messages in inp_messages.items():
             for message in messages:
@@ -225,7 +215,6 @@ class TestFallbacks(unittest.TestCase):
         self._mock_client.subscribe(mock_topic)
         time.sleep(2)
 
-        self._keydb.connect()
         organisation = "test_pop_all_messages_organisation"
         department = "test_pop_all_messages_department"
         adapter_id = "test_pop_all_messages_adapter_id"
@@ -239,7 +228,7 @@ class TestFallbacks(unittest.TestCase):
         manager.add_instance_value("department", department)
         manager.add_instance_value("instance_id", instance_id)
 
-        keydb_messages = {
+        sql_messages = {
             manager.experiment.measurement(experiment_id=experiment_id, measurement=measurement_id): [
                 '{"A":"A"}',
                 '{"B":"B"}',
@@ -255,9 +244,9 @@ class TestFallbacks(unittest.TestCase):
             ],
             manager.experiment.start(): ['{"J":"J"}', '{"K":"K"}', '{"L":"L"}'],
         }
-        for topic, messages in keydb_messages.items():
+        for topic, messages in sql_messages.items():
             for message in messages:
-                self._keydb.transmit(topic, message)
+                self._sql.transmit(topic, json.loads(message))
                 time.sleep(0.1)
         for topic, messages in file_messages.items():
             for message in messages:
@@ -270,9 +259,9 @@ class TestFallbacks(unittest.TestCase):
 
         for topic, message in messages:
             # Check topic is valid
-            self.assertTrue(topic in keydb_messages or topic in file_messages)
+            self.assertTrue(topic in sql_messages or topic in file_messages)
 
-            # FILE module returns message as a list, KEYDB returns as dict/string
+            # FILE module returns message as a list, SQL returns the dict
             if isinstance(message, list):
                 # FILE module - message is wrapped in a list
                 for item in message:
@@ -280,25 +269,25 @@ class TestFallbacks(unittest.TestCase):
                     parsed_item = json.loads(item) if isinstance(item, str) else item
                     item_str = json.dumps(parsed_item, separators=(",", ":"))
 
-                    # Check if this message is in either keydb or file expected messages
+                    # Check if this message is in either sql or file expected messages
                     found = False
                     if topic in file_messages and item_str in file_messages[topic]:
                         found = True
-                    if topic in keydb_messages and item_str in keydb_messages[topic]:
+                    if topic in sql_messages and item_str in sql_messages[topic]:
                         found = True
                     self.assertTrue(found, f"Message {item_str} not found in expected messages for topic {topic}")
             else:
-                # KEYDB module returns dict directly - convert to JSON string for comparison
+                # SQL module returns the dict - convert to JSON string for comparison
                 message_str = json.dumps(message, separators=(",", ":")) if isinstance(message, dict) else message
                 found = False
-                if topic in keydb_messages and message_str in keydb_messages[topic]:
+                if topic in sql_messages and message_str in sql_messages[topic]:
                     found = True
                 if topic in file_messages and message_str in file_messages[topic]:
                     found = True
                 self.assertTrue(found, f"Message {message_str} not found in expected messages for topic {topic}")
 
         self.assertIsNone(self._file.pop())
-        self.assertIsNone(self._keydb.pop())
+        self.assertIsNone(self._sql.pop())
 
 
 def is_valid_json(item):

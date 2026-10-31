@@ -23,14 +23,12 @@ include = [
 
 
 [tool.poetry.dependencies]
-aioredis = "~2.0.1"
 dateparser = "~1.4.3"
 httpx = "~0.28.1"
 nicegui = "~3.18.0"
 paho-mqtt = "~2.1.0"
 pyyaml = "~6.0.3"
 python = ">=3.12,<3.15"
-redis = "~8.1.0"
 requests = "~2.34.2"
 watchdog = "~7.0.0"
 cairosvg = "^2.9.1"
