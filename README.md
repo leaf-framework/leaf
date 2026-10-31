@@ -14,6 +14,10 @@ leaf
 
 LEAF automatically shows a **desktop control panel** on desktop systems, making it easy to see if the application is running and where to access it.
 
+## Password for the web interface
+
+The web interface is open by default. When it runs where others can reach it (a Kubernetes pod with an ingress, a shared server), set `LEAF_UI_PASSWORD`: every page then asks for that password once, on a login form password managers can fill, and keeps the browser logged in for 30 days. Changing the password logs every browser out. It sends the password over the wire, so serve the interface over HTTPS.
+
 ## Updating
 
 LEAF checks PyPI for a newer release one hour after it starts, and weekly from then on -- never at startup, so a restart simply re-arms the one-hour delay. When a newer version exists, an **update badge** appears next to the version number in the web interface header; clicking it offers to install the update and restart LEAF.
