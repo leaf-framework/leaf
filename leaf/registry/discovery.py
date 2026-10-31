@@ -1,3 +1,4 @@
+import importlib
 import importlib.util
 import json
 import os
@@ -7,7 +8,7 @@ from typing import Any
 from leaf.adapters.equipment_adapter import EquipmentAdapter
 from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
 from leaf.modules.output_modules.output_module import OutputModule
-from leaf.registry.loader import load_class_from_file
+from leaf.registry.loader import load_class_from_file, most_specific_subclass
 from leaf.registry.utils import ADAPTER_ID_KEY
 from leaf.utility.logger.logger_utils import get_logger
 
@@ -130,9 +131,11 @@ def discover_output_modules(
             if module_name.lower() not in needed_codes:
                 continue
 
-            path = os.path.join(output_module_dir, file)
+            # Import by package name, not from the file path: a second copy of the module would make
+            # e.g. isinstance(output, MQTT) false for the MQTT output built from the config
             try:
-                cls = load_class_from_file(path, base_class=OutputModule)
+                module = importlib.import_module(f"leaf.modules.output_modules.{module_name}")
+                cls = most_specific_subclass(module, OutputModule, module.__name__)
                 discovered.append((module_name, cls))
             except Exception:
                 continue
