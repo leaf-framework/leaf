@@ -136,8 +136,10 @@ class TestParallelOutputModules(unittest.TestCase):
         data = {"key": "value"}
 
         primary = FILE(filename=self.filename1)
-        # Create a parallel with an invalid path that will fail
-        parallel = FILE(filename="/nonexistent/path/file.json")
+        # A regular file as parent directory fails even as root, unlike /nonexistent;
+        # set after construction, which would otherwise try to create that directory
+        parallel = FILE(filename=self.filename2)
+        parallel.filename = os.path.join(self.filename2, "file.json")
 
         primary.add_parallel(parallel)
 

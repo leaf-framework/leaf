@@ -41468,8 +41468,8 @@
             {
                 "code": "reportUnknownMemberType",
                 "range": {
-                    "startColumn": 8,
-                    "endColumn": 26,
+                    "startColumn": 12,
+                    "endColumn": 30,
                     "lineCount": 1
                 }
             },
