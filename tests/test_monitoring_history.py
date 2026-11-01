@@ -30,12 +30,15 @@ class PointInterpreter:
         return self.result
 
 
-def measure(result: object) -> list[tuple[str, object]]:
+def measure(
+    result: object, organisation: str = "test_points", department: str = "test_points"
+) -> list[tuple[str, object]]:
     """Run MeasurePhase.update with an interpreter returning `result`."""
     metadata = MetadataManager()
     metadata.add_equipment_value("adapter_id", "test_points")
-    for key in ("organisation", "department", "instance_id"):
-        metadata.add_instance_value(key, "test_points")
+    metadata.add_instance_value("organisation", organisation)
+    metadata.add_instance_value("department", department)
+    metadata.add_instance_value("instance_id", "test_points")
     phase = MeasurePhase(metadata_manager=metadata)
     # Only id and measurement() are used, so a stand-in is enough
     phase.set_interpreter(cast(AbstractInterpreter, cast(object, PointInterpreter(result))))
@@ -45,7 +48,28 @@ def measure(result: object) -> list[tuple[str, object]]:
 def test_measure_publishes_a_leafpoint_under_its_metric() -> None:
     [(topic, payload)] = measure(FakeLeafPoint("pH", 6.5))
     assert topic.endswith("/pH")
-    assert payload == FakeLeafPoint("pH", 6.5).to_json()
+    expected = FakeLeafPoint("pH", 6.5).to_json()
+    expected["tags"] = {"metric": "pH", "organisation": "test_points", "department": "test_points"}
+    assert payload == expected
+
+
+def test_measure_adds_instance_tags_but_keeps_the_adapters_own() -> None:
+    [(_, payload)] = measure({"tags": {"metric": "T", "organisation": "lab"}, "fields": {"value": 1.0}})
+    assert cast(dict[str, dict[str, str]], payload)["tags"] == {
+        "metric": "T",
+        "organisation": "lab",
+        "department": "test_points",
+    }
+
+
+def test_each_instance_tags_its_points_with_its_own_organisation_and_department() -> None:
+    [(reactor_topic, reactor)] = measure(FakeLeafPoint(), organisation="wur", department="ssb")
+    [(sensor_topic, sensor)] = measure(FakeLeafPoint(), organisation="wur", department="microbiology")
+    assert cast(dict[str, dict[str, str]], reactor)["tags"]["department"] == "ssb"
+    assert cast(dict[str, dict[str, str]], sensor)["tags"]["department"] == "microbiology"
+    # The tags match the instance's own topic
+    assert reactor_topic.startswith("wur/ssb/")
+    assert sensor_topic.startswith("wur/microbiology/")
 
 
 def test_measure_splits_a_list_of_leafpoints_per_metric() -> None:

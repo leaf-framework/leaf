@@ -231,6 +231,7 @@ class MeasurePhase(PhaseModule):
             list[tuple]: A list of (action, result) tuples.
         """
         if isinstance(result, dict):
+            self._add_instance_tags(cast(object, result))
             measurement = self._resolve_measurement(result)
             action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
             return [(action, result)]
@@ -239,6 +240,7 @@ class MeasurePhase(PhaseModule):
         point_json = point_json_of(payload)
         if point_json is not None:
             result = point_json
+            self._add_instance_tags(cast(object, result))
             measurement = self._resolve_measurement(result)
             action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
             return [(action, result)]
@@ -254,6 +256,7 @@ class MeasurePhase(PhaseModule):
 
             groups: dict[str, list] = {}
             for item in converted:
+                self._add_instance_tags(cast(object, item))
                 if isinstance(item, dict):
                     key = self._resolve_measurement(item)
                 else:
@@ -269,6 +272,16 @@ class MeasurePhase(PhaseModule):
         excp = AdapterLogicError(f"Unknown measurement data type: {type(result)}")
         self._handle_exception(excp)
         return []
+
+    def _add_instance_tags(self, item: object) -> None:
+        """Tag a point with its instance's organisation and department, unless the adapter already did."""
+        if self._metadata_manager is None or not isinstance(item, dict) or "fields" not in item:
+            return
+        tags = cast(dict[str, object], item).setdefault("tags", {})
+        if not isinstance(tags, dict):
+            return
+        for key, value in self._metadata_manager.instance_tags().items():
+            _ = cast(dict[str, object], tags).setdefault(key, value)
 
     def _resolve_measurement(self, item: dict) -> str:
         """

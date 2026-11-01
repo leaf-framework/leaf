@@ -140,7 +140,9 @@ def _field_value(value: object) -> int | float | str:
     return json.dumps(value)
 
 
-def result_record(data: str, source: str, error: Exception | None = None) -> dict[str, object]:
+def result_record(
+    data: str, source: str, error: Exception | None = None, instance_tags: dict[str, str] | None = None
+) -> dict[str, object]:
     """
     A control message as the LeafPoint LEAF publishes on <control topic>/result, so that what was
     sent to the equipment is stored with the measurements.
@@ -159,6 +161,10 @@ def result_record(data: str, source: str, error: Exception | None = None) -> dic
     tags: dict[str, str] = {}
     for key, value in _part(point, "tags").items():
         tags[key] = str(value)
+    # The instance's organisation and department, where the message didn't set them
+    if instance_tags is not None:
+        for key, value in instance_tags.items():
+            _ = tags.setdefault(key, value)
     fields: dict[str, int | float | str] = {}
     for key, value in _part(point, "fields").items():
         fields[key] = _field_value(value)

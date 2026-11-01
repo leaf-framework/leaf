@@ -213,6 +213,15 @@ def test_ui_and_mqtt_commands_are_published_on_control_result() -> None:
     assert sources == ["ui", "mqtt"]
 
 
+def test_control_results_carry_the_instance_tags() -> None:
+    output = OutputRecorder()
+    adapter = _adapter_with(Recorder(), output)
+    EquipmentAdapter.send_control(adapter, '{"tags": {"metric": "step"}, "fields": {"value": "next"}}')
+    [(_, record)] = output.sent
+    tags = cast(dict[str, dict[str, str]], record)["tags"]
+    assert (tags["organisation"], tags["department"]) == ("wur", "ssb")
+
+
 def test_rejected_commands_are_published_too() -> None:
     output = OutputRecorder()
     adapter = _adapter_with(Refuser(), output)
