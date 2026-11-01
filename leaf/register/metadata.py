@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any
+from typing import Any, cast
 
 import yaml  # type: ignore
 
@@ -59,6 +59,15 @@ class MetadataManager:
         if key is None:
             return self._instance_data
         return self._instance_data.get(key)
+
+    def instance_tags(self) -> dict[str, str]:
+        """The organisation and department tags every point of this instance carries."""
+        tags: dict[str, str] = {}
+        for key in ("organisation", "department"):
+            value = cast(object, self._instance_data.get(key))  # pyright: ignore[reportUnknownMemberType]
+            if value:
+                tags[key] = str(value)
+        return tags
 
     def get_instance_id(self) -> str:
         """Convenience accessor for 'instance_id' in equipment."""

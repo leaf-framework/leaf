@@ -43,6 +43,7 @@ class MeasurePhase(PhaseModule):
 
         super().__init__(term_builder, metadata_manager=metadata_manager, error_holder=error_holder)
         self._maximum_message_size: int = maximum_message_size
+        self._tag_mismatches: set[tuple[str, str]] = set()
         # Guards against a second measurement running concurrently with one still
         # draining (e.g. a generator-based interpreter that streams for a long time,
         # or forever). Without this, an overlapping event (e.g. FileWatcher's
@@ -231,6 +232,7 @@ class MeasurePhase(PhaseModule):
             list[tuple]: A list of (action, result) tuples.
         """
         if isinstance(result, dict):
+            self._add_instance_tags(cast(object, result))
             measurement = self._resolve_measurement(result)
             action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
             return [(action, result)]
@@ -239,6 +241,7 @@ class MeasurePhase(PhaseModule):
         point_json = point_json_of(payload)
         if point_json is not None:
             result = point_json
+            self._add_instance_tags(cast(object, result))
             measurement = self._resolve_measurement(result)
             action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
             return [(action, result)]
@@ -254,6 +257,7 @@ class MeasurePhase(PhaseModule):
 
             groups: dict[str, list] = {}
             for item in converted:
+                self._add_instance_tags(cast(object, item))
                 if isinstance(item, dict):
                     key = self._resolve_measurement(item)
                 else:
@@ -269,6 +273,24 @@ class MeasurePhase(PhaseModule):
         excp = AdapterLogicError(f"Unknown measurement data type: {type(result)}")
         self._handle_exception(excp)
         return []
+
+    def _add_instance_tags(self, item: object) -> None:
+        """Tag a point with its instance's organisation and department, unless the adapter already did."""
+        if self._metadata_manager is None or not isinstance(item, dict) or "fields" not in item:
+            return
+        tags = cast(dict[str, object], item).setdefault("tags", {})
+        if not isinstance(tags, dict):
+            return
+        for key, value in self._metadata_manager.instance_tags().items():
+            current = cast(dict[str, object], tags).get(key)
+            if current is None:
+                tags[key] = value
+            elif str(current) != value and (key, str(current)) not in self._tag_mismatches:
+                # Kept as the adapter set it; warned once so every measurement doesn't repeat it
+                self._tag_mismatches.add((key, str(current)))
+                logger.warning(
+                    f"Tag {key}={current!r} differs from the configured {key} {value!r}; keeping {current!r}"
+                )
 
     def _resolve_measurement(self, item: dict) -> str:
         """
