@@ -166,9 +166,36 @@ def _install_button(adapter: Mapping[str, object]) -> None:
     """The marketplace card's Install button, unless adapter installs are disabled."""
     if adapter_install_disabled():
         return
+    if adapter.get("access") == "restricted":
+        _ = ui.button("Install with token", icon="lock", on_click=lambda: _token_dialog(adapter)).classes(
+            "btn-secondary w-full rounded-lg transition-colors"
+        )
+        return
     _ = ui.button("Install", icon="download", on_click=lambda: install_adapter(dict(adapter))).classes(
         "btn-secondary w-full rounded-lg transition-colors"
     )
+
+
+def _token_dialog(adapter: Mapping[str, object]) -> None:
+    """Asks for the access token of a restricted adapter, which is only installable with one."""
+    name = str(adapter.get("name") or adapter.get("adapter_id"))
+    with ui.dialog() as dialog, ui.card().classes("w-96"):
+        _ = ui.label(f"{name} is available on request").classes("text-h6")
+        _ = ui.label("Enter the username and token you received, e.g. a GitLab deploy token.").classes("text-body")
+        username = ui.input("Username")
+        token = ui.input("Token", password=True, password_toggle_button=True)
+        request = adapter.get("request_access")
+        if request:
+            _ = ui.link("Request access", str(request), new_tab=True)
+
+        async def install() -> None:
+            _ = dialog.close()
+            await install_adapter(dict(adapter), (str(username.value), str(token.value)))
+
+        with ui.row().classes("w-full justify-end"):
+            _ = ui.button("Cancel", on_click=dialog.close).classes("btn-tertiary")
+            _ = ui.button("Install", icon="download", on_click=install).classes("btn-secondary")
+    _ = dialog.open()
 
 
 def _uninstall_button(adapter: Mapping[str, object]) -> None:
