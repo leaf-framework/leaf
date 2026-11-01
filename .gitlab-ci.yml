@@ -454,6 +454,9 @@ package:windows:arm64:
 release:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
+  # release-cli has no image for the untagged Hetzner runner's architecture (exec format error)
+  tags:
+    - amd64
   needs:
     - determine_version
     - package:macos
