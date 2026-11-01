@@ -26,6 +26,8 @@ def test_adapter_installable(adapter, tmp_path):
     repo_url = adapter.get("repo_url")
     if not repo_url:
         pytest.skip("No repo_url defined")
+    if adapter.get("access") == "restricted":  # pyright: ignore[reportUnknownMemberType]
+        pytest.skip("Restricted: installable only with a token handed out per user")
 
     # Create an isolated venv so installs don't pollute the test environment
     venv_dir = tmp_path / "venv"

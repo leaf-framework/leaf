@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from typing import Any
+from urllib.parse import quote, urlsplit, urlunsplit
 
 from nicegui import ui
 
@@ -78,18 +79,31 @@ def _refused(action: str) -> bool:
     return True
 
 
-async def install_adapter(adapter: dict[Any, Any]) -> None:
+def with_credentials(repository: str, username: str, token: str) -> str:
+    """repository with username and token in it, for pip to clone a private (restricted) adapter."""
+    parts = urlsplit(repository)
+    host = parts.hostname or ""
+    if parts.port:
+        host = f"{host}:{parts.port}"
+    return urlunsplit(parts._replace(netloc=f"{quote(username, safe='')}:{quote(token, safe='')}@{host}"))
+
+
+async def install_adapter(adapter: dict[Any, Any], credentials: tuple[str, str] | None = None) -> None:
     """
     Install a LEAF adapter from a Git repository.
 
     Args:
         adapter: Dictionary containing adapter metadata including 'repo_url' and 'name'
+        credentials: Username and token for a restricted adapter's private repository; never logged
     """
     if _refused("Installing"):
         return
     adapter_name = adapter.get("name") or adapter.get("adapter_id", "adapter")
     logger.info(f"Installing {adapter_name}...")
     repository = adapter["repo_url"]
+    if credentials is not None:
+        # pip masks the token in its own output; LEAF never logs this URL
+        repository = with_credentials(repository, *credentials)  # pyright: ignore[reportAny]
 
     # Show "installing" notification
     ui.notify(f"Installing {adapter_name}... This may take a moment.", type="info", position="top", timeout=3000)
