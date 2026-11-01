@@ -7,8 +7,8 @@ made, which differs from the version order in two places: 0.10.12 was tagged aft
 ## 0.11.1
 
 ### Added
-- **Install from git URL** in the Adapters tab, for adapters that are not in the marketplace, with an optional username and token for private repositories. Only http(s) URLs; a token is only sent over https. ([!152](https://gitlab.com/leaf-framework/leaf/-/merge_requests/152))
-- Every measurement and control result carries `organisation` and `department` tags from the instance configuration, so OAK can store data from adapters that never set them. An adapter's own tags win, with a warning when they differ from the configuration. ([!154](https://gitlab.com/leaf-framework/leaf/-/merge_requests/154))
+- **Install from git URL**: the Adapters tab installs adapters that are not in the marketplace from any http(s) git URL, with an optional username and token for private repositories (sent over https only). ([!152](https://gitlab.com/leaf-framework/leaf/-/merge_requests/152))
+- **Organisation and department tags**: every measurement and control result carries `organisation` and `department` from the instance configuration, so OAK can store data from adapters that never set them; an adapter's own tags win, with a warning when they differ. ([!154](https://gitlab.com/leaf-framework/leaf/-/merge_requests/154))
 
 ### Removed
 - Unused code: `MeasurementHandler`, `DBWatcher` (it only raised `NotImplementedError`) and a few unused helpers and constants. ([!153](https://gitlab.com/leaf-framework/leaf/-/merge_requests/153))
@@ -26,8 +26,8 @@ made, which differs from the version order in two places: 0.10.12 was tagged aft
 
 ### Added
 - **Control results**: every control command, from MQTT or the Control tab, applied or rejected, is published on `…/control/result` as a LeafPoint with the tags `source`, `status` and, for a rejection, `error`. ([!145](https://gitlab.com/leaf-framework/leaf/-/merge_requests/145), [!146](https://gitlab.com/leaf-framework/leaf/-/merge_requests/146), [!148](https://gitlab.com/leaf-framework/leaf/-/merge_requests/148))
-- **`LEAF_DISABLE_ADAPTER_INSTALL`** switches off installing and uninstalling adapters from the web interface, for shared deployments where adapters come from the image. ([!144](https://gitlab.com/leaf-framework/leaf/-/merge_requests/144))
-- **Restricted adapters**: marketplace entries with `access: restricted` install with a username and token handed out per user, with a "Request access" link. RAMSMART is the first. ([!149](https://gitlab.com/leaf-framework/leaf/-/merge_requests/149))
+- **Disable adapter install**: `LEAF_DISABLE_ADAPTER_INSTALL` switches off installing and uninstalling adapters from the web interface, for shared deployments where adapters come from the image. ([!144](https://gitlab.com/leaf-framework/leaf/-/merge_requests/144))
+- **Restricted adapters**: marketplace entries with `access: restricted` install with a username and token handed out per user, with a "Request access" link; RAMSMART is the first. ([!149](https://gitlab.com/leaf-framework/leaf/-/merge_requests/149))
 
 ### Fixed
 - Three tests that failed at random on slow CI runners. ([!150](https://gitlab.com/leaf-framework/leaf/-/merge_requests/150))
@@ -46,11 +46,11 @@ made, which differs from the version order in two places: 0.10.12 was tagged aft
 
 ### Added
 - **Controlling equipment**: an adapter with a `controller.py` can be steered over MQTT on `…/control` when its instance has `control: true`. ([!129](https://gitlab.com/leaf-framework/leaf/-/merge_requests/129))
-- **Control tab**, built from the controls an adapter declares in its `device.json`. LEAF checks every control message against them and against the instance's `control_limits` before the controller sees it. ([!134](https://gitlab.com/leaf-framework/leaf/-/merge_requests/134))
-- **Monitoring plot**: latest-value tiles and a time plot per metric, with a separate series per entity and tiles grouped per instance, and *Add all* / *Clear all* for the metric picker. ([!133](https://gitlab.com/leaf-framework/leaf/-/merge_requests/133), [!137](https://gitlab.com/leaf-framework/leaf/-/merge_requests/137), [!140](https://gitlab.com/leaf-framework/leaf/-/merge_requests/140))
-- **`LEAF_UI_PASSWORD`** puts the web interface behind a login with a 30-day session. ([!136](https://gitlab.com/leaf-framework/leaf/-/merge_requests/136))
-- The macOS installer is signed and notarised, so Gatekeeper opens it without warnings. ([!126](https://gitlab.com/leaf-framework/leaf/-/merge_requests/126))
-- An adapter's packaged `README.md` is shown as help in the Configuration tab. ([!131](https://gitlab.com/leaf-framework/leaf/-/merge_requests/131))
+- **Control tab**: a form per instance, built from the controls an adapter declares in its `device.json`; LEAF checks every control message against them and the instance's `control_limits` before the controller sees it. ([!134](https://gitlab.com/leaf-framework/leaf/-/merge_requests/134))
+- **Monitoring plot**: latest-value tiles and a time plot per metric, with a separate series per entity, tiles grouped per instance, and *Add all* / *Clear all* for the metric picker. ([!133](https://gitlab.com/leaf-framework/leaf/-/merge_requests/133), [!137](https://gitlab.com/leaf-framework/leaf/-/merge_requests/137), [!140](https://gitlab.com/leaf-framework/leaf/-/merge_requests/140))
+- **Web interface password**: `LEAF_UI_PASSWORD` puts the web interface behind a login with a 30-day session. ([!136](https://gitlab.com/leaf-framework/leaf/-/merge_requests/136))
+- **Notarised macOS installer**: the dmg is signed and notarised, so Gatekeeper opens it without warnings. ([!126](https://gitlab.com/leaf-framework/leaf/-/merge_requests/126))
+- **Adapter help**: an adapter's packaged `README.md` is shown as help in the Configuration tab. ([!131](https://gitlab.com/leaf-framework/leaf/-/merge_requests/131))
 
 ### Changed
 - Restart and Stop moved to the header, behind a confirmation. ([!131](https://gitlab.com/leaf-framework/leaf/-/merge_requests/131))
@@ -77,7 +77,7 @@ made, which differs from the version order in two places: 0.10.12 was tagged aft
 - Releases are made by pushing a version tag instead of on every merge to main. ([!122](https://gitlab.com/leaf-framework/leaf/-/merge_requests/122))
 
 ### Added
-- The Windows installer, launcher and uninstaller are signed. ([!123](https://gitlab.com/leaf-framework/leaf/-/merge_requests/123), [!124](https://gitlab.com/leaf-framework/leaf/-/merge_requests/124))
+- **Signed Windows installer**: the installer, launcher and uninstaller are signed. ([!123](https://gitlab.com/leaf-framework/leaf/-/merge_requests/123), [!124](https://gitlab.com/leaf-framework/leaf/-/merge_requests/124))
 
 ## 0.10.20
 
@@ -107,9 +107,9 @@ made, which differs from the version order in two places: 0.10.12 was tagged aft
 ## 0.10.15
 
 ### Added
-- **Update check**: the web interface looks for a newer LEAF one hour after start, then weekly, and offers *Update & Restart*. Installs that did not come from PyPI are told about a release but never updated. `LEAF_DISABLE_UPDATE_CHECK=1` turns it off. ([!119](https://gitlab.com/leaf-framework/leaf/-/merge_requests/119))
-- **LADS watcher** for OPC UA lab-device servers, which finds the variables to monitor itself. ([!119](https://gitlab.com/leaf-framework/leaf/-/merge_requests/119))
-- The FILE output writes gzip when its filename ends in `.gz`. ([!119](https://gitlab.com/leaf-framework/leaf/-/merge_requests/119))
+- **Update check**: the web interface looks for a newer LEAF one hour after start, then weekly, and offers *Update & Restart*; installs that did not come from PyPI are told but never updated, and `LEAF_DISABLE_UPDATE_CHECK=1` turns it off. ([!119](https://gitlab.com/leaf-framework/leaf/-/merge_requests/119))
+- **LADS watcher**: an input module for OPC UA lab-device servers that finds the variables to monitor itself. ([!119](https://gitlab.com/leaf-framework/leaf/-/merge_requests/119))
+- **Compressed FILE output**: the FILE output writes gzip when its filename ends in `.gz`. ([!119](https://gitlab.com/leaf-framework/leaf/-/merge_requests/119))
 
 ### Fixed
 - Polling watchers (including Modbus) stopped for good after a single error, so an experiment silently stopped reporting; they now log it and keep polling. ([!118](https://gitlab.com/leaf-framework/leaf/-/merge_requests/118))
@@ -139,7 +139,7 @@ made, which differs from the version order in two places: 0.10.12 was tagged aft
 ## 0.10.6
 
 ### Added
-- An interpreter's `measurement()` can be a generator (`yield`), so one call can produce many results without building them all in memory. ([!107](https://gitlab.com/leaf-framework/leaf/-/merge_requests/107))
+- **Generator measurements**: an interpreter's `measurement()` can `yield`, so one call can produce many results without building them all in memory. ([!107](https://gitlab.com/leaf-framework/leaf/-/merge_requests/107))
 
 ## 0.10.5
 
@@ -169,4 +169,4 @@ made, which differs from the version order in two places: 0.10.12 was tagged aft
 ## 0.10.1
 
 ### Added
-- **Desktop installers** for macOS, Linux and Windows, which set up their own Python on first launch.
+- **Desktop installers**: installers for macOS, Linux and Windows that set up their own Python on first launch.
