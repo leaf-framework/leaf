@@ -43,6 +43,7 @@ class MeasurePhase(PhaseModule):
 
         super().__init__(term_builder, metadata_manager=metadata_manager, error_holder=error_holder)
         self._maximum_message_size: int = maximum_message_size
+        self._tag_mismatches: set[tuple[str, str]] = set()
         # Guards against a second measurement running concurrently with one still
         # draining (e.g. a generator-based interpreter that streams for a long time,
         # or forever). Without this, an overlapping event (e.g. FileWatcher's
@@ -281,7 +282,15 @@ class MeasurePhase(PhaseModule):
         if not isinstance(tags, dict):
             return
         for key, value in self._metadata_manager.instance_tags().items():
-            _ = cast(dict[str, object], tags).setdefault(key, value)
+            current = cast(dict[str, object], tags).get(key)
+            if current is None:
+                tags[key] = value
+            elif str(current) != value and (key, str(current)) not in self._tag_mismatches:
+                # Kept as the adapter set it; warned once so every measurement doesn't repeat it
+                self._tag_mismatches.add((key, str(current)))
+                logger.warning(
+                    f"Tag {key}={current!r} differs from the configured {key} {value!r}; keeping {current!r}"
+                )
 
     def _resolve_measurement(self, item: dict) -> str:
         """

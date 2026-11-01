@@ -1,6 +1,8 @@
 import time
 from typing import cast
 
+import pytest
+
 from leaf.adapters.equipment_adapter import AbstractInterpreter
 from leaf.modules.output_modules.topic_store import HISTORY_LENGTH, TopicStore
 from leaf.modules.phase_modules.measure import MeasurePhase, point_json_of
@@ -60,6 +62,15 @@ def test_measure_adds_instance_tags_but_keeps_the_adapters_own() -> None:
         "organisation": "lab",
         "department": "test_points",
     }
+
+
+def test_a_differing_organisation_tag_is_kept_with_one_warning(caplog: pytest.LogCaptureFixture) -> None:
+    point = {"tags": {"metric": "T", "organisation": "lab"}, "fields": {"value": 1.0}}
+    messages = measure([point, dict(point, tags=dict(point["tags"]))])
+    points = [p for _, batch in messages for p in cast(list[dict[str, dict[str, str]]], batch)]
+    assert [p["tags"]["organisation"] for p in points] == ["lab", "lab"]
+    warnings = [r for r in caplog.records if "differs from the configured organisation" in r.getMessage()]
+    assert len(warnings) == 1
 
 
 def test_each_instance_tags_its_points_with_its_own_organisation_and_department() -> None:
