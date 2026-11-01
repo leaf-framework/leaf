@@ -21,7 +21,6 @@ logger = get_logger(__name__, log_file="input_module.log")
 FIRST_RECONNECT_DELAY = 1
 RECONNECT_RATE = 2
 MAX_RECONNECT_DELAY = 60
-MAX_RECONNECT_COUNT = 12
 
 
 class BLEEventWatcher(EventWatcher):

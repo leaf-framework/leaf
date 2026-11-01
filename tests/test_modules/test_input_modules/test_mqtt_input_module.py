@@ -527,7 +527,7 @@ class MQTTInputMockInterpreter(AbstractInterpreter):
         return payload
 
     def measurement(self, data):
-        inf_obj = LeafPoint()
+        point = LeafPoint()
         if "topic" not in data:
             excp = InterpreterError("Recieved measurement without original topic.")
             self._handle_exception(excp)
@@ -536,25 +536,25 @@ class MQTTInputMockInterpreter(AbstractInterpreter):
             self._handle_exception(excp)
 
         topic = data["topic"].split("/")
-        inf_obj.set_timestamp(datetime.now())
-        inf_obj.add_tag("NA", "NA")
+        point.set_timestamp(datetime.now())
+        point.add_tag("NA", "NA")
 
         experiment_id = topic[-2]
         # Just to show they SHOULD be the same in this case.
         assert experiment_id == self.id
         # To display, two cases (This depends on how the data actually comes out of the equipment).
         try:
-            # The influx measurement in this example is the suffix
+            # The LeafPoint measurement in this example is the suffix
             # measurement type (growth_rate for example.)
             # The fields are the k,v values of the payload of the original mqtt messages.
-            inf_obj.set_measurement(topic[-1])
-            inf_obj.set_fields(json.loads(data["payload"]))
+            point.set_measurement(topic[-1])
+            point.set_fields(json.loads(data["payload"]))
         except json.JSONDecodeError:
             # Measurement in this example is the experiment_id (LacZ-Slow-Single-KO for example.)
             # Single field where suffix of topic is the key (growth_rate) and value is the single literal payload.
-            inf_obj.set_measurement(topic[-2])
-            inf_obj.add_field(topic[-1], data["payload"])
-        return inf_obj.to_json()
+            point.set_measurement(topic[-2])
+            point.add_field(topic[-1], data["payload"])
+        return point.to_json()
 
 
 class TestMQTTWatcherInAdapter(unittest.TestCase):

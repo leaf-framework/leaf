@@ -61,10 +61,10 @@ OUTPUTS:
 
     def test_env_var_overrides_default(self):
         """Test that environment variable takes precedence over default."""
-        os.environ["REDIS_HOST"] = "redis.example.com"
-        content = "host: ${REDIS_HOST:localhost}"
+        os.environ["MQTT_BROKER"] = "mqtt.example.com"
+        content = "host: ${MQTT_BROKER:localhost}"
         result = substitute_env_variables(content)
-        self.assertEqual(result, "host: redis.example.com")
+        self.assertEqual(result, "host: mqtt.example.com")
 
     def test_missing_var_without_default_raises_error(self):
         """Test that missing variable without default raises ValueError."""
@@ -129,23 +129,23 @@ EQUIPMENT_INSTANCES:
 
     def test_complex_yaml_structure(self):
         """Test complex YAML with multiple nested variables."""
-        os.environ["REDIS_HOST"] = "redis.local"
-        os.environ["REDIS_PORT"] = "6379"
+        os.environ["MQTT_BROKER"] = "mqtt.local"
+        os.environ["MQTT_PORT"] = "1883"
         content = """
 OUTPUTS:
   - plugin: MQTT
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
-    db: ${REDIS_DB:0}
+    broker: ${MQTT_BROKER:localhost}
+    port: ${MQTT_PORT:1883}
+    keepalive: ${MQTT_KEEPALIVE:60}
   - plugin: FILE
     filename: ${LOG_FILE:output.log}
 """
         result = substitute_env_variables(content)
         parsed = yaml.safe_load(result)
-        self.assertEqual(parsed["OUTPUTS"][0]["host"], "redis.local")
+        self.assertEqual(parsed["OUTPUTS"][0]["broker"], "mqtt.local")
         # Note: YAML auto-converts numeric strings to integers
-        self.assertEqual(parsed["OUTPUTS"][0]["port"], 6379)
-        self.assertEqual(parsed["OUTPUTS"][0]["db"], 0)
+        self.assertEqual(parsed["OUTPUTS"][0]["port"], 1883)
+        self.assertEqual(parsed["OUTPUTS"][0]["keepalive"], 60)
         self.assertEqual(parsed["OUTPUTS"][1]["filename"], "output.log")
 
 

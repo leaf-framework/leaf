@@ -111,7 +111,7 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         "--port",
         type=int,
         default=4242,
-        help="Port to run the NiceGUI interface on. Default is 8080.",
+        help="Port to run the NiceGUI interface on. Default is 4242.",
     )
 
     parser.add_argument(
