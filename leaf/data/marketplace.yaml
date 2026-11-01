@@ -236,6 +236,7 @@
   # Private repository: installed with a username and token handed out per user. One deploy
   # token (read_repository, with an expiry) per person, named after them; lost → revoke and reissue.
   access: restricted
+  request_access: mailto:access@leaf-framework.org?subject=Access%20to%20LEAF-RAMSMART
   name: LEAF-RAMSMART
 - adapter_id: BluetoothScanner
   image: icon:bi-bluetooth
