@@ -88,6 +88,18 @@ def with_credentials(repository: str, username: str, token: str) -> str:
     return urlunsplit(parts._replace(netloc=f"{quote(username, safe='')}:{quote(token, safe='')}@{host}"))
 
 
+def check_repository_url(url: str, with_token: bool) -> str | None:
+    """Why an adapter can't be installed from url (typed in the UI), or None when it can."""
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return "Enter an http(s) URL, e.g. https://gitlab.com/group/leaf-adapter.git"
+    if parts.username or parts.password:
+        return "Put the username and token in their own fields, not in the URL"
+    if with_token and parts.scheme != "https":
+        return "A token is only sent over https"
+    return None
+
+
 async def install_adapter(adapter: dict[Any, Any], credentials: tuple[str, str] | None = None) -> None:
     """
     Install a LEAF adapter from a Git repository.

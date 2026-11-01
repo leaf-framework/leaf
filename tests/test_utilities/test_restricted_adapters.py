@@ -6,7 +6,7 @@ import pytest
 from nicegui import ui
 
 from leaf.ui import utils
-from leaf.ui.utils import install_adapter, with_credentials
+from leaf.ui.utils import check_repository_url, install_adapter, with_credentials
 
 RESTRICTED = {
     "name": "LEAF-RAMSMART",
@@ -49,3 +49,19 @@ def test_restricted_install_uses_the_token_and_never_logs_it(
     assert pip.calls[0][-1] == "git+https://deploy-1:secret-token@git.wur.nl/leaf/adapters/leaf-ramsmart.git"
     assert "Installed LEAF-RAMSMART" in caplog.text
     assert "secret-token" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "url, with_token, allowed",
+    [
+        ("https://gitlab.com/group/leaf-adapter.git", True, True),
+        ("http://git.local/leaf-adapter.git", False, True),
+        ("http://git.local/leaf-adapter.git", True, False),
+        ("https://user:token@gitlab.com/group/leaf-adapter.git", False, False),
+        ("ssh://git@gitlab.com/group/leaf-adapter.git", False, False),
+        ("file:///etc/leaf-adapter", False, False),
+        ("gitlab.com/group/leaf-adapter.git", False, False),
+    ],
+)
+def test_only_http_urls_without_inline_credentials(url: str, with_token: bool, allowed: bool) -> None:
+    assert (check_repository_url(url, with_token) is None) is allowed

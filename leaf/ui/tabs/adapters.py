@@ -9,7 +9,7 @@ from nicegui import ui
 
 from leaf.registry.discovery import get_all_adapter_codes
 from leaf.ui.constants import CARD_CLASSES, CARD_WIDTH_CLASS, MARKETPLACE_URL
-from leaf.ui.utils import adapter_install_disabled, install_adapter, uninstall_adapter
+from leaf.ui.utils import adapter_install_disabled, check_repository_url, install_adapter, uninstall_adapter
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")
@@ -182,8 +182,8 @@ def _token_dialog(adapter: Mapping[str, object]) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-96"):
         _ = ui.label(f"{name} is available on request").classes("text-h6")
         _ = ui.label("Enter the username and token you received, e.g. a GitLab deploy token.").classes("text-body")
-        username = ui.input("Username")
-        token = ui.input("Token", password=True, password_toggle_button=True)
+        username = ui.input("Username").classes("w-full")
+        token = ui.input("Token", password=True, password_toggle_button=True).classes("w-full")
         request = adapter.get("request_access")
         if request:
             _ = ui.link("Request access", str(request), new_tab=True)
@@ -191,6 +191,43 @@ def _token_dialog(adapter: Mapping[str, object]) -> None:
         async def install() -> None:
             _ = dialog.close()
             await install_adapter(dict(adapter), (str(username.value), str(token.value)))
+
+        with ui.row().classes("w-full justify-end"):
+            _ = ui.button("Cancel", on_click=dialog.close).classes("btn-tertiary")
+            _ = ui.button("Install", icon="download", on_click=install).classes("btn-secondary")
+    _ = dialog.open()
+
+
+def _install_from_url_button() -> None:
+    """Installs an adapter that is not in the marketplace, unless adapter installs are disabled."""
+    if adapter_install_disabled():
+        return
+    _ = ui.button("Install from git URL", icon="link", on_click=_url_dialog).classes("btn-secondary mb-4")
+
+
+def _url_dialog() -> None:
+    """Asks for the git URL of an adapter, plus a username and token if its repository is private."""
+    with ui.dialog() as dialog, ui.card().classes("w-96"):
+        _ = ui.label("Install from a git URL").classes("text-h6")
+        _ = ui.label("Only install adapters from sources you trust: they run on this machine.").classes("text-body")
+        url = ui.input("Git URL", placeholder="https://gitlab.com/group/leaf-adapter.git").classes("w-full")
+        username = ui.input("Username (private repositories only)").classes("w-full")
+        token = ui.input("Token (private repositories only)", password=True, password_toggle_button=True).classes(
+            "w-full"
+        )
+
+        async def install() -> None:
+            repository = str(url.value).strip()
+            credentials = None
+            if username.value or token.value:
+                credentials = (str(username.value), str(token.value))
+            problem = check_repository_url(repository, credentials is not None)
+            if problem:
+                ui.notify(problem, type="negative", position="top")
+                return
+            _ = dialog.close()
+            name = repository.rstrip("/").rsplit("/", 1)[-1].removesuffix(".git")
+            await install_adapter({"name": name, "repo_url": repository}, credentials)
 
         with ui.row().classes("w-full justify-end"):
             _ = ui.button("Cancel", on_click=dialog.close).classes("btn-tertiary")
@@ -296,6 +333,7 @@ def build_adapters_content(container: ui.column) -> None:
             ui.icon("store", size="1.5rem").classes("text-icon")
             ui.label("Adapter Marketplace").classes("text-xl font-semibold text-subheading ml-2")
         _install_disabled_note()
+        _install_from_url_button()
 
         # Container for marketplace adapters
         marketplace_container = ui.column().classes("w-full")
