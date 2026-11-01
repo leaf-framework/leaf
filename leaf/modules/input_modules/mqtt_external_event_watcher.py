@@ -241,22 +241,3 @@ class MQTTExternalEventWatcher(ExternalEventWatcher):
             bool: True if the client is connected, False otherwise.
         """
         return self.client.is_connected()
-
-    def _handle_return_code(self, return_code: int) -> ClientUnreachableError | None:
-        """
-        Handle MQTT return codes.
-
-        Args:
-            return_code (int): The return code to handle.
-
-        Returns:
-            Optional[ClientUnreachableError]: An error if one occurred, None otherwise.
-        """
-        if return_code == mqtt.MQTT_ERR_SUCCESS:
-            return None
-        message = {
-            mqtt.MQTT_ERR_NO_CONN: "Can't connect to broker",
-            mqtt.MQTT_ERR_QUEUE_SIZE: "Message queue size limit reached",
-        }.get(return_code, f"Unknown error with return code {return_code}")
-
-        return ClientUnreachableError(message, output_module=self, severity=SeverityLevel.INFO)

@@ -6,7 +6,7 @@ WORKDIR /app
 ADD start.sh /app/start.sh
 
 RUN pip install --upgrade pip && \
-    pip install git+https://gitlab.com/LabEquipmentAdapterFramework/leaf.git
+    pip install leaf-framework
 
 # Start the application
 ENTRYPOINT ["bash", "/app/start.sh"]

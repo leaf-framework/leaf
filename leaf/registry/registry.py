@@ -56,13 +56,6 @@ def get_external_input(code: str) -> type[ExternalEventWatcher]:
     return cls
 
 
-def all_registered(plugin_type: PluginType) -> dict[str, type[Any]]:
-    """
-    Return all registered classes of a given plugin type.
-    """
-    return dict(_registry[plugin_type])
-
-
 def discover_from_config(config: dict[str, Any], external_path: str = None) -> None:
     """
     Discover and register only the plugins referenced in the given configuration.

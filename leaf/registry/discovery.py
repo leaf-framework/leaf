@@ -16,8 +16,7 @@ from leaf.utility.logger.logger_utils import get_logger
 root_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..")
 adapter_dir = os.path.join(root_dir, "adapters")
 core_adapter_dir = os.path.join(adapter_dir, "core_adapters")
-functional_adapter_dir = os.path.join(adapter_dir, "functional_adapters")
-default_equipment_locations = [core_adapter_dir, functional_adapter_dir]
+default_equipment_locations = [core_adapter_dir]
 
 output_module_dir = os.path.join(root_dir, "modules", "output_modules")
 input_module_dir = os.path.join(root_dir, "modules", "input_modules")

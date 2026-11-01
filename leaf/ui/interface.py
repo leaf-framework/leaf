@@ -38,12 +38,6 @@ def get_startup_error() -> str | None:
     return _startup_error
 
 
-def clear_startup_error() -> None:
-    """Clear the startup error."""
-    global _startup_error
-    _startup_error = None
-
-
 def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, auto_open_browser: bool = True) -> None:
     """
     Start the LEAF NiceGUI web interface.
