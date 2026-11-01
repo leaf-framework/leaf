@@ -448,8 +448,11 @@ class TestMQTTWatcher(unittest.TestCase):
 
         watcher.add_callback(cb)
         watcher.start()
-        self.send_messages("pioreactor/Worker2-1/LacZ-Slow-Single-KO/growth_rate_calculating", {})
-        time.sleep(0.2)
+        # Resend until one arrives: the subscription may not be in place yet on a slow runner
+        deadline = time.time() + 10
+        while not messages and time.time() < deadline:
+            self.send_messages("pioreactor/Worker2-1/LacZ-Slow-Single-KO/growth_rate_calculating", {})
+            time.sleep(0.2)
         watcher.stop()
         self.assertTrue(len(messages) > 0)
 

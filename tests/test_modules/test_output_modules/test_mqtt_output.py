@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import unittest
+import uuid
 from unittest.mock import MagicMock
 
 import yaml
@@ -71,7 +72,8 @@ class TestMQTT(unittest.TestCase):
 
     def test_heartbeat(self):
         interval = 2.0
-        heartbeat_topic = "leaf/test_org/test_dept/test_adapter/test_instance/heartbeat"
+        # Heartbeats are retained: a fixed topic would first deliver the last run's "stopped"
+        heartbeat_topic = f"leaf/test_org/test_dept/test_adapter/{uuid.uuid4().hex}/heartbeat"
         self._mock_client.subscribe(heartbeat_topic)
         time.sleep(0.5)
         adapter = MQTT(
