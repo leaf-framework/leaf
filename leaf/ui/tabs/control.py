@@ -190,16 +190,22 @@ def controllable_instances() -> list[EquipmentAdapter]:
 
 def _instance_card(adapter: EquipmentAdapter) -> None:
     metadata = adapter.metadata_manager
-    with ui.card().classes("leaf-card w-full mb-4"):
-        _ = ui.label(f"{metadata.get_instance_id()} ({metadata.get_equipment_data('adapter_id')})").classes(
-            "text-lg font-semibold text-heading"
-        )
+    title = f"{metadata.get_instance_id()} ({metadata.get_equipment_data('adapter_id')})"
+    # Foldable, so an instance with many controls can be tucked away
+    with (
+        ui.card().classes("leaf-card w-full mb-4"),
+        ui.expansion(title, caption=f"{len(adapter.controls)} controls", value=True)
+        .classes("w-full")
+        .props('header-class="text-lg font-semibold text-heading"'),
+    ):
         if not adapter.controls:
             _ = ui.label(
                 "This adapter declares no controls in its device.json; send LeafPoints on the control topic instead."
             ).classes("text-body-secondary")
-        for control in adapter.controls:
-            _control_row(adapter, control)
+        # Two columns on wide screens, one on narrow ones
+        with ui.element("div").classes("grid grid-cols-1 lg:grid-cols-2 gap-x-8 w-full"):
+            for control in adapter.controls:
+                _control_row(adapter, control)
 
 
 def create_control_tab(control_tab: ui.tab) -> None:
