@@ -136,6 +136,8 @@ def create_monitoring_tab(monitor_tab: ui.tab) -> None:
                 tiles = ui.row().classes("w-full gap-3")
                 tile_groups: dict[str, ui.row] = {}
                 tile_values: dict[str, ui.label] = {}
+                tile_expansions: dict[str, ui.expansion] = {}
+                tile_count: dict[str, int] = {}
 
                 # Metrics with different scales do not share an axis well, so the user picks which to plot
                 with ui.row().classes("w-full items-center no-wrap"):
@@ -179,9 +181,18 @@ def create_monitoring_tab(monitor_tab: ui.tab) -> None:
                         if topic not in tile_values:
                             instance = instance_name(topic)
                             if instance not in tile_groups:
-                                with tiles, ui.card().props("flat bordered").classes("p-3 gap-2"):
-                                    _ = ui.label(instance or "Other").classes("text-sm font-medium")
-                                    tile_groups[instance] = ui.row().classes("gap-3")
+                                # Foldable, so an instance with many metrics can be tucked away
+                                with (
+                                    tiles,
+                                    ui.card().props("flat bordered").classes("p-0"),
+                                    ui.expansion(instance or "Other", value=True).props(
+                                        'dense header-class="text-sm font-medium"'
+                                    ) as group,
+                                ):
+                                    tile_groups[instance] = ui.row().classes("gap-3 p-3 pt-0")
+                                tile_expansions[instance] = group
+                            tile_count[instance] = tile_count.get(instance, 0) + 1
+                            _ = tile_expansions[instance].props(f'caption="{tile_count[instance]} metrics"')
                             stripe = f"border-left: 4px solid {metric_color(topic, topics)}"
                             with (
                                 tile_groups[instance],
