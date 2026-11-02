@@ -60,6 +60,17 @@ class TestPollingWatcherResilience(unittest.TestCase):
         self.assertTrue(thread_alive, "polling thread died after a single _fetch_data exception")
         self.assertTrue(received, "no measurement was ever delivered after the first exception")
 
+    def test_stop_does_not_wait_out_the_interval(self):
+        """stop() joins the poll thread, so a sleeping loop held it for a full interval."""
+        watcher = _FlakyWatcher(interval=60, metadata_manager=self.metadata_manager)
+        watcher.start()
+        time.sleep(0.5)
+
+        began = time.monotonic()
+        watcher.stop()
+
+        self.assertLess(time.monotonic() - began, 5)
+
 
 if __name__ == "__main__":
     unittest.main()

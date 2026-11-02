@@ -1,5 +1,4 @@
 import threading
-import time
 from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any
@@ -40,6 +39,8 @@ class PollingWatcher(EventWatcher):
 
         self._interval: int = interval
         self._thread: threading.Thread | None = None
+        # Set by stop() so the poll loop wakes at once instead of finishing a full interval.
+        self._stop_event: threading.Event = threading.Event()
         self._term_map = {
             self.start_message: metadata_manager.experiment.start,
             self.stop_message: metadata_manager.experiment.stop,
@@ -99,7 +100,7 @@ class PollingWatcher(EventWatcher):
                     # reporting data.
                     pass
 
-            time.sleep(self._interval)
+            _ = self._stop_event.wait(self._interval)
 
     def start(self) -> None:
         """
@@ -112,6 +113,7 @@ class PollingWatcher(EventWatcher):
             return
 
         self._running = True
+        self._stop_event.clear()
         self._thread = threading.Thread(target=self._poll, daemon=True)
         self._thread.start()
 
@@ -127,6 +129,7 @@ class PollingWatcher(EventWatcher):
             return
 
         self._running = False
+        self._stop_event.set()
         if self._thread:
             self._thread.join()
         logger.info("PollingWatcher stopped.")
