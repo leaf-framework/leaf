@@ -170,12 +170,12 @@ class TestFallbacks(unittest.TestCase):
         manager.add_instance_value("instance_id", instance_id)
 
         inp_messages = {
-            manager.experiment.measurement(experiment_id=experiment_id, measurement=measurement_id): [
+            manager.measurement(experiment_id=experiment_id, measurement=measurement_id): [
                 '{"A":"A"}',
                 '{"B":"B"}',
                 '{"C":"C"}',
             ],
-            manager.experiment.start(): ['{"D":"D"}', '{"E":"E"}', '{"F":"F"}'],
+            manager.start(): ['{"D":"D"}', '{"E":"E"}', '{"F":"F"}'],
         }
         for topic, messages in inp_messages.items():
             for message in messages:
@@ -229,20 +229,20 @@ class TestFallbacks(unittest.TestCase):
         manager.add_instance_value("instance_id", instance_id)
 
         sql_messages = {
-            manager.experiment.measurement(experiment_id=experiment_id, measurement=measurement_id): [
+            manager.measurement(experiment_id=experiment_id, measurement=measurement_id): [
                 '{"A":"A"}',
                 '{"B":"B"}',
                 '{"C":"C"}',
             ],
-            manager.experiment.start(): ['{"D":"D"}', '{"E":"E"}', '{"F":"F"}'],
+            manager.start(): ['{"D":"D"}', '{"E":"E"}', '{"F":"F"}'],
         }
         file_messages = {
-            manager.experiment.measurement(experiment_id=experiment_id, measurement=measurement_id): [
+            manager.measurement(experiment_id=experiment_id, measurement=measurement_id): [
                 '{"G":"G"}',
                 '{"H":"H"}',
                 '{"I":"I"}',
             ],
-            manager.experiment.start(): ['{"J":"J"}', '{"K":"K"}', '{"L":"L"}'],
+            manager.start(): ['{"J":"J"}', '{"K":"K"}', '{"L":"L"}'],
         }
         for topic, messages in sql_messages.items():
             for message in messages:

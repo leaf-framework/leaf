@@ -170,7 +170,7 @@ class ModbusWatcher(ExternalEventWatcher):
 
     def _emit(self, data: dict[str, Any]) -> None:
         if self._metadata_manager:
-            self._dispatch_callback(self._metadata_manager.experiment.measurement, data)
+            self._dispatch_callback(self._metadata_manager.measurement, data)
         else:
             for callback in self._callbacks:
                 try:

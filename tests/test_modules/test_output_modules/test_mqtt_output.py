@@ -48,13 +48,13 @@ class TestMQTT(unittest.TestCase):
         metadata_manager.add_instance_value("department", "test_transmit")
         metadata_manager.add_instance_value("instance_id", "test_transmit")
 
-        self._mock_client.subscribe(metadata_manager.experiment.start())
+        self._mock_client.subscribe(metadata_manager.start())
         time.sleep(2)
-        self._adapter.transmit(metadata_manager.experiment.start(), {"tst": "tst"})
+        self._adapter.transmit(metadata_manager.start(), {"tst": "tst"})
         time.sleep(2)
         for k, v in self._mock_client.messages.items():
             logger.debug(f"Received message: {k} , {v}")
-            if metadata_manager.experiment.start() == k:
+            if metadata_manager.start() == k:
                 break
         else:
             self.fail()

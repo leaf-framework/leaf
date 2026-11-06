@@ -42,9 +42,9 @@ class PollingWatcher(EventWatcher):
         # Set by stop() so the poll loop wakes at once instead of finishing a full interval.
         self._stop_event: threading.Event = threading.Event()
         self._term_map = {
-            self.start_message: metadata_manager.experiment.start,
-            self.stop_message: metadata_manager.experiment.stop,
-            self.measurement_message: metadata_manager.experiment.measurement,
+            self.start_message: metadata_manager.start,
+            self.stop_message: metadata_manager.stop,
+            self.measurement_message: metadata_manager.measurement,
         }
 
     def start_message(self, data: Any) -> None:

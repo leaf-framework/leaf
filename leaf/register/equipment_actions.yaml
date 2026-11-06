@@ -4,7 +4,8 @@ heartbeat: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/heartbe
 error: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/error
 control: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/control
 control_result: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/control/result
-experiment:
-  start: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/experiment/start
-  stop: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/experiment/stop
-  measurement: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/experiment/<experiment_id>/measurement/<measurement>
+# A run (experiment, batch, upload) starts and stops on the instance itself; its id is a point tag
+start: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/start
+stop: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/stop
+# The entity is what a point is about: the instance itself, or something inside it such as a reactor
+measurement: <root>/<organisation>/<department>/<adapter_id>/<instance_id>/measurement/<entity>/<measurement>

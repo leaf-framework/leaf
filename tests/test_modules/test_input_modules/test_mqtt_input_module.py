@@ -77,7 +77,7 @@ class TestMQTTWatcher(unittest.TestCase):
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
             topic, data = r
-            self.assertEqual(topic(), metadata_manager.experiment.start())
+            self.assertEqual(topic(), metadata_manager.start())
             self.assertIn(data["topic"], start_topics)
             self.assertIn("payload", data)
 
@@ -118,7 +118,7 @@ class TestMQTTWatcher(unittest.TestCase):
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
             topic, data = r
-            self.assertEqual(topic(), metadata_manager.experiment.start())
+            self.assertEqual(topic(), metadata_manager.start())
             self.assertIn(data["topic"], transmit_topics)
             self.assertNotIn(data["topic"], non_registered_topics)
             self.assertIn("payload", data)
@@ -156,7 +156,7 @@ class TestMQTTWatcher(unittest.TestCase):
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
             topic, data = r
-            self.assertEqual(topic(), metadata_manager.experiment.measurement())
+            self.assertEqual(topic(), metadata_manager.measurement())
             self.assertIn(data["topic"], measurement_topics)
             self.assertIn("payload", data)
 
@@ -197,7 +197,7 @@ class TestMQTTWatcher(unittest.TestCase):
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
             topic, data = r
-            self.assertEqual(topic(), metadata_manager.experiment.measurement())
+            self.assertEqual(topic(), metadata_manager.measurement())
             self.assertIn(data["topic"], transmit_topics)
             self.assertNotIn(data["topic"], non_registered_topics)
             self.assertIn("payload", data)
@@ -235,7 +235,7 @@ class TestMQTTWatcher(unittest.TestCase):
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
             topic, data = r
-            self.assertEqual(topic(), metadata_manager.experiment.stop())
+            self.assertEqual(topic(), metadata_manager.stop())
             self.assertIn(data["topic"], stop_topics)
             self.assertIn("payload", data)
 
@@ -276,7 +276,7 @@ class TestMQTTWatcher(unittest.TestCase):
         self.assertTrue(len(recieved_messages) > 0)
         for r in recieved_messages:
             topic, data = r
-            self.assertEqual(topic(), metadata_manager.experiment.stop())
+            self.assertEqual(topic(), metadata_manager.stop())
             self.assertIn(data["topic"], transmit_topics)
             self.assertNotIn(data["topic"], non_registered_topics)
             self.assertIn("payload", data)
@@ -364,11 +364,11 @@ class TestMQTTWatcher(unittest.TestCase):
         received_events = {"start": [], "measurement": [], "stop": [], "error": []}
 
         def callback(event, data):
-            if event() == metadata_manager.experiment.start():
+            if event() == metadata_manager.start():
                 received_events["start"].append(data)
-            elif event() == metadata_manager.experiment.measurement():
+            elif event() == metadata_manager.measurement():
                 received_events["measurement"].append(data)
-            elif event() == metadata_manager.experiment.stop():
+            elif event() == metadata_manager.stop():
                 received_events["stop"].append(data)
             elif event() == metadata_manager.error():
                 received_events["error"].append(data)
@@ -538,6 +538,7 @@ class MQTTInputMockInterpreter(AbstractInterpreter):
         topic = data["topic"].split("/")
         point.set_timestamp(datetime.now())
         point.add_tag("NA", "NA")
+        point.set_entity_tag(data["topic"].split("/")[-3])
 
         experiment_id = topic[-2]
         # Just to show they SHOULD be the same in this case.
@@ -640,7 +641,7 @@ class TestMQTTWatcherInAdapter(unittest.TestCase):
         self.assertIn(metadata_manager.details(), output_messages)
 
         # Validate start message
-        start_event = metadata_manager.experiment.start()
+        start_event = metadata_manager.start()
         self.assertIn(start_event, output_messages)
         for message in output_messages[start_event]:
             self.assertIn("timestamp", message)
@@ -649,9 +650,8 @@ class TestMQTTWatcherInAdapter(unittest.TestCase):
             self.assertEqual(message["experiment_id"], experiment_id)
 
         # Validate measurement message
-        measurement_event = metadata_manager.experiment.measurement(
-            experiment_id=experiment_id, measurement=growth_rate_measurement
-        )
+        # The Pioreactor worker is the entity inside the instance, so it is a topic level
+        measurement_event = metadata_manager.measurement(entity="Worker2-1", measurement=growth_rate_measurement)
         self.assertIn(measurement_event, output_messages)
         for message in output_messages[measurement_event]:
             self.assertIn("measurement", message)
@@ -659,7 +659,7 @@ class TestMQTTWatcherInAdapter(unittest.TestCase):
             self.assertIn("fields", message)
             self.assertEqual(message["fields"], measurement_payload)
 
-        stop_event = metadata_manager.experiment.stop()
+        stop_event = metadata_manager.stop()
         self.assertIn(stop_event, output_messages)
 
     if __name__ == "__main__":

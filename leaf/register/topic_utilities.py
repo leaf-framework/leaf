@@ -68,7 +68,7 @@ class TopicUtility:
         self._collect_templates(self._raw_dict)
         self.root = _TemplateGroup(self._raw_dict, self)
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         """
         Handle dynamic attribute access:
         - If it's a required field from the YAML, return its name.

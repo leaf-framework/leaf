@@ -51,7 +51,13 @@ def test_measure_publishes_a_leafpoint_under_its_metric() -> None:
     [(topic, payload)] = measure(FakeLeafPoint("pH", 6.5))
     assert topic.endswith("/pH")
     expected = FakeLeafPoint("pH", 6.5).to_json()
-    expected["tags"] = {"metric": "pH", "organisation": "test_points", "department": "test_points"}
+    expected["tags"] = {
+        "metric": "pH",
+        "organisation": "test_points",
+        "department": "test_points",
+        "experiment_id": "exp",
+        "entity": "test_points",
+    }
     assert payload == expected
 
 
@@ -61,6 +67,8 @@ def test_measure_adds_instance_tags_but_keeps_the_adapters_own() -> None:
         "metric": "T",
         "organisation": "lab",
         "department": "test_points",
+        "experiment_id": "exp",
+        "entity": "test_points",
     }
 
 
@@ -148,40 +156,81 @@ def test_chart_grows_one_legend_row_per_series() -> None:
     assert cast(int, three["height"]) - cast(int, one["height"]) == 2 * LEGEND_ROW_HEIGHT
 
 
-def test_history_splits_one_topic_per_entity() -> None:
-    store = TopicStore()
-    wells = [
-        {"tags": {"metric": "biomass", "entity": "A1"}, "fields": {"value": 1}, "timestamp": 1.0},
-        {"tags": {"metric": "biomass", "entity": "A2"}, "fields": {"value": 2}, "timestamp": 1.0},
-        {"tags": {"metric": "biomass"}, "fields": {"value": 3}, "timestamp": 1.0},
+def test_measure_always_puts_the_entity_between_measurement_and_metric() -> None:
+    reactors = [
+        {"tags": {"metric": "volume", "entity": "reactor_1"}, "fields": {"value": 1.0}},
+        {"tags": {"metric": "volume", "entity": "reactor/2"}, "fields": {"value": 2.0}},
+        {"tags": {"metric": "volume", "entity": "test_points"}, "fields": {"value": 3.0}},
+        {"tags": {"metric": "volume"}, "fields": {"value": 4.0}},
     ]
-    store.set("mqtt/a/biomass", wells)
-    assert store.get_history() == {
-        "mqtt/a/biomass#A1": [(1.0, 1.0)],
-        "mqtt/a/biomass#A2": [(1.0, 2.0)],
-        "mqtt/a/biomass": [(1.0, 3.0)],
-    }
+    messages = measure(reactors)
+    instance = "test_points/test_points/test_points/test_points"
+    assert [topic for topic, _ in messages] == [
+        f"{instance}/measurement/reactor_1/volume",
+        # A "/" in the entity would add a level
+        f"{instance}/measurement/reactor_2/volume",
+        # A point without an entity is about the instance itself
+        f"{instance}/measurement/test_points/volume",
+        f"{instance}/measurement/test_points/volume",
+    ]
 
 
-def test_series_label_shows_entity_only_when_it_tells_series_apart() -> None:
-    plate = "mqtt/leaf/org/dept/biolector/bl1/experiment/exp1/measurement/biomass"
-    wells = [f"{plate}#A1", f"{plate}#A2"]
-    assert series_label(wells[0], wells) == "bl1 · A1 · biomass"
-    reactor = "mqtt/leaf/org/dept/Example/reactor_a/experiment/exp1/measurement/pH#bioreactor 1"
-    assert series_label(reactor, [reactor]) == "reactor_a · pH"
-    assert series_label(plate, [plate]) == "bl1 · biomass"
-    assert series_label("mqtt/a/T", ["mqtt/a/T"]) == "a/T"
-    assert metric_name(wells[0]) == "biomass"
+class InvalidLeafPoint:
+    """A LeafPoint whose to_json() fails validation, as leafobject does without an entity tag."""
+
+    def to_json(self) -> dict[str, object]:
+        raise ValueError("Entity tag is not set")
+
+
+def test_an_invalid_point_is_reported_and_only_it_is_dropped() -> None:
+    from leaf.error_handler.error_holder import ErrorHolder
+
+    metadata = MetadataManager()
+    metadata.add_instance_value("instance_id", "i")
+    holder = ErrorHolder()
+    phase = MeasurePhase(metadata_manager=metadata, error_holder=holder)
+    batch = [InvalidLeafPoint(), FakeLeafPoint("T")]
+    phase.set_interpreter(cast(AbstractInterpreter, cast(object, PointInterpreter(batch))))
+    messages = phase.update("raw") or []
+    assert [topic.rsplit("/", 1)[-1] for topic, _ in messages] == ["T"]
+    phase.set_interpreter(cast(AbstractInterpreter, cast(object, PointInterpreter(InvalidLeafPoint()))))
+    assert phase.update("raw") == []
+    errors = [str(error) for error, _ in holder.get_unseen_errors()]
+    assert len(errors) == 2
+    assert all("Entity tag is not set" in error for error in errors)
+
+
+def test_an_unset_experiment_id_is_not_tagged() -> None:
+    interpreter = PointInterpreter({"tags": {"metric": "T"}, "fields": {"value": 1.0}})
+    interpreter.id = "undefined"
+    metadata = MetadataManager()
+    metadata.add_instance_value("instance_id", "i")
+    phase = MeasurePhase(metadata_manager=metadata)
+    phase.set_interpreter(cast(AbstractInterpreter, cast(object, interpreter)))
+    [(_, payload)] = phase.update("raw") or []
+    assert "experiment_id" not in cast(dict[str, dict[str, str]], payload)["tags"]
+
+
+def test_series_label_names_instance_entity_and_metric() -> None:
+    reactor = "mqtt/demo/wur/ssb/leaf_bpc/bpcgo1/measurement/reactor_1/volume"
+    plain = "mqtt/leaf/org/dept/Example/reactor_a/measurement/reactor_a/pH"
+    assert series_label(reactor) == "bpcgo1 · reactor_1 · volume"
+    assert series_label(plain) == "reactor_a · pH"
+    assert series_label("mqtt/a/T") == "a/T"
+    assert metric_name(reactor) == "volume"
 
 
 def test_tile_label_leaves_the_instance_to_its_group() -> None:
     from leaf.ui.tabs.monitoring import instance_name, tile_label
 
-    reactor = "mqtt/leaf/org/dept/Example/reactor_a/experiment/exp1/measurement/pH"
-    assert instance_name(reactor) == "reactor_a"
-    assert tile_label(reactor, [reactor]) == "pH"
+    reactor = "mqtt/demo/wur/ssb/leaf_bpc/bpcgo1/measurement/reactor_1/volume"
+    plain = "mqtt/leaf/org/dept/Example/reactor_a/measurement/reactor_a/pH"
+    assert instance_name(reactor) == "bpcgo1"
+    assert tile_label(reactor) == "reactor_1 · volume"
+    assert instance_name(plain) == "reactor_a"
+    assert tile_label(plain) == "pH"
     assert instance_name("mqtt/a/T") == ""
-    assert tile_label("mqtt/a/T", ["mqtt/a/T"]) == "a/T"
+    assert tile_label("mqtt/a/T") == "a/T"
 
 
 def test_mqtt_transmit_feeds_the_plot_history() -> None:

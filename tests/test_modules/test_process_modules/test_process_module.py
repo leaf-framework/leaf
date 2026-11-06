@@ -156,12 +156,7 @@ class TestContinousProcess(unittest.TestCase):
         for k, v in self.mock_client.messages.items():
             print(f"Received message on topic {k}: {v}")
             if k.startswith(f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}"):
-                if (
-                    self.metadata_manager.experiment.measurement(
-                        experiment_id=self._mock_experiment, measurement="unknown"
-                    )
-                    == k
-                ):
+                if self.metadata_manager.measurement(experiment_id=self._mock_experiment, measurement="unknown") == k:
                     print(f"Measurement phase message matched: {k}")
                     break
                 else:
@@ -241,7 +236,7 @@ class TestDiscreteProcess(unittest.TestCase):
             if k.startswith(f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}") and k.endswith(
                 "start"
             ):
-                if self.metadata_manager.experiment.start() == k:
+                if self.metadata_manager.start() == k:
                     print(f"Start phase message matched: {k}")
                     fail = False
                     break
@@ -255,12 +250,7 @@ class TestDiscreteProcess(unittest.TestCase):
         for k, v in self.mock_client.messages.items():
             # These modifications are necessary to match the expected topic structure when running tests in parallel
             if k.startswith(f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}"):
-                if (
-                    self.metadata_manager.experiment.measurement(
-                        experiment_id=self._mock_experiment, measurement="unknown"
-                    )
-                    == k
-                ):
+                if self.metadata_manager.measurement(experiment_id=self._mock_experiment, measurement="unknown") == k:
                     print(f"Measurement phase message matched: {k}")
                     fail = False
                     break
@@ -276,7 +266,7 @@ class TestDiscreteProcess(unittest.TestCase):
             if k.startswith(f"{self.ins_id}/{self.dept_id}/{self.adapter_id}/{self.instance_id}") and k.endswith(
                 "stop"
             ):
-                if self.metadata_manager.experiment.stop() == k:
+                if self.metadata_manager.stop() == k:
                     print(f"Stop phase message matched: {k}")
                     fail = False
                     break

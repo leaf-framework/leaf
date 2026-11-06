@@ -293,7 +293,12 @@ class EquipmentAdapter(ABC):
         """Publish what happened to a control message on <control topic>/result, so it is stored with the data."""
         # Never let the record break the command it describes
         try:
-            record = result_record(data, source, error, self._metadata_manager.instance_tags())
+            # A control acts on the instance itself, so that is its entity unless the message names one
+            instance_tags = {
+                **self._metadata_manager.instance_tags(),
+                "entity": self._metadata_manager.get_instance_id(),
+            }
+            record = result_record(data, source, error, instance_tags)
             _ = self._output.transmit(f"{topic}/result", record)
         except Exception as e:
             self._logger.warning(f"Could not publish the control record for {topic}: {e}")

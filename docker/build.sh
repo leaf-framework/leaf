@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define variables
-IMAGE_NAME="harbor.containers.wurnet.nl/m-unlock/leaf:dev"
+IMAGE_NAME="harbor.containers.wurnet.nl/leaf-framework/leaf:dev"
 PLATFORMS="linux/amd64,linux/arm64"
 
 # Check if Docker is installed

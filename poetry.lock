@@ -1315,14 +1315,14 @@ i18n = ["Babel (>=2.7)"]
 
 [[package]]
 name = "leafobject"
-version = "0.0.14"
+version = "0.1.0"
 description = "LEAF Object Package"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "leafobject-0.0.14-py3-none-any.whl", hash = "sha256:997b6b34c1feb46755b073de620c302ca29c5166d381cdb6a25bbc0060035e51"},
-    {file = "leafobject-0.0.14.tar.gz", hash = "sha256:54ab0e1d99611df743ee75b621603f07fbe31670b9ab3d3f4a430f81a076de1f"},
+    {file = "leafobject-0.1.0-py3-none-any.whl", hash = "sha256:6588f83ab7aa9940cc81989f946b4cdc708cbfbc953946af552a15c093bbf014"},
+    {file = "leafobject-0.1.0.tar.gz", hash = "sha256:db6737c1c73c88cb8729f2c99107c9f0ef15d7e2b54c1ed14f977af1f9401a94"},
 ]
 
 [[package]]
@@ -3913,4 +3913,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "2138627acd641528bc51924a37ab4ef9dae7e1d6eb52da651fdece547c0bfb07"
+content-hash = "c445d58c051e4b7c98a4a0c929c262e9d0fa586fae18e2ac368761f28e0fbf5f"

@@ -92,13 +92,13 @@ class TestUploadAdapter(unittest.TestCase):
         self._adapter = MockUploadAdapter(self.instance_data, self.equipment_data, self.output, str(self.watch_dir))
 
         self.details_topic = self._adapter._metadata_manager.details()
-        self.start_topic = self._adapter._metadata_manager.experiment.start()
-        self.stop_topic = self._adapter._metadata_manager.experiment.stop()
+        self.start_topic = self._adapter._metadata_manager.start()
+        self.stop_topic = self._adapter._metadata_manager.stop()
         self.running_topic = self._adapter._metadata_manager.running()
 
         self._flush_topics()
         time.sleep(1)
-        wildcard_measure = self._adapter._metadata_manager.experiment.measurement()
+        wildcard_measure = self._adapter._metadata_manager.measurement()
         self.mock_client.subscribe(self.start_topic)
         self.mock_client.subscribe(self.stop_topic)
         self.mock_client.subscribe(self.running_topic)

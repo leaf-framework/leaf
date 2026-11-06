@@ -131,9 +131,9 @@ class FileWatcher(FileSystemEventHandler, EventWatcher):
         self._pending_timers: dict = {}  # Track pending trailing timers per file path
 
         self._term_map = {
-            self.on_created: metadata_manager.experiment.start,
-            self.on_modified: metadata_manager.experiment.measurement,
-            self.on_deleted: metadata_manager.experiment.stop,
+            self.on_created: metadata_manager.start,
+            self.on_modified: metadata_manager.measurement,
+            self.on_deleted: metadata_manager.stop,
         }
 
     def start(self) -> None:

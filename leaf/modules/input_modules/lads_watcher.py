@@ -100,7 +100,7 @@ class LADSWatcher(EventWatcher):
         self.logger.debug(f"LADS datachange_notification: node={nodeid}, value={val}")
         info = self._variables.get(nodeid, {})
         self._dispatch_callback(
-            self._metadata_manager.experiment.measurement,
+            self._metadata_manager.measurement,
             {
                 "functional_unit": info.get("functional_unit"),
                 "node": node.nodeid.Identifier,
@@ -321,7 +321,7 @@ class LADSWatcher(EventWatcher):
                 self.logger.info(f"Subscribed to: {info['functional_unit']}/{info['browse_name']} ({nodeid})")
                 # Send a dummy value to trigger the callback
                 self._dispatch_callback(
-                    self._metadata_manager.experiment.measurement,
+                    self._metadata_manager.measurement,
                     {
                         "functional_unit": info["functional_unit"],
                         "node": node.nodeid.Identifier,

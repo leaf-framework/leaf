@@ -92,8 +92,8 @@ class MockEquipment(EquipmentAdapter):
         filename = os.path.basename(fp)
         watcher = FileWatcher(directory, metadata_manager, error_holder=error_holder, filenames=filename)
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
-        start_p = ControlPhase(metadata_manager.experiment.start, metadata_manager)
-        stop_p = ControlPhase(metadata_manager.experiment.stop, metadata_manager)
+        start_p = ControlPhase(metadata_manager.start, metadata_manager)
+        stop_p = ControlPhase(metadata_manager.stop, metadata_manager)
         measure_p = MeasurePhase(metadata_manager)
         details_p = ControlPhase(metadata_manager.details, metadata_manager)
 
@@ -208,8 +208,8 @@ class TestExceptionsInit(unittest.TestCase):
     def test_raise_continous_discrete_process(self) -> None:
         metadata_manager = MetadataManager()
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
-        start_p = ControlPhase(output, metadata_manager.experiment.start, metadata_manager)
-        stop_p = ControlPhase(output, metadata_manager.experiment.stop, metadata_manager)
+        start_p = ControlPhase(output, metadata_manager.start, metadata_manager)
+        stop_p = ControlPhase(output, metadata_manager.stop, metadata_manager)
         measure_p = MeasurePhase(metadata_manager)
 
         phase = [start_p, measure_p, stop_p]

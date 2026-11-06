@@ -3,7 +3,6 @@ from typing import Any, cast
 from nicegui import ui
 
 from leaf.modules.output_modules.output_module import OutputModule
-from leaf.modules.output_modules.topic_store import ENTITY_SEPARATOR
 
 
 def _store_to_tree_nodes(store: dict, parent_path: str = "") -> list[dict[str, Any]]:
@@ -25,9 +24,8 @@ def _store_to_tree_nodes(store: dict, parent_path: str = "") -> list[dict[str, A
 
 
 def metric_name(key: str) -> str:
-    """Last topic segment of a history key, e.g. "T" for ".../reactor1/T#well A1"."""
-    topic = key.split(ENTITY_SEPARATOR, 1)[0]
-    return topic.rsplit("/", 1)[-1]
+    """Last topic segment, e.g. "T" for ".../reactor1/measurement/well_A1/T"."""
+    return key.rsplit("/", 1)[-1]
 
 
 def format_value(value: float) -> str:
@@ -40,40 +38,42 @@ def full_label(key: str) -> str:
     return key.split("/", 1)[-1]
 
 
-def instance_name(key: str) -> str:
-    """Instance ID of a measurement topic, which ends in <instance_id>/experiment/<experiment_id>/measurement/<metric>; else ""."""
-    parts = key.partition(ENTITY_SEPARATOR)[0].split("/")
-    if len(parts) < 5 or parts[-2] != "measurement" or parts[-4] != "experiment":
-        return ""
-    return parts[-5]
+def measurement_levels(key: str) -> list[str]:
+    """[instance, entity, metric] of a .../<instance_id>/measurement/<entity>/<metric> topic, else [].
 
-
-def series_label(key: str, all_keys: list[str]) -> str:
-    """ "<instance_id> · <entity> · <metric>" for a measurement topic, else the full label.
-
-    The entity only shows when several entities share the topic (e.g. wells of a plate); a single
-    entity per topic usually just names the instance again (leaf-example tags every point "bioreactor 1").
+    The entity is left out when it only names the instance again, as for a single device.
     """
-    topic, _, entity = key.partition(ENTITY_SEPARATOR)
-    instance = instance_name(key)
-    if not instance:
-        return full_label(key)
-    # Instance stays in: entity names repeat across instances
-    names = [instance]
-    shared = [other for other in all_keys if other.partition(ENTITY_SEPARATOR)[0] == topic]
-    if entity and len(shared) > 1:
-        names.append(entity)
-    names.append(metric_name(topic))
-    return " · ".join(names)
+    parts = key.split("/")
+    if len(parts) < 4 or parts[-3] != "measurement":
+        return []
+    instance, entity, metric = parts[-4], parts[-2], parts[-1]
+    if entity == instance:
+        return [instance, metric]
+    return [instance, entity, metric]
 
 
-def tile_label(key: str, all_keys: list[str]) -> str:
+def instance_name(key: str) -> str:
+    """Instance ID of a measurement topic, else ""."""
+    levels = measurement_levels(key)
+    if levels:
+        return levels[0]
+    return ""
+
+
+def series_label(key: str) -> str:
+    """ "<instance_id> · <entity> · <metric>" for a measurement topic, else the full label."""
+    levels = measurement_levels(key)
+    if levels:
+        return " · ".join(levels)
+    return full_label(key)
+
+
+def tile_label(key: str) -> str:
     """Series label without the instance, which the tile's group box already names."""
-    instance = instance_name(key)
-    label = series_label(key, all_keys)
-    if instance:
-        return label.removeprefix(f"{instance} · ")
-    return label
+    levels = measurement_levels(key)
+    if levels:
+        return " · ".join(levels[1:])
+    return full_label(key)
 
 
 # ECharts' default palette, assigned per metric rather than per selected line
@@ -92,7 +92,7 @@ def chart_series(history: dict[str, list[tuple[float, float]]], topics: list[str
         points = [[timestamp * 1000, value] for timestamp, value in history.get(topic, [])]
         series.append(
             {
-                "name": series_label(topic, list(history)),
+                "name": series_label(topic),
                 "type": "line",
                 "showSymbol": False,
                 "color": metric_color(topic, list(history)),
@@ -198,11 +198,11 @@ def create_monitoring_tab(monitor_tab: ui.tab) -> None:
                                 tile_groups[instance],
                                 ui.card().classes("p-3 min-w-32").style(stripe).tooltip(full_label(topic)),
                             ):
-                                _ = ui.label(tile_label(topic, topics)).classes("text-xs text-body-secondary")
+                                _ = ui.label(tile_label(topic)).classes("text-xs text-body-secondary")
                                 tile_values[topic] = ui.label().classes("text-2xl font-bold text-heading")
                         _ = tile_values[topic].set_text(format_value(history[topic][-1][1]))
                     # NiceGUI leaves the options type unparametrised
-                    _ = metric_select.set_options({topic: series_label(topic, topics) for topic in topics})  # pyright: ignore[reportUnknownMemberType]
+                    _ = metric_select.set_options({topic: series_label(topic) for topic in topics})  # pyright: ignore[reportUnknownMemberType]
                     selected = cast(list[str], metric_select.value or [])
                     if not selected and topics and not picked_default:
                         selected = [topics[0]]

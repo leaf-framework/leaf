@@ -46,13 +46,12 @@ class TopicStore:
             sample = _point_sample(point)
             if sample is None:
                 continue
-            key = history_key(topic, point)
             with self._history_lock:
-                history = self._history.setdefault(key, deque(maxlen=HISTORY_LENGTH))
+                history = self._history.setdefault(topic, deque(maxlen=HISTORY_LENGTH))
                 history.append(sample)
 
     def get_history(self) -> dict[str, list[tuple[float, float]]]:
-        """(timestamp, value) pairs per history key (see history_key), oldest first."""
+        """(timestamp, value) pairs per topic, oldest first."""
         with self._history_lock:
             return {topic: list(points) for topic, points in self._history.items()}
 
@@ -81,20 +80,6 @@ class TopicStore:
     def get_all(self) -> dict:
         """Return the full nested store."""
         return self._store
-
-
-# Separates the topic from the point's entity tag in a history key
-ENTITY_SEPARATOR = "#"
-
-
-def history_key(topic: str, point: object) -> str:
-    """Topic plus the point's "entity" tag, since one topic can carry several entities (e.g. the wells of a plate)."""
-    tags = cast(dict[str, object], point).get("tags")
-    if isinstance(tags, dict):
-        entity = cast(dict[str, object], tags).get("entity")
-        if isinstance(entity, str) and entity:
-            return f"{topic}{ENTITY_SEPARATOR}{entity}"
-    return topic
 
 
 def _point_sample(point: object) -> tuple[float, float] | None:

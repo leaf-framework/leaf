@@ -45,7 +45,7 @@ class TestMetadataManager(unittest.TestCase):
             {"organisation": "myInst", "department": "myDept", "adapter_id": "EQ123", "instance_id": "ABC"}
         )
 
-        topic_str = self.manager.experiment.start()
+        topic_str = self.manager.start()
 
         parsed = topic_utilities.parse_topic(topic_str)
         self.assertEqual(parsed.organisation, "myInst")
@@ -61,7 +61,7 @@ class TestMetadataManager(unittest.TestCase):
             {"organisation": "myInst", "department": "myDept", "adapter_id": "EQ123", "instance_id": "ABC"}
         )
 
-        topic_str = self.manager.experiment.stop(instance_id="OVERRIDE123")
+        topic_str = self.manager.stop(instance_id="OVERRIDE123")
 
         parsed = topic_utilities.parse_topic(topic_str)
         self.assertEqual(parsed.instance_id, "OVERRIDE123")
@@ -78,9 +78,9 @@ class TestMetadataManager(unittest.TestCase):
         md.add_equipment_data(mock_md)
 
         template_suffixes = [
-            "experiment.start",
-            "experiment.stop",
-            "experiment.measurement",
+            "start",
+            "stop",
+            "measurement",
             "error",
             "details",
             "running",
@@ -91,7 +91,7 @@ class TestMetadataManager(unittest.TestCase):
             self.assertEqual(manager_template, topic_template)
 
             md_topic = eval(f"md.{suffixes}()")
-            if suffixes != "experiment.measurement":
+            if suffixes != "measurement":
                 self.assertTrue(topic_utilities.is_complete_topic(md_topic))
             self.assertTrue(topic_utilities.is_instance(md_topic, manager_template))
 

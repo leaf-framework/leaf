@@ -77,7 +77,7 @@ class TestMeasurePhase(unittest.TestCase):
         results = self._module.update(content, experiment_id=self._mock_experiment, measurement=self._mock_measurement)
         for k, v in results:
             if (
-                self._metadata_manager.experiment.measurement(
+                self._metadata_manager.measurement(
                     experiment_id=self._mock_experiment,
                     measurement=self._mock_measurement,
                 )
@@ -88,9 +88,9 @@ class TestMeasurePhase(unittest.TestCase):
             self.fail()
 
     def test_is_activated(self):
-        topic = self._metadata_manager.experiment.measurement
+        topic = self._metadata_manager.measurement
         self.assertTrue(self._module.is_activated(topic))
-        topic = self._metadata_manager.experiment.start
+        topic = self._metadata_manager.start
         self.assertFalse(self._module.is_activated(topic))
 
     def test_measure_phase_max_measurement(self):
@@ -110,7 +110,7 @@ class TestMeasurePhase(unittest.TestCase):
         with open(measurement_file) as src:
             content = src.read()
         measurement_messages = self._module.update(content)
-        exp_id = self._metadata_manager.experiment.measurement(experiment_id=exp_id, measurement="unknown")
+        exp_id = self._metadata_manager.measurement(experiment_id=exp_id, measurement="unknown")
         expected_chunks = [list(range(1, 11)), list(range(11, 21)), list(range(21, 25))]
         self.assertEqual(len(measurement_messages), len(expected_chunks))
         for chunk, expected_chunk in zip(measurement_messages, expected_chunks):
@@ -301,14 +301,14 @@ class TestControlPhase(unittest.TestCase):
         self._metadata_manager.add_instance_value("organisation", "test_transmit")
         self._metadata_manager.add_instance_value("department", "test_transmit")
         self._metadata_manager.add_instance_value("instance_id", "test_transmit")
-        self._module = ControlPhase(self._metadata_manager.experiment.start, metadata_manager=self._metadata_manager)
+        self._module = ControlPhase(self._metadata_manager.start, metadata_manager=self._metadata_manager)
 
     def tearDown(self) -> None:
         pass
 
     def test_control_phase(self) -> None:
         res = self._module.update()
-        self.assertEqual(res, [(self._metadata_manager.experiment.start(), None)])
+        self.assertEqual(res, [(self._metadata_manager.start(), None)])
 
 
 class TestStartPhase(unittest.TestCase):
@@ -324,8 +324,8 @@ class TestStartPhase(unittest.TestCase):
         res = self._module.update(data)
 
         expected_values = {
-            self._metadata_manager.experiment.start(): data,
-            self._metadata_manager.experiment.stop(): None,
+            self._metadata_manager.start(): data,
+            self._metadata_manager.stop(): None,
             self._metadata_manager.running(): True,
         }
 
@@ -346,8 +346,8 @@ class TestStopPhase(unittest.TestCase):
         res = self._module.update(data)
 
         expected_values = {
-            self._metadata_manager.experiment.start(): None,
-            self._metadata_manager.experiment.stop(): data,
+            self._metadata_manager.start(): None,
+            self._metadata_manager.stop(): data,
             self._metadata_manager.running(): False,
         }
 
@@ -376,7 +376,7 @@ class TestStopPhase(unittest.TestCase):
         res = module.update(data)
 
         for topic, data in res:
-            if topic == self._metadata_manager.experiment.stop():
+            if topic == self._metadata_manager.stop():
                 self.assertIn(interpreter.EXPERIMENT_ID_KEY, data)
                 self.assertIn(interpreter.TIMESTAMP_KEY, data)
                 self.assertIn(interpreter.RUNTIME_KEY, data)

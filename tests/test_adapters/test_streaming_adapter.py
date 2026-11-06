@@ -173,11 +173,9 @@ class TestStreamingAdapter(unittest.TestCase):
 
             # Simulate a real watcher (e.g. FileWatcher.on_created with
             # return_data=False) detecting a new run and its filename.
-            watcher._dispatch_callback(self.metadata_manager.experiment.start, "measurements.csv")
+            watcher._dispatch_callback(self.metadata_manager.start, "measurements.csv")
 
-            measurement_topic = self.metadata_manager.experiment.measurement(
-                experiment_id=interpreter.id, measurement="unknown"
-            )
+            measurement_topic = self.metadata_manager.measurement(experiment_id=interpreter.id, measurement="unknown")
             self._wait_for(lambda: measurement_topic in self.output.messages)
 
             stream_thread = adapter._streams["measurements.csv"].thread
@@ -229,13 +227,13 @@ class TestStreamingAdapter(unittest.TestCase):
             mthread.start()
             self._wait_for_running(adapter)
 
-            watcher._dispatch_callback(self.metadata_manager.experiment.start, "same.csv")
+            watcher._dispatch_callback(self.metadata_manager.start, "same.csv")
             self._wait_for(lambda: len(interpreter.filenames_seen) >= 1)
             first_thread = adapter._streams["same.csv"].thread
 
             # A second start event for the SAME filename should replace it
             # with a fresh generation, not run alongside the old one.
-            watcher._dispatch_callback(self.metadata_manager.experiment.start, "same.csv")
+            watcher._dispatch_callback(self.metadata_manager.start, "same.csv")
             self._wait_for(lambda: len(interpreter.filenames_seen) >= 2)
 
             self.assertFalse(first_thread.is_alive())
@@ -261,8 +259,8 @@ class TestStreamingAdapter(unittest.TestCase):
             mthread.start()
             self._wait_for_running(adapter)
 
-            watcher._dispatch_callback(self.metadata_manager.experiment.start, "first.csv")
-            watcher._dispatch_callback(self.metadata_manager.experiment.start, "second.csv")
+            watcher._dispatch_callback(self.metadata_manager.start, "first.csv")
+            watcher._dispatch_callback(self.metadata_manager.start, "second.csv")
 
             # Both should be blocked *inside* stream() concurrently - neither
             # is superseded/dropped by the other starting.
@@ -296,7 +294,7 @@ class TestStreamingAdapter(unittest.TestCase):
             mthread.start()
             self._wait_for_running(adapter)
 
-            watcher._dispatch_callback(self.metadata_manager.experiment.start, "measurements.csv")
+            watcher._dispatch_callback(self.metadata_manager.start, "measurements.csv")
             self._wait_for(lambda: interpreter.call_counts.get("measurements.csv", 0) >= 3)
 
             stream_thread = adapter._streams["measurements.csv"].thread
