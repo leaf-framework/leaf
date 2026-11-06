@@ -131,8 +131,8 @@ class TestAdapterArray(unittest.TestCase):
 
         for adapter in self.adapter_array:
             details_topic = adapter._metadata_manager.details()
-            start_topic = adapter._metadata_manager.experiment.start()
-            stop_topic = adapter._metadata_manager.experiment.stop()
+            start_topic = adapter._metadata_manager.start()
+            stop_topic = adapter._metadata_manager.stop()
             running_topic = adapter._metadata_manager.running()
 
             self.mock_client.flush(details_topic)
@@ -143,7 +143,7 @@ class TestAdapterArray(unittest.TestCase):
             time.sleep(0.2)
             self.mock_client.flush(running_topic)
             time.sleep(1)
-            wildcard_measure = adapter._metadata_manager.experiment.measurement()
+            wildcard_measure = adapter._metadata_manager.measurement()
             self.mock_client.subscribe(start_topic)
             time.sleep(0.2)
             self.mock_client.subscribe(stop_topic)
@@ -202,7 +202,7 @@ class TestAdapterArray(unittest.TestCase):
         self._stop_adapters(threads)
 
         for adapter in self.adapter_array:
-            start_topic = adapter._metadata_manager.experiment.start()
+            start_topic = adapter._metadata_manager.start()
             self.assertIn(start_topic, self.mock_client.messages.keys())
             self.assertTrue(len(self.mock_client.messages[start_topic]) == 1)
             running_topic = adapter._metadata_manager.running()
@@ -222,7 +222,7 @@ class TestAdapterArray(unittest.TestCase):
         self._stop_adapters(threads)
 
         for adapter in self.adapter_array:
-            stop_topic = adapter._metadata_manager.experiment.stop()
+            stop_topic = adapter._metadata_manager.stop()
             running_topic = adapter._metadata_manager.running()
             self.assertIn(stop_topic, self.mock_client.messages)
             self.assertEqual(len(self.mock_client.messages[stop_topic]), 1)
@@ -267,12 +267,12 @@ class TestAdapterArray(unittest.TestCase):
             self._flush_topics(adapter1)
 
             details_topic = adapter1._metadata_manager.details()
-            start_topic = adapter1._metadata_manager.experiment.start()
-            stop_topic = adapter1._metadata_manager.experiment.stop()
+            start_topic = adapter1._metadata_manager.start()
+            stop_topic = adapter1._metadata_manager.stop()
             running_topic = adapter1._metadata_manager.running()
             self.assertTrue(len(self.mock_client.messages.keys()) == 2)
             self.assertIn(details_topic, self.mock_client.messages)
-            exp_tp = adapter1._metadata_manager.experiment.measurement()
+            exp_tp = adapter1._metadata_manager.measurement()
             self.mock_client.subscribe(exp_tp)
             time.sleep(1)
             _create_file(adapter1)
@@ -309,8 +309,8 @@ class TestAdapterArray(unittest.TestCase):
 
     def _flush_topics(self, adapter: DiscreteExperimentAdapter) -> None:
         details_topic = adapter._metadata_manager.details()
-        start_topic = adapter._metadata_manager.experiment.start()
-        stop_topic = adapter._metadata_manager.experiment.stop()
+        start_topic = adapter._metadata_manager.start()
+        stop_topic = adapter._metadata_manager.stop()
         running_topic = adapter._metadata_manager.running()
         self.mock_client.flush(details_topic)
         self.mock_client.flush(start_topic)

@@ -18,13 +18,16 @@ class TestTopicUtility(unittest.TestCase):
         """
         flattened = topic_utilities._templates
         self.assertIn("details", flattened)
-        self.assertIn("experiment.start", flattened)
-        self.assertIn("experiment.stop", flattened)
-        self.assertIn("experiment.measurement", flattened)
+        self.assertIn("start", flattened)
+        self.assertIn("stop", flattened)
+        self.assertIn("measurement", flattened)
         self.assertEqual(flattened["details"], "<root>/<organisation>/<department>/<adapter_id>/<instance_id>/details")
+        # A run starts and stops on the instance itself; "experiment" is only the API name
+        self.assertEqual(flattened["start"], "<root>/<organisation>/<department>/<adapter_id>/<instance_id>/start")
+        self.assertEqual(flattened["stop"], "<root>/<organisation>/<department>/<adapter_id>/<instance_id>/stop")
         self.assertEqual(
-            flattened["experiment.measurement"],
-            "<root>/<organisation>/<department>/<adapter_id>/<instance_id>/experiment/<experiment_id>/measurement/<measurement>",
+            flattened["measurement"],
+            "<root>/<organisation>/<department>/<adapter_id>/<instance_id>/measurement/<entity>/<measurement>",
         )
 
     def test_parse_topic_valid(self):
@@ -52,19 +55,21 @@ class TestTopicUtility(unittest.TestCase):
         self.assertEqual(topic_obj["adapter_id"], "eq1")
         self.assertEqual(topic_obj["instance_id"], "abc")
 
-    def test_parse_topic_experiment_measurement(self):
-        """
-        Test parse_topic with an experiment measurement topic.
-        """
-        topic_str = "uniX/dep01/eq99/i7/experiment/expABC/measurement/temp"
-        topic_obj = topic_utilities.parse_topic(topic_str)
-
-        self.assertEqual(topic_obj["organisation"], "uniX")
-        self.assertEqual(topic_obj["department"], "dep01")
-        self.assertEqual(topic_obj["adapter_id"], "eq99")
-        self.assertEqual(topic_obj["instance_id"], "i7")
-        self.assertEqual(topic_obj["experiment_id"], "expABC")
-        self.assertEqual(topic_obj["measurement"], "temp")
+    def test_parse_topic_measurement(self):
+        """The entity (the instance itself, or e.g. a reactor in it) sits between measurement and the metric."""
+        for topic_str, root in (
+            ("uniX/dep01/eq99/i7/measurement/reactor_1/temp", None),
+            ("demo/uniX/dep01/eq99/i7/measurement/reactor_1/temp", "demo"),
+        ):
+            topic_obj = topic_utilities.parse_topic(topic_str)
+            self.assertEqual(topic_obj["root"], root)
+            self.assertEqual(topic_obj["organisation"], "uniX")
+            self.assertEqual(topic_obj["department"], "dep01")
+            self.assertEqual(topic_obj["adapter_id"], "eq99")
+            self.assertEqual(topic_obj["instance_id"], "i7")
+            self.assertEqual(topic_obj["entity"], "reactor_1")
+            self.assertEqual(topic_obj["measurement"], "temp")
+            self.assertEqual(topic_obj.action, "measurement")
 
     def test_parse_topic_no_match(self):
         """
@@ -110,32 +115,32 @@ class TestTopicUtility(unittest.TestCase):
         self.assertTrue(topic_utilities.is_complete_topic(topic))
         self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.running()))
 
-        topic = md.experiment.start()
+        topic = md.start()
         topic_obj = topic_utilities.parse_topic(topic)
         self.assertEqual(topic_obj.organisation, mock_md["organisation"])
         self.assertEqual(topic_obj.adapter_id, mock_md["adapter_id"])
         self.assertEqual(topic_obj.instance_id, mock_md["instance_id"])
         self.assertEqual(topic_obj.action, "start")
         self.assertTrue(topic_utilities.is_complete_topic(topic))
-        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.experiment.start()))
+        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.start()))
 
-        topic = md.experiment.stop()
+        topic = md.stop()
         topic_obj = topic_utilities.parse_topic(topic)
         self.assertEqual(topic_obj.organisation, mock_md["organisation"])
         self.assertEqual(topic_obj.adapter_id, mock_md["adapter_id"])
         self.assertEqual(topic_obj.instance_id, mock_md["instance_id"])
         self.assertEqual(topic_obj.action, "stop")
         self.assertTrue(topic_utilities.is_complete_topic(topic))
-        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.experiment.stop()))
+        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.stop()))
 
-        topic = md.experiment.measurement(experiment_id="test_exp", measurement="test_mes")
+        topic = md.measurement(experiment_id="test_exp", measurement="test_mes")
         topic_obj = topic_utilities.parse_topic(topic)
         self.assertEqual(topic_obj.organisation, mock_md["organisation"])
         self.assertEqual(topic_obj.adapter_id, mock_md["adapter_id"])
         self.assertEqual(topic_obj.instance_id, mock_md["instance_id"])
         self.assertEqual(topic_obj.action, "measurement")
         self.assertTrue(topic_utilities.is_complete_topic(topic))
-        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.experiment.measurement()))
+        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.measurement()))
 
     def test_get_topic_data_template(self):
         topic = topic_utilities.details()
@@ -156,29 +161,29 @@ class TestTopicUtility(unittest.TestCase):
         self.assertFalse(topic_utilities.is_complete_topic(topic))
         self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.running()))
 
-        topic = topic_utilities.experiment.start()
+        topic = topic_utilities.start()
         topic_obj = topic_utilities.parse_topic(topic)
         self.assertEqual(topic_obj.organisation, "+")
         self.assertEqual(topic_obj.adapter_id, "+")
         self.assertEqual(topic_obj.instance_id, "+")
         self.assertEqual(topic_obj.action, "start")
         self.assertFalse(topic_utilities.is_complete_topic(topic))
-        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.experiment.start()))
+        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.start()))
 
-        topic = topic_utilities.experiment.stop()
+        topic = topic_utilities.stop()
         topic_obj = topic_utilities.parse_topic(topic)
         self.assertEqual(topic_obj.organisation, "+")
         self.assertEqual(topic_obj.adapter_id, "+")
         self.assertEqual(topic_obj.instance_id, "+")
         self.assertEqual(topic_obj.action, "stop")
         self.assertFalse(topic_utilities.is_complete_topic(topic))
-        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.experiment.stop()))
+        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.stop()))
 
-        topic = topic_utilities.experiment.measurement(experiment_id="test_exp", measurement="test_mes")
+        topic = topic_utilities.measurement(experiment_id="test_exp", measurement="test_mes")
         topic_obj = topic_utilities.parse_topic(topic)
         self.assertEqual(topic_obj.organisation, "+")
         self.assertEqual(topic_obj.adapter_id, "+")
         self.assertEqual(topic_obj.instance_id, "+")
         self.assertEqual(topic_obj.action, "measurement")
         self.assertFalse(topic_utilities.is_complete_topic(topic))
-        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.experiment.measurement()))
+        self.assertTrue(topic_utilities.is_instance(topic, topic_utilities.measurement()))

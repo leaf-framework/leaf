@@ -74,7 +74,7 @@ class TestFileWatcher(unittest.TestCase):
             mthread.join()
             time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
-            self.assertEqual(len(topics[metadata.experiment.measurement()]), num_mod)
+            self.assertEqual(len(topics[metadata.measurement()]), num_mod)
 
     def test_file_watcher_creation(self):
         with tempfile.TemporaryDirectory() as test_dir:
@@ -115,7 +115,7 @@ class TestFileWatcher(unittest.TestCase):
             mthread.join()
             time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
-            self.assertEqual(len(topics[metadata.experiment.start()]), num_create)
+            self.assertEqual(len(topics[metadata.start()]), num_create)
 
     def test_file_watcher_deletion(self) -> None:
         with tempfile.TemporaryDirectory() as test_dir:
@@ -153,7 +153,7 @@ class TestFileWatcher(unittest.TestCase):
             mthread.join()
             time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
-            self.assertEqual(len(topics[metadata.experiment.stop()]), num_create)
+            self.assertEqual(len(topics[metadata.stop()]), num_create)
 
     def test_watch_directory(self):
         with tempfile.TemporaryDirectory() as test_dir:
@@ -200,7 +200,7 @@ class TestFileWatcher(unittest.TestCase):
             mthread.join()
             time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
-            self.assertEqual(len(topics[metadata.experiment.start()]), num_create)
+            self.assertEqual(len(topics[metadata.start()]), num_create)
 
             # Give extra time for observer cleanup in forked mode
             time.sleep(1.5)
@@ -225,7 +225,7 @@ class TestFileWatcher(unittest.TestCase):
 
             # Actively wait for events to be processed (max 10 seconds)
             # Debounce delay is 0.75s per event
-            measurement_key = metadata.experiment.measurement()
+            measurement_key = metadata.measurement()
             max_wait = 10
             wait_interval = 0.5
             elapsed = 0
@@ -294,15 +294,15 @@ class TestFileWatcher(unittest.TestCase):
             mthread.start()
             mthread.join()
             time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
-            self.assertEqual(len(topics[metadata.experiment.start()]), 1)
+            self.assertEqual(len(topics[metadata.start()]), 1)
             mthread = Thread(target=mod_file, args=(creation_file, interval))
             mthread.start()
             mthread.join()
             time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
             # Ensure max of 2 measurements per file
-            self.assertGreaterEqual(len(topics[metadata.experiment.measurement()]), 1)
-            self.assertLessEqual(len(topics[metadata.experiment.measurement()]), 2)
+            self.assertGreaterEqual(len(topics[metadata.measurement()]), 1)
+            self.assertLessEqual(len(topics[metadata.measurement()]), 2)
 
     def test_csv_file_creation(self):
         with tempfile.TemporaryDirectory() as test_dir:
@@ -324,7 +324,7 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(2)  # macOS FSEvents can have significant delay
             watcher.stop()
 
-            self.assertEqual(len(topics[metadata.experiment.start()]), 1)
+            self.assertEqual(len(topics[metadata.start()]), 1)
 
     def test_csv_file_modification(self):
         with tempfile.TemporaryDirectory() as test_dir:
@@ -354,7 +354,7 @@ class TestFileWatcher(unittest.TestCase):
             watcher.stop()
 
             # Assert the mock topic received the complete file data
-            expected_topic = metadata.experiment.start()
+            expected_topic = metadata.start()
             if expected_topic not in topics:
                 # Debug: available topics if assertion fails
                 logger.info(f"Expected topic '{expected_topic}' not found. Available topics: {list(topics.keys())}")
@@ -364,7 +364,7 @@ class TestFileWatcher(unittest.TestCase):
                 # Use the first available topic as fallback
                 expected_topic = list(topics.keys())[0]
             self.assertEqual(topics[expected_topic], [[["Time", "Value"], ["2", "200"]]])
-            # self.assertEqual(len(topics[metadata.experiment.measurement()]), 1)
+            # self.assertEqual(len(topics[metadata.measurement()]), 1)
 
     def test_csv_file_deletion(self):
         with tempfile.TemporaryDirectory() as test_dir:
@@ -388,7 +388,7 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(2)  # macOS FSEvents can have significant delay
             watcher.stop()
 
-            self.assertEqual(len(topics[metadata.experiment.stop()]), 1)
+            self.assertEqual(len(topics[metadata.stop()]), 1)
 
     def test_csv_directory_watching(self):
         with tempfile.TemporaryDirectory() as test_dir:
@@ -408,7 +408,7 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(3)  # Allow enough time for PollingObserver to detect file
             watcher.stop()
 
-            self.assertEqual(len(topics[metadata.experiment.start()]), 1)
+            self.assertEqual(len(topics[metadata.start()]), 1)
 
     def test_csv_return_filepath_only(self):
         with tempfile.TemporaryDirectory() as test_dir:
@@ -436,7 +436,7 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(3)  # Allow extra time for PollingObserver in slower CI environments
             watcher.stop()
 
-            self.assertEqual(len(topics[metadata.experiment.start()]), 1)
+            self.assertEqual(len(topics[metadata.start()]), 1)
 
     def test_tsv_creation_and_callback(self):
         with tempfile.TemporaryDirectory() as test_dir:
@@ -472,9 +472,9 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(3)  # Allow enough time for PollingObserver to detect file
             watcher.stop()
 
-            self.assertEqual(len(topics[metadata.experiment.start()]), 1)
-            self.assertIn(headers, topics[metadata.experiment.start()][0])
-            self.assertIn(row, topics[metadata.experiment.start()][0])
+            self.assertEqual(len(topics[metadata.start()]), 1)
+            self.assertIn(headers, topics[metadata.start()][0])
+            self.assertIn(row, topics[metadata.start()][0])
 
     def test_tsv_modification(self):
         with tempfile.TemporaryDirectory() as test_dir:
@@ -520,9 +520,9 @@ class TestFileWatcher(unittest.TestCase):
             watcher.stop()
 
             logger.info("Topics collected: %s", topics)
-            self.assertGreaterEqual(len(topics[metadata.experiment.measurement()]), 1)
+            self.assertGreaterEqual(len(topics[metadata.measurement()]), 1)
             # Check all measurement callbacks for the modified content
-            found_row = any("Val1" in str(callback_data) for callback_data in topics[metadata.experiment.measurement()])
+            found_row = any("Val1" in str(callback_data) for callback_data in topics[metadata.measurement()])
             self.assertTrue(found_row)
 
     def test_any_file_content(self):
@@ -553,7 +553,7 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(2)  # macOS FSEvents can have significant delay
             watcher.stop()
 
-            self.assertGreaterEqual(len(topics.get(metadata.experiment.start(), [])), 2)
+            self.assertGreaterEqual(len(topics.get(metadata.start(), [])), 2)
 
     def test_csv_only_path(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -586,7 +586,7 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(3)  # Allow enough time for PollingObserver to detect file
             watcher.stop()
 
-            paths = topics.get(metadata.experiment.start(), [])
+            paths = topics.get(metadata.start(), [])
             self.assertEqual(len(paths), 1)
             self.assertTrue(paths[0].endswith(".csv"))
 
@@ -609,7 +609,7 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(2)  # macOS FSEvents can have significant delay
             watcher.stop()
 
-            self.assertEqual(len(topics.get(metadata.experiment.start(), [])), 1)
+            self.assertEqual(len(topics.get(metadata.start(), [])), 1)
 
     def test_multiple_files_simultaneously(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -635,7 +635,7 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(3)  # Allow enough time for PollingObserver to detect files
             watcher.stop()
 
-            self.assertEqual(len(topics.get(metadata.experiment.start(), [])), 2)
+            self.assertEqual(len(topics.get(metadata.start(), [])), 2)
 
     def test_multiple_supported_filetypes_content(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -664,7 +664,7 @@ class TestFileWatcher(unittest.TestCase):
             time.sleep(3)  # Allow enough time for PollingObserver to detect all files
             watcher.stop()
 
-            events = topics.get(metadata.experiment.start(), [])
+            events = topics.get(metadata.start(), [])
             self.assertEqual(len(events), 3)
 
             csv_data = next((d for d in events if isinstance(d, list) and ["A", "B"] in d), None)
@@ -706,8 +706,8 @@ class TestFileWatcher(unittest.TestCase):
             watcher.stop()
 
             # Existing file should have triggered a "measurement" callback
-            self.assertIn(metadata.experiment.measurement(), topics)
-            self.assertEqual(len(topics[metadata.experiment.measurement()]), 1)
+            self.assertIn(metadata.measurement(), topics)
+            self.assertEqual(len(topics[metadata.measurement()]), 1)
             logger.error(f"Topics received: {topics}")
 
     def test_file_watcher_skips_existing_files_when_configured(self):
@@ -794,7 +794,7 @@ class TestFileWatcher(unittest.TestCase):
             watcher.stop()
 
             # The trailing timer should have fired and processed the file
-            measurement_key = metadata.experiment.measurement()
+            measurement_key = metadata.measurement()
             self.assertIn(measurement_key, topics)
             self.assertGreaterEqual(len(topics[measurement_key]), 1)
 

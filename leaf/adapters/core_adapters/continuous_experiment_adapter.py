@@ -87,6 +87,6 @@ class ContinuousExperimentAdapter(EquipmentAdapter):
         Injects a synthetic start message via the control process
         to initialise any start-specific logic or output.
         """
-        start_topic = self._metadata_manager.experiment.start
+        start_topic = self._metadata_manager.start
         self._control_process.process_input(start_topic, {})
         super().start()

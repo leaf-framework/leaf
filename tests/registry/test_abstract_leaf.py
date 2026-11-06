@@ -58,19 +58,17 @@ class TestTopicUtility(unittest.TestCase):
             department=None,
             adapter_id=None,
             instance_id=None,
-            experiment_id=None,
+            entity=None,
             measurement=None,
         ):
             nonlocal measurement_messages
-            measurement_messages.append(
-                (data, organisation, department, adapter_id, instance_id, experiment_id, measurement)
-            )
+            measurement_messages.append((data, organisation, department, adapter_id, instance_id, entity, measurement))
 
-        mapping = {topic_utilities.experiment.start(): [mock_start], topic_utilities.experiment.stop: mock_stop}
+        mapping = {topic_utilities.start(): [mock_start], topic_utilities.stop: mock_stop}
         abstract_leaf = MockLeafTool(mapping)
 
         start_data = {"experiment_id": "test_experiment_id123"}
-        abstract_leaf.process(md.experiment.start(), start_data)
+        abstract_leaf.process(md.start(), start_data)
         self.assertEqual(start_messages[0][0], start_data)
         self.assertEqual(start_messages[0][1], mock_md["organisation"])
         self.assertEqual(start_messages[0][2], mock_md["department"])
@@ -79,7 +77,7 @@ class TestTopicUtility(unittest.TestCase):
         self.assertEqual(start_messages[0][5], {})
 
         stop_data = {"experiment_id": "test_experiment_id12345"}
-        abstract_leaf.process(md.experiment.stop(), stop_data)
+        abstract_leaf.process(md.stop(), stop_data)
         self.assertEqual(stop_messages[0][0], stop_data)
         self.assertEqual(stop_messages[0][1], mock_md["organisation"])
         self.assertEqual(stop_messages[0][2], mock_md["department"])
@@ -98,18 +96,16 @@ class TestTopicUtility(unittest.TestCase):
         self.assertEqual(details_messages[0][4], mock_md["instance_id"])
         self.assertEqual(details_messages[0][5], {})
 
-        details_template = topic_utilities.experiment.measurement()
+        details_template = topic_utilities.measurement()
         abstract_leaf.add_process(details_template, mock_measurement)
         measurement_data = {"test_data": "test_data12345"}
-        mock_exp_id = "test_exp123"
         mock_measurement_id = "test_mes123"
-        abstract_leaf.process(
-            md.experiment.measurement(experiment_id=mock_exp_id, measurement=mock_measurement_id), measurement_data
-        )
+        abstract_leaf.process(md.measurement(measurement=mock_measurement_id), measurement_data)
         self.assertEqual(measurement_messages[0][0], measurement_data)
         self.assertEqual(measurement_messages[0][1], mock_md["organisation"])
         self.assertEqual(measurement_messages[0][2], mock_md["department"])
         self.assertEqual(measurement_messages[0][3], mock_md["adapter_id"])
         self.assertEqual(measurement_messages[0][4], mock_md["instance_id"])
-        self.assertEqual(measurement_messages[0][5], mock_exp_id)
+        # Without an entity of its own, a point is about the instance
+        self.assertEqual(measurement_messages[0][5], mock_md["instance_id"])
         self.assertEqual(measurement_messages[0][6], mock_measurement_id)

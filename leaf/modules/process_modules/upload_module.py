@@ -43,7 +43,7 @@ class UploadProcess(DiscreteProcess):
             topic (str): The topic to activate a specific phase.
             data (dict): The data to be processed by the phase.
         """
-        if topic() != self._metadata_manager.experiment.start():
+        if topic() != self._metadata_manager.start():
             assert topic() == self._metadata_manager.details()
             return super().process_input(topic, data)
 
@@ -52,11 +52,11 @@ class UploadProcess(DiscreteProcess):
         time.sleep(1)
 
         # Measurements
-        measure_builder = self._metadata_manager.experiment.measurement
+        measure_builder = self._metadata_manager.measurement
         super().process_input(measure_builder, data)
         time.sleep(1)
 
         # Stop
-        stop_builder = self._metadata_manager.experiment.stop
+        stop_builder = self._metadata_manager.stop
         super().process_input(stop_builder, data)
         time.sleep(1)

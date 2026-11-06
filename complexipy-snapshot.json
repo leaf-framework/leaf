@@ -52,10 +52,6 @@
     "file_name": "measure.py",
     "functions": [
       {
-        "name": "MeasurePhase::_form_message",
-        "complexity": 17
-      },
-      {
         "name": "MeasurePhase::update",
         "complexity": 48
       }

@@ -1,4 +1,5 @@
 import inspect
+import re
 import threading
 import time
 from typing import TYPE_CHECKING, Any, cast
@@ -35,11 +36,10 @@ class MeasurePhase(PhaseModule):
             maximum_message_size (Optional[int]): The maximum number of measurements in a single message.
             error_holder (Optional[ErrorHolder]): Optional, an error holder to manage phase errors.
         """
-        term_builder = (
-            metadata_manager.experiment.measurement
-            if metadata_manager is not None
-            else "metadata_manager.experiment.measurement"
-        )
+        if metadata_manager is not None:
+            term_builder = metadata_manager.measurement
+        else:
+            term_builder = "metadata_manager.measurement"
 
         super().__init__(term_builder, metadata_manager=metadata_manager, error_holder=error_holder)
         self._maximum_message_size: int = maximum_message_size
@@ -147,10 +147,10 @@ class MeasurePhase(PhaseModule):
             finally:
                 self._measurement_lock.release()
         else:
-            experiment_id = kwargs.get("experiment_id", "unknown")
             measurement = kwargs.get("measurement", "unknown")
+            entity = kwargs.get("entity", self._instance_entity())
 
-            action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
+            action = self._term_builder(entity=entity, measurement=measurement)
             return [(action, data)]
 
     def stream(self, output: "OutputModule", filename: Any) -> None:
@@ -218,11 +218,9 @@ class MeasurePhase(PhaseModule):
         """
         Formulate one or more (topic, data) messages for a measurement result.
 
-        A list/set of points can mix several distinct measurement types
-        (e.g. pH, temperature, oxygen) in the same batch. Since the topic
-        encodes a single measurement type, each distinct type present in
-        the batch is split out into its own message rather than all being
-        published under whichever type happened to come first.
+        A list/set of points can mix several measurement types (e.g. pH,
+        temperature) and entities (e.g. reactors) in one batch. The topic
+        encodes one of each, so every distinct pair gets its own message.
 
         Args:
             experiment_id (str): The ID of the experiment.
@@ -232,56 +230,58 @@ class MeasurePhase(PhaseModule):
             list[tuple]: A list of (action, result) tuples.
         """
         if isinstance(result, dict):
-            self._add_instance_tags(cast(object, result))
-            measurement = self._resolve_measurement(result)
-            action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
-            return [(action, result)]
+            self._add_instance_tags(cast(object, result), experiment_id)
+            return [(self._topic_of(result), result)]
 
         payload = cast(object, result)
-        point_json = point_json_of(payload)
+        try:
+            point_json = point_json_of(payload)
+        except ValueError as ex:
+            # A LeafPoint that fails validation, e.g. one without an entity tag
+            self._handle_exception(InterpreterError(str(ex)))
+            return []
         if point_json is not None:
             result = point_json
-            self._add_instance_tags(cast(object, result))
-            measurement = self._resolve_measurement(result)
-            action = self._term_builder(experiment_id=experiment_id, measurement=measurement)
-            return [(action, result)]
+            self._add_instance_tags(cast(object, result), experiment_id)
+            return [(self._topic_of(result), result)]
 
         if isinstance(result, list):
             converted = []
             for item in cast(list[object], result):
-                point_json = point_json_of(item)
+                try:
+                    point_json = point_json_of(item)
+                except ValueError as ex:
+                    # Only the invalid point is dropped, the rest of the batch is still sent
+                    self._handle_exception(InterpreterError(str(ex)))
+                    continue
                 if point_json is not None:
                     converted.append(point_json)
                 else:
                     converted.append(item)
 
+            # One message per topic, so per metric and entity
             groups: dict[str, list] = {}
             for item in converted:
-                self._add_instance_tags(cast(object, item))
-                if isinstance(item, dict):
-                    key = self._resolve_measurement(item)
-                else:
-                    key = "unknown"
-                groups.setdefault(key, []).append(item)
-
-            messages = []
-            for key, group in groups.items():
-                action = self._term_builder(experiment_id=experiment_id, measurement=key)
-                messages.append((action, group))
-            return messages
+                self._add_instance_tags(cast(object, item), experiment_id)
+                groups.setdefault(self._topic_of(item), []).append(item)
+            return list(groups.items())
 
         excp = AdapterLogicError(f"Unknown measurement data type: {type(result)}")
         self._handle_exception(excp)
         return []
 
-    def _add_instance_tags(self, item: object) -> None:
-        """Tag a point with its instance's organisation and department, unless the adapter already did."""
+    def _add_instance_tags(self, item: object, experiment_id: str | None = None) -> None:
+        """Tag a point with its instance's organisation, department, experiment id and entity, unless the adapter already did."""
         if self._metadata_manager is None or not isinstance(item, dict) or "fields" not in item:
             return
         tags = cast(dict[str, object], item).setdefault("tags", {})
         if not isinstance(tags, dict):
             return
-        for key, value in self._metadata_manager.instance_tags().items():
+        expected = self._metadata_manager.instance_tags()
+        # These defaults mean the adapter never set an experiment id
+        if experiment_id and experiment_id not in ("undefined", "invalid_id"):
+            expected["experiment_id"] = experiment_id
+        for key, value in expected.items():
             current = cast(dict[str, object], tags).get(key)
             if current is None:
                 tags[key] = value
@@ -291,6 +291,29 @@ class MeasurePhase(PhaseModule):
                 logger.warning(
                     f"Tag {key}={current!r} differs from the configured {key} {value!r}; keeping {current!r}"
                 )
+        # Every point has an entity; one inside the instance (e.g. a reactor) differs from it by design, so no warning
+        if not tags.get("entity"):
+            tags["entity"] = self._instance_entity()
+
+    def _topic_of(self, item: object) -> str:
+        """Measurement topic of a point: .../measurement/<entity>/<metric>."""
+        if not isinstance(item, dict):
+            return self._term_builder(entity=self._instance_entity(), measurement="unknown")
+        return self._term_builder(entity=self._resolve_entity(item), measurement=self._resolve_measurement(item))
+
+    def _instance_entity(self) -> str:
+        """Entity of a point that names none: the instance itself."""
+        if self._metadata_manager is None:
+            return "unknown"
+        return self._metadata_manager.get_instance_id() or "unknown"
+
+    def _resolve_entity(self, item: dict[str, Any]) -> str:
+        """The point's "entity" tag, else the instance."""
+        tags = item.get("tags")
+        if not isinstance(tags, dict) or not tags.get("entity"):
+            return self._instance_entity()
+        # Level separators and wildcards would break the topic
+        return re.sub(r"[/+#]", "_", str(tags["entity"]))
 
     def _resolve_measurement(self, item: dict) -> str:
         """

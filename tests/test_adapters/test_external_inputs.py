@@ -71,8 +71,8 @@ class MockEquipmentAdapter(EquipmentAdapter):
         filename = os.path.basename(fp)
         watcher = FileWatcher(directory, metadata_manager, filenames=filename)
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
-        start_p = ControlPhase(metadata_manager.experiment.start)
-        stop_p = ControlPhase(metadata_manager.experiment.stop)
+        start_p = ControlPhase(metadata_manager.start)
+        stop_p = ControlPhase(metadata_manager.stop)
         measure_p = MeasurePhase()
         details_p = ControlPhase(metadata_manager.details)
 
@@ -132,8 +132,8 @@ class TestEquipmentAdapter(unittest.TestCase):
         self._adapter = MockEquipmentAdapter(instance_data, equipment_data, text_watch_file, **kwargs)
 
         self.details_topic = self._adapter._metadata_manager.details()
-        self.start_topic = self._adapter._metadata_manager.experiment.start()
-        self.stop_topic = self._adapter._metadata_manager.experiment.stop()
+        self.start_topic = self._adapter._metadata_manager.start()
+        self.stop_topic = self._adapter._metadata_manager.stop()
 
         self.mock_client.flush(self.details_topic)
         self.mock_client.flush(self.start_topic)

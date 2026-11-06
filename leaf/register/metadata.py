@@ -117,8 +117,8 @@ class MetadataManager:
 
     def __getattr__(self, name: str) -> Any:
         """
-        If the user does 'metadata_manager.experiment.start()', we look up
-        'experiment.start' in the TopicUtility's root group, and wrap it to
+        If the user does 'metadata_manager.start()', we look up
+        'start' in the TopicUtility's root group, and wrap it to
         auto-fill placeholders with equipment metadata.
         """
         try:
@@ -129,16 +129,22 @@ class MetadataManager:
         if callable(sub):
 
             def _wrapper(**overrides) -> str:
-                data = self.get_equipment_data().copy()
-                data.update(self.get_instance_data())
-                placeholders = {**data, **overrides}
-                return sub(**placeholders)
+                return cast(str, sub(**self._placeholders(overrides)))
 
             return _wrapper
         if isinstance(sub, _TemplateGroup):
             return _ManagerGroup(sub, self)
 
         return sub
+
+    def _placeholders(self, overrides: dict[str, Any]) -> dict[str, Any]:
+        """Template placeholders from the equipment and instance data, then the caller's overrides."""
+        data = self.get_equipment_data().copy()
+        data.update(self.get_instance_data())
+        # A point that names no entity is about the instance itself
+        if data.get("instance_id"):
+            data.setdefault("entity", data["instance_id"])
+        return {**data, **overrides}
 
 
 class _ManagerGroup:
@@ -156,10 +162,7 @@ class _ManagerGroup:
         if callable(sub):
 
             def _wrapper(**overrides) -> str:
-                data = self._manager.get_equipment_data().copy()
-                data.update(self._manager.get_instance_data())
-                placeholders = {**data, **overrides}
-                return sub(**placeholders)
+                return cast(str, sub(**self._manager._placeholders(overrides)))  # pyright: ignore[reportPrivateUsage]
 
             return _wrapper
         if isinstance(sub, _TemplateGroup):

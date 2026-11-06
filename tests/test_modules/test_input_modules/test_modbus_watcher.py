@@ -199,7 +199,7 @@ class TestModbusWatcherEmit(unittest.TestCase):
         self.assertEqual(len(received), 1)
         topic, data = received[0]
         # topic is a callable wrapper; compare the generated string to the expected one
-        self.assertEqual(topic(), metadata_manager.experiment.measurement())
+        self.assertEqual(topic(), metadata_manager.measurement())
         self.assertEqual(data["temperature"], 23.5)
 
     def test_emit_without_metadata_manager_falls_back_to_string(self):

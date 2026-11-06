@@ -92,9 +92,9 @@ class MQTTEventWatcher(EventWatcher):
 
         # topic -> list of events
         self._topic_event_map: dict[str, list[str]] = {}
-        self._register_topics(start_topics, metadata_manager.experiment.start)
-        self._register_topics(measurement_topics, metadata_manager.experiment.measurement)
-        self._register_topics(stop_topics, metadata_manager.experiment.stop)
+        self._register_topics(start_topics, metadata_manager.start)
+        self._register_topics(measurement_topics, metadata_manager.measurement)
+        self._register_topics(stop_topics, metadata_manager.stop)
         self._register_topics(error_topics, metadata_manager.error)
 
         # Set when on_connect fires so start() can block until subscriptions are active

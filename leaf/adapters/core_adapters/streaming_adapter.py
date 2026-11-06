@@ -159,9 +159,9 @@ class StreamingAdapter(EquipmentAdapter):
         is active for a filename, further non-start/stop events for it are
         no-ops; the running stream() call handles tailing on its own.
         """
-        if topic() == self._metadata_manager.experiment.start():
+        if topic() == self._metadata_manager.start():
             self._launch_stream(data)
-        elif topic() == self._metadata_manager.experiment.stop():
+        elif topic() == self._metadata_manager.stop():
             self._stop_stream(data)
         else:
             with self._streams_guard:

@@ -25,7 +25,7 @@ class StartPhase(ControlPhase):
             metadata_manager (MetadataManager): Manages metadata associated with the phase.
             error_holder (Optional[ErrorHolder]): Optional, an error holder to manage phase errors.
         """
-        term_builder = metadata_manager.experiment.start
+        term_builder = metadata_manager.start
         super().__init__(term_builder, metadata_manager=metadata_manager, error_holder=error_holder)
 
     def update(self, data: Any) -> list:
@@ -48,5 +48,5 @@ class StartPhase(ControlPhase):
 
         data = super().update(data)
         data += [(self._metadata_manager.running(), True)]
-        data += [(self._metadata_manager.experiment.stop(), None)]
+        data += [(self._metadata_manager.stop(), None)]
         return data

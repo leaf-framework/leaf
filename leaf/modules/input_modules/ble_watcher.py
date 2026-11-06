@@ -231,7 +231,7 @@ class BLEEventWatcher(EventWatcher):
 
         # Dispatch to callbacks using the measurement event
         if self._metadata_manager:
-            self._dispatch_callback(self._metadata_manager.experiment.measurement, event_data)
+            self._dispatch_callback(self._metadata_manager.measurement, event_data)
         else:
             # Fallback: call callbacks directly with "measurement" event
             for callback in self._callbacks:

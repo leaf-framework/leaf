@@ -88,8 +88,8 @@ class MockEquipmentAdapter(EquipmentAdapter):
         filename = os.path.basename(fp)
         watcher = FileWatcher(directory, metadata_manager, filenames=filename)
         output = MQTT(broker, port, username=un, password=pw, clientid=None)
-        start_p = ControlPhase(metadata_manager.experiment.start)
-        stop_p = ControlPhase(metadata_manager.experiment.stop)
+        start_p = ControlPhase(metadata_manager.start)
+        stop_p = ControlPhase(metadata_manager.stop)
         # The measurement fixture files used by these tests have ~285 rows;
         # the default maximum_message_size=1 would pace publishing at one
         # row per 0.1s (~28s total) on top of FileWatcher's debounce delay.
@@ -193,8 +193,8 @@ class TestEquipmentAdapter(unittest.TestCase):
         self._adapter = MockEquipmentAdapter(instance_data, equipment_data, text_watch_file, **kwargs)
 
         self.details_topic = self._adapter._metadata_manager.details()
-        self.start_topic = self._adapter._metadata_manager.experiment.start()
-        self.stop_topic = self._adapter._metadata_manager.experiment.stop()
+        self.start_topic = self._adapter._metadata_manager.start()
+        self.stop_topic = self._adapter._metadata_manager.stop()
 
         self.mock_client.flush(self.details_topic)
         self.mock_client.flush(self.start_topic)
@@ -275,7 +275,7 @@ class TestEquipmentAdapter(unittest.TestCase):
             os.remove(text_watch_file)
         time.sleep(1)
 
-        exp_tp = self._adapter._metadata_manager.experiment.measurement(
+        exp_tp = self._adapter._metadata_manager.measurement(
             experiment_id=self._adapter._interpreter.id, measurement="unknown"
         )
         self.mock_client.subscribe(exp_tp)
@@ -341,8 +341,8 @@ class TestEquipmentAdapter(unittest.TestCase):
         _adapter = MockEquipmentAdapter(instance_data, equipment_data, text_watch_file, experiment_timeout=exp_timeout)
 
         details_topic = _adapter._metadata_manager.details()
-        start_topic = _adapter._metadata_manager.experiment.start()
-        stop_topic = _adapter._metadata_manager.experiment.stop()
+        start_topic = _adapter._metadata_manager.start()
+        stop_topic = _adapter._metadata_manager.stop()
 
         mock_client.flush(details_topic)
         mock_client.flush(start_topic)
@@ -391,7 +391,7 @@ class TestEquipmentAdapter(unittest.TestCase):
                 time.sleep(0.1)
             self.assertEqual(
                 list(mock_client.messages.keys()),
-                [_adapter._metadata_manager.details(), _adapter._metadata_manager.experiment.start()],
+                [_adapter._metadata_manager.details(), _adapter._metadata_manager.start()],
             )
             _adapter.stop()
             mthread.join()

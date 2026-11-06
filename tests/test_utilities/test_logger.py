@@ -5,7 +5,7 @@ import threading
 import time
 import unittest
 
-from leaf.start import main
+from leaf.start import main, stop_all_adapters
 from leaf.utility.logger.logger_utils import clear_log_buffer, get_log_buffer, get_logger
 
 
@@ -62,6 +62,7 @@ OUTPUTS:
             f.write(config_content)
             temp_config_path = f.name
 
+        leaf_thread: threading.Thread | None = None
         try:
 
             def run_leaf_with_timeout():
@@ -102,11 +103,11 @@ OUTPUTS:
 
             # Buffer should contain multiple startup messages
             self.assertGreater(len(buffer_contents), 5, "Buffer should contain multiple startup log messages")
-
-            # The thread will continue running but as a daemon it will be cleaned up
-            # when the test ends. We don't join it since LEAF doesn't have a clean
-            # shutdown mechanism in this test context.
         finally:
+            # Left running, the Example adapter keeps polling into later tests and logs to closed streams
+            stop_all_adapters()
+            if leaf_thread is not None:
+                leaf_thread.join(timeout=10)
             # Clean up temporary config file
             if os.path.exists(temp_config_path):
                 os.unlink(temp_config_path)

@@ -63,8 +63,8 @@ class TestRunUtilities(unittest.TestCase):
         manager.add_instance_value("organisation", organisation)
         manager.add_instance_value("instance_id", instance_id)
 
-        measurement_topic = manager.experiment.measurement(experiment_id=experiment_id, measurement=measurement_id)
-        start_topic = manager.experiment.start()
+        measurement_topic = manager.measurement(experiment_id=experiment_id, measurement=measurement_id)
+        start_topic = manager.start()
 
         inp_messages = {
             measurement_topic: ['{"A":"A"}', '{"B":"B"}', '{"C":"C"}'],

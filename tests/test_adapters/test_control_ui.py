@@ -158,24 +158,25 @@ def test_errors_are_published_once_not_once_per_process() -> None:
 def test_result_record_puts_source_and_status_in_the_tags() -> None:
     from leaf.adapters.control_spec import result_record
 
-    sent = '{"measurement": "leaf_test", "tags": {"metric": "T_sp"}, "fields": {"value": 303.0}}'
+    sent = '{"measurement": "leaf_test", "tags": {"metric": "T_sp", "entity": "r1"}, "fields": {"value": 303.0}}'
     record = result_record(sent, "ui")
     assert record["measurement"] == "leaf_test"
-    assert record["tags"] == {"metric": "T_sp", "source": "ui", "status": "applied"}
+    assert record["tags"] == {"metric": "T_sp", "entity": "r1", "source": "ui", "status": "applied"}
     assert record["fields"] == {"value": 303.0}
     assert isinstance(record["timestamp"], float)
 
     rejected = result_record(sent, "mqtt", ValueError("T_sp = 2000.0 is above its maximum 373.15"))
     assert rejected["tags"] == {
         "metric": "T_sp",
+        "entity": "r1",
         "source": "mqtt",
         "status": "rejected",
         "error": "T_sp = 2000.0 is above its maximum 373.15",
     }
     assert rejected["fields"] == {"value": 303.0}
 
-    unreadable = result_record("not json", "mqtt", ValueError("bad"))
-    assert unreadable["tags"] == {"source": "mqtt", "status": "rejected", "error": "bad"}
+    unreadable = result_record("not json", "mqtt", ValueError("bad"), {"entity": "r1"})
+    assert unreadable["tags"] == {"entity": "r1", "source": "mqtt", "status": "rejected", "error": "bad"}
     assert unreadable["fields"] == {"message": "not json"}
 
 
@@ -220,6 +221,8 @@ def test_control_results_carry_the_instance_tags() -> None:
     [(_, record)] = output.sent
     tags = cast(dict[str, dict[str, str]], record)["tags"]
     assert (tags["organisation"], tags["department"]) == ("wur", "ssb")
+    # leafobject requires an entity; a control acts on the instance itself
+    assert tags["entity"] == "r1"
 
 
 def test_rejected_commands_are_published_too() -> None:
@@ -235,17 +238,20 @@ def test_result_record_is_a_valid_leafpoint() -> None:
     from leaf.adapters.control_spec import result_record
 
     # Messages LEAF rejects still become a LeafPoint: tags as text, at least one field
-    record = result_record('{"tags": {"metric": "T_sp", "reactor": 1}}', "mqtt", ValueError("needs fields"))
+    record = result_record(
+        '{"tags": {"metric": "T_sp", "reactor": 1}}', "mqtt", ValueError("needs fields"), {"entity": "r1"}
+    )
     assert record["tags"] == {
         "metric": "T_sp",
         "reactor": "1",
+        "entity": "r1",
         "source": "mqtt",
         "status": "rejected",
         "error": "needs fields",
     }
     assert record["fields"] == {"message": '{"tags": {"metric": "T_sp", "reactor": 1}}'}
 
-    nested = result_record('{"tags": {"metric": "x"}, "fields": {"value": {"a": 1}}}', "ui")
+    nested = result_record('{"tags": {"metric": "x"}, "fields": {"value": {"a": 1}}}', "ui", None, {"entity": "r1"})
     assert nested["fields"] == {"value": '{"a": 1}'}
 
 
