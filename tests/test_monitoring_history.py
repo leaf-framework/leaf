@@ -176,10 +176,10 @@ def test_measure_always_puts_the_entity_between_measurement_and_metric() -> None
 
 
 class InvalidLeafPoint:
-    """A LeafPoint whose to_json() fails validation, as leafobject does without an entity tag."""
+    """A LeafPoint whose to_json() fails validation, as leafobject does without fields."""
 
     def to_json(self) -> dict[str, object]:
-        raise ValueError("Entity tag is not set")
+        raise ValueError("Fields are not set")
 
 
 def test_an_invalid_point_is_reported_and_only_it_is_dropped() -> None:
@@ -197,7 +197,27 @@ def test_an_invalid_point_is_reported_and_only_it_is_dropped() -> None:
     assert phase.update("raw") == []
     errors = [str(error) for error, _ in holder.get_unseen_errors()]
     assert len(errors) == 2
-    assert all("Entity tag is not set" in error for error in errors)
+    assert all("Fields are not set" in error for error in errors)
+
+
+def test_a_leafpoint_without_entity_is_about_the_instance() -> None:
+    from datetime import UTC, datetime
+
+    from leafobject import LeafPoint  # pyright: ignore[reportMissingTypeStubs]
+
+    point = LeafPoint()
+    point.measurement = "m"
+    point.set_timestamp(datetime.now(UTC))
+    point.set_metric("T")
+    point.set_value(298.0)
+    metadata = MetadataManager()
+    metadata.add_instance_value("instance_id", "i")
+    phase = MeasurePhase(metadata_manager=metadata)
+    phase.set_interpreter(cast(AbstractInterpreter, cast(object, PointInterpreter(point))))
+    messages = cast(list[tuple[str, dict[str, dict[str, str]]]], phase.update("raw") or [])
+    [(topic, payload)] = messages
+    assert topic.endswith("/measurement/i/T")
+    assert payload["tags"]["entity"] == "i"
 
 
 def test_an_unset_experiment_id_is_not_tagged() -> None:
