@@ -235,7 +235,7 @@ class MeasurePhase(PhaseModule):
 
         payload = cast(object, result)
         try:
-            point_json = point_json_of(payload)
+            point_json = point_json_of(self._with_entity(payload))
         except ValueError as ex:
             # A LeafPoint that fails validation, e.g. one without an entity tag
             self._handle_exception(InterpreterError(str(ex)))
@@ -249,7 +249,7 @@ class MeasurePhase(PhaseModule):
             converted = []
             for item in cast(list[object], result):
                 try:
-                    point_json = point_json_of(item)
+                    point_json = point_json_of(self._with_entity(item))
                 except ValueError as ex:
                     # Only the invalid point is dropped, the rest of the batch is still sent
                     self._handle_exception(InterpreterError(str(ex)))
@@ -294,6 +294,17 @@ class MeasurePhase(PhaseModule):
         # Every point has an entity; one inside the instance (e.g. a reactor) differs from it by design, so no warning
         if not tags.get("entity"):
             tags["entity"] = self._instance_entity()
+
+    def _with_entity(self, item: object) -> object:
+        """Name the instance as the entity of a LeafPoint that names none."""
+        # Before to_json(), which rejects a point without an entity
+        tags: object = getattr(item, "tags", None)
+        if not isinstance(tags, dict):
+            return item
+        point_tags = cast(dict[str, object], tags)
+        if not point_tags.get("entity"):
+            point_tags["entity"] = self._instance_entity()
+        return item
 
     def _topic_of(self, item: object) -> str:
         """Measurement topic of a point: .../measurement/<entity>/<metric>."""
