@@ -47,6 +47,8 @@ class OPCWatcher(EventWatcher):
         interval: int = 1,
         callbacks: list[Callable[..., Any]] | None = None,
         error_holder: ErrorHolder | None = None,
+        username: str | None = None,
+        password: str | None = None,
     ) -> None:
         """
         Initialize OPCWatcher.
@@ -55,6 +57,8 @@ class OPCWatcher(EventWatcher):
             metadata_manager (MetadataManager): Manages equipment metadata.
             callbacks (Optional[List[Callable]]): Callbacks for event updates.
             error_holder (Optional[ErrorHolder]): Optional object to manage errors.
+            username (Optional[str]): OPC UA username; anonymous login when omitted.
+            password (Optional[str]): Password for the given username.
         """
         super().__init__(metadata_manager, callbacks=callbacks, error_holder=error_holder)
 
@@ -68,6 +72,8 @@ class OPCWatcher(EventWatcher):
         self._handler = self._dispatch_callback
         self._handles: list[Any] = []
         self._interval = interval
+        self._username: str | None = username
+        self._password: str | None = password
         self.logger = get_logger(__name__, log_file="input_module.log")
         if host is None or port is None:
             raise ValueError("Host and port must be specified.")
@@ -114,7 +120,7 @@ class OPCWatcher(EventWatcher):
         while self._running:
             self.logger.info(f"Connecting to OPC UA server {self._host}:{self._port}...")
             try:
-                self._client = Client(f"opc.tcp://{self._host}:{self._port}")
+                self._client = self._new_client()
                 self._client.connect()
 
                 root = self._client.get_root_node()
@@ -152,6 +158,17 @@ class OPCWatcher(EventWatcher):
             self.logger.info(f"Reconnecting in {reconnect_delay}s...")
             time.sleep(reconnect_delay)
             reconnect_delay = min(reconnect_delay * RECONNECT_RATE, MAX_RECONNECT_DELAY)
+
+    def _new_client(self):
+        """Create an OPC UA client, with credentials when a username is configured."""
+        # start() already guards this; repeated here so the type checker knows Client is set.
+        if Client is None:
+            raise RuntimeError("OPC UA library is not available.")
+        client = Client(f"opc.tcp://{self._host}:{self._port}")
+        if self._username:
+            client.set_user(self._username)
+            client.set_password(self._password)
+        return client
 
     def _cleanup_connection(self) -> None:
         """Unsubscribe and disconnect cleanly."""
