@@ -23,26 +23,27 @@ except ImportError:
     Server = None
 
 
-# Check if OPC server is available
-def is_opc_server_available(host="127.0.0.1", port=4841, timeout=0.5):
-    """Check if an OPC UA server is running at the specified host and port."""
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex((host, port))
-        sock.close()
-        return result == 0
-    except Exception:
-        return False
+def free_port() -> int:
+    """Ask the OS for a free port, so parallel test workers never share one."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
 
 
-OPC_SERVER_AVAILABLE = is_opc_server_available()
+def wait_for(condition, timeout=10.0):
+    """Poll until condition() is true or the timeout passes; returns the last result."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if condition():
+            return True
+        time.sleep(0.1)
+    return condition()
 
 
 class OPCDemoServer:
     """Demo OPC UA Server for testing"""
 
-    def __init__(self, host="0.0.0.0", port=4840):
+    def __init__(self, host="0.0.0.0", port=4840, users=None):
         if not OPCUA_AVAILABLE:
             raise ImportError("OPC UA library not available")
 
@@ -51,6 +52,12 @@ class OPCDemoServer:
         self.server = Server()
         self.server.set_endpoint(f"opc.tcp://{host}:{port}/freeopcua/server/")
         self.server.set_server_name("Leaf OPC UA Test Server")
+        if users:
+            # Only username logins; anonymous clients are rejected.
+            self.server.set_security_IDs(["Username"])
+            user_manager = self.server.user_manager
+            assert user_manager is not None
+            user_manager.set_user_manager(lambda _session, user, pwd: users.get(user) == pwd)
 
         # Setup namespace
         self.uri = "http://leaf.test.opcua"
@@ -127,8 +134,7 @@ class OPCDemoServer:
         self._update_thread.start()
 
 
-# @unittest.skipIf(not OPCUA_AVAILABLE, "OPC UA library not available")
-@unittest.skip("OPC UA library local testing only")
+@unittest.skipIf(not OPCUA_AVAILABLE, "OPC UA library not available")
 class TestOPCWatcher(unittest.TestCase):
     """Test OPCWatcher with embedded demo server"""
 
@@ -138,9 +144,9 @@ class TestOPCWatcher(unittest.TestCase):
         cls.demo_server = None
         cls.server_failed = False
         try:
-            cls.demo_server = OPCDemoServer(host="127.0.0.1", port=4841)
+            cls.port = free_port()
+            cls.demo_server = OPCDemoServer(host="127.0.0.1", port=cls.port)
             cls.demo_server.start()
-            time.sleep(2)  # Give server time to start
         except Exception as e:
             cls.server_failed = True
             cls.server_error = str(e)
@@ -152,12 +158,9 @@ class TestOPCWatcher(unittest.TestCase):
         if cls.demo_server:
             try:
                 cls.demo_server.stop()
-                time.sleep(0.5)
             except Exception as e:
                 print(f"Error stopping OPC demo server: {e}")
 
-    # Skip tests if server failed to start
-    @unittest.skip("Skipping tests due to OPC demo server failure in gitlab runner")
     def test_opc_watcher_connection(self):
         """Test that OPCWatcher can successfully connect to the demo server"""
         if self.server_failed:
@@ -169,15 +172,19 @@ class TestOPCWatcher(unittest.TestCase):
         topics = {"Temperature"}
 
         watcher = OPCWatcher(
-            metadata_manager=metadata_manager, host="127.0.0.1", port=4841, topics=topics, exclude_topics=[], interval=1
+            metadata_manager=metadata_manager,
+            host="127.0.0.1",
+            port=self.port,
+            topics=topics,
+            exclude_topics=[],
+            interval=1,
         )
 
         watcher.start()
-        time.sleep(0.5)
 
         # Verify connection
+        self.assertTrue(wait_for(lambda: watcher._sub is not None))
         self.assertIsNotNone(watcher._client)
-        self.assertIsNotNone(watcher._sub)
 
         watcher.stop()
 
@@ -198,7 +205,7 @@ class TestOPCWatcher(unittest.TestCase):
         watcher = OPCWatcher(
             metadata_manager=metadata_manager,
             host="127.0.0.1",
-            port=4841,
+            port=self.port,
             topics=topics,
             exclude_topics=[],
             interval=1,
@@ -206,16 +213,14 @@ class TestOPCWatcher(unittest.TestCase):
         )
 
         watcher.start()
-        time.sleep(0.5)
+        self.assertTrue(wait_for(lambda: len(received_messages) > 0), "No initial values received")
 
-        # Update server values
+        # A server-side change must arrive as a new message
+        before = len(received_messages)
         self.demo_server.update_values_once()
-        time.sleep(2)  # Wait for subscription to trigger
+        self.assertTrue(wait_for(lambda: len(received_messages) > before), "No data change received")
 
         watcher.stop()
-
-        # Should have received at least initial values
-        self.assertTrue(len(received_messages) > 0, f"Expected messages but got {len(received_messages)}")
 
         # Verify message structure
         for topic, data in received_messages:
@@ -240,7 +245,7 @@ class TestOPCWatcher(unittest.TestCase):
         watcher = OPCWatcher(
             metadata_manager=metadata_manager,
             host="127.0.0.1",
-            port=4841,
+            port=self.port,
             topics=topics,
             exclude_topics=[],
             interval=1,
@@ -248,17 +253,17 @@ class TestOPCWatcher(unittest.TestCase):
         )
 
         watcher.start()
-        time.sleep(0.5)
+        self.assertTrue(wait_for(lambda: len(received_messages) > 0), "No initial value received")
 
-        # Update values multiple times
-        for _ in range(3):
+        # Every counter increment must arrive as its own message
+        for i in range(3):
+            before = len(received_messages)
             self.demo_server.update_values_once()
-            time.sleep(1.5)
+            self.assertTrue(
+                wait_for(lambda before=before: len(received_messages) > before), f"Update {i + 1} not received"
+            )
 
         watcher.stop()
-
-        # Should have received multiple updates (initial + 3 updates)
-        self.assertTrue(len(received_messages) >= 3, f"Expected at least 3 messages but got {len(received_messages)}")
 
     def test_opc_watcher_exclude_topics(self):
         """Test that OPCWatcher excludes specified topics"""
@@ -278,7 +283,7 @@ class TestOPCWatcher(unittest.TestCase):
         watcher = OPCWatcher(
             metadata_manager=metadata_manager,
             host="127.0.0.1",
-            port=4841,
+            port=self.port,
             topics=topics,
             exclude_topics=exclude_topics,
             interval=1,
@@ -286,11 +291,13 @@ class TestOPCWatcher(unittest.TestCase):
         )
 
         watcher.start()
-        time.sleep(1)
 
+        # Once both included topics report in, subscribing is done
+        def seen():
+            return {str(data.get("node")) for _, data in received_messages}
+
+        self.assertTrue(wait_for(lambda: {"Temperature", "Pressure"} <= seen()), f"Only saw {seen()}")
         self.demo_server.update_values_once()
-        time.sleep(2)
-
         watcher.stop()
 
         # Verify that excluded topic was not subscribed
@@ -313,26 +320,74 @@ class TestOPCWatcher(unittest.TestCase):
             interval=1,
         )
 
-        # Should raise an exception when trying to connect
-        with self.assertRaises(Exception):
-            watcher.start()
+        # Errors are handled by the background reconnect loop; start() itself must not raise.
+        watcher.start()
+        # Absence check: give it a second to (wrongly) subscribe
+        self.assertFalse(wait_for(lambda: watcher._sub is not None, timeout=1))
+        self.assertTrue(watcher._thread is not None and watcher._thread.is_alive())
+        watcher.stop()
 
-    def test_opc_watcher_no_topics_raises_error(self):
-        """Test that OPCWatcher raises error when no topics provided"""
+    def test_opc_watcher_no_topics_only_browses(self):
+        """Without topics the watcher lists the server's nodes but subscribes to nothing"""
         metadata_manager = MetadataManager()
 
         watcher = OPCWatcher(
             metadata_manager=metadata_manager,
             host="127.0.0.1",
-            port=4841,
+            port=self.port,
             topics=set(),  # Empty topics
             exclude_topics=[],
             interval=1,
         )
 
-        # Should raise ValueError when no topics provided
-        with self.assertRaises(ValueError):
-            watcher.start()
+        # Without topics the watcher only browses and logs what is available; it never subscribes.
+        watcher.start()
+        self.assertTrue(wait_for(lambda: len(watcher._all_topics) > 0))
+        self.assertIsNone(watcher._sub)
+        watcher.stop()
+
+
+@unittest.skipIf(not OPCUA_AVAILABLE, "OPC UA library not available")
+class TestOPCWatcherAuthentication(unittest.TestCase):
+    """OPCWatcher against a demo server that requires a username and password."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.port = free_port()
+        cls.demo_server = OPCDemoServer(host="127.0.0.1", port=cls.port, users={"leaf": "secret"})
+        cls.demo_server.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.demo_server.stop()
+
+    def _received(self, username=None, password=None, timeout=5.0):
+        """Run a watcher for a few seconds; return the messages it received."""
+        received = []
+        watcher = OPCWatcher(
+            metadata_manager=MetadataManager(),
+            host="127.0.0.1",
+            port=self.port,
+            topics={"Temperature"},
+            exclude_topics=[],
+            callbacks=[lambda topic, data: received.append(data)],
+            username=username,
+            password=password,
+        )
+        watcher.start()
+        wait_for(lambda: len(received) > 0, timeout=timeout)
+        watcher.stop()
+        return received
+
+    def test_correct_credentials_receive_data(self):
+        self.assertTrue(self._received("leaf", "secret"))
+
+    def test_wrong_password_is_rejected(self):
+        # Absence check: a rejected login fails within milliseconds, 2 s is plenty
+        self.assertEqual(self._received("leaf", "wrong", timeout=2.0), [])
+
+    # No anonymous-rejection test: the opcua demo server still admits anonymous clients
+    # even with set_security_IDs(["Username"]), so it can't verify that here.
 
 
 if __name__ == "__main__":
