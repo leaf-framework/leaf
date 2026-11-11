@@ -291,6 +291,53 @@ class TestOPCWatcherReconnect(unittest.TestCase):
 
     @patch("leaf.modules.input_modules.opc_watcher.time")
     @patch("leaf.modules.input_modules.opc_watcher.Client")
+    def test_credentials_set_before_connect(self, mock_client_cls: Mock, _mock_time: Mock) -> None:
+        """Username and password are passed to the client before connecting."""
+        mock_client = Mock()
+        mock_client_cls.return_value = mock_client
+        watcher = OPCWatcher(
+            metadata_manager=self.metadata_manager,
+            host="localhost",
+            port=4840,
+            topics={"temperature"},
+            exclude_topics=[],
+            username="leaf",
+            password="secret",
+        )
+
+        def stop(*_):
+            watcher._running = False
+
+        mock_client.connect.side_effect = stop
+        watcher.start()
+        assert watcher._thread is not None
+        watcher._thread.join(timeout=5.0)
+
+        mock_client.set_user.assert_called_once_with("leaf")
+        mock_client.set_password.assert_called_once_with("secret")
+        mock_client.connect.assert_called_once()
+
+    @patch("leaf.modules.input_modules.opc_watcher.time")
+    @patch("leaf.modules.input_modules.opc_watcher.Client")
+    def test_anonymous_by_default(self, mock_client_cls: Mock, _mock_time: Mock) -> None:
+        """Without a username the client connects anonymously."""
+        mock_client = Mock()
+        mock_client_cls.return_value = mock_client
+        watcher = self._make_watcher()
+
+        def stop(*_):
+            watcher._running = False
+
+        mock_client.connect.side_effect = stop
+        watcher.start()
+        assert watcher._thread is not None
+        watcher._thread.join(timeout=5.0)
+
+        mock_client.set_user.assert_not_called()
+        mock_client.set_password.assert_not_called()
+
+    @patch("leaf.modules.input_modules.opc_watcher.time")
+    @patch("leaf.modules.input_modules.opc_watcher.Client")
     def test_initial_connection_failure_retries(self, mock_client_cls, mock_time):
         """A failed initial connection should be retried."""
         connect_calls = [0]
