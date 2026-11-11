@@ -2,6 +2,7 @@
 
 import logging
 import threading
+import time
 import unittest
 from datetime import UTC, datetime
 from unittest.mock import Mock, patch
@@ -239,6 +240,21 @@ class TestOpcWatcher(unittest.TestCase):
         self.assertEqual(callback_called[0], test_data)
 
 
+class FakeClient:
+    """Typed stand-in for opcua.Client that records the credentials it gets."""
+
+    def __init__(self, url: str) -> None:
+        self.url: str = url
+        self.user: str | None = None
+        self.password: str | None = None
+
+    def set_user(self, username: str) -> None:
+        self.user = username
+
+    def set_password(self, password: str | None) -> None:
+        self.password = password
+
+
 @unittest.skipUnless(OPCUA_AVAILABLE, "OPC UA library not available")
 class TestOPCWatcherReconnect(unittest.TestCase):
     """Tests for the automatic reconnection logic in OPCWatcher._connection_loop."""
@@ -248,8 +264,8 @@ class TestOPCWatcherReconnect(unittest.TestCase):
         self.error_holder = ErrorHolder("opc_reconnect_test")
         self.metadata_manager.add_equipment_data(metadata_fn)
 
-    def _make_watcher(self, topics=None):
-        return OPCWatcher(
+    def _make_watcher(self, topics: set[str] | None = None, wait: Mock | None = None) -> OPCWatcher:
+        watcher = OPCWatcher(
             metadata_manager=self.metadata_manager,
             host="localhost",
             port=4840,
@@ -258,6 +274,10 @@ class TestOPCWatcherReconnect(unittest.TestCase):
             interval=1,
             error_holder=self.error_holder,
         )
+        if wait is not None:
+            # Drive the loop's keepalive/backoff waits from the test instead of real time.
+            watcher._stop_event.wait = wait
+        return watcher
 
     @patch("leaf.modules.input_modules.opc_watcher.time")
     @patch("leaf.modules.input_modules.opc_watcher.Client")
@@ -267,7 +287,7 @@ class TestOPCWatcherReconnect(unittest.TestCase):
         mock_client = Mock()
         mock_client_cls.return_value = mock_client
 
-        watcher = self._make_watcher()
+        watcher = self._make_watcher(wait=mock_time.sleep)
 
         keepalive_calls = [0]
 
@@ -289,12 +309,9 @@ class TestOPCWatcherReconnect(unittest.TestCase):
         self.assertEqual(mock_client_cls.call_count, 2)
         self.assertEqual(mock_client.connect.call_count, 2)
 
-    @patch("leaf.modules.input_modules.opc_watcher.time")
-    @patch("leaf.modules.input_modules.opc_watcher.Client")
-    def test_credentials_set_before_connect(self, mock_client_cls: Mock, _mock_time: Mock) -> None:
-        """Username and password are passed to the client before connecting."""
-        mock_client = Mock()
-        mock_client_cls.return_value = mock_client
+    @patch("leaf.modules.input_modules.opc_watcher.Client", FakeClient)
+    def test_credentials_set_on_client(self) -> None:
+        """A configured username and password are set on every new client."""
         watcher = OPCWatcher(
             metadata_manager=self.metadata_manager,
             host="localhost",
@@ -304,37 +321,20 @@ class TestOPCWatcherReconnect(unittest.TestCase):
             username="leaf",
             password="secret",
         )
+        client = watcher._new_client()
 
-        def stop(*_):
-            watcher._running = False
+        assert isinstance(client, FakeClient)
+        self.assertEqual(client.user, "leaf")
+        self.assertEqual(client.password, "secret")
 
-        mock_client.connect.side_effect = stop
-        watcher.start()
-        assert watcher._thread is not None
-        watcher._thread.join(timeout=5.0)
-
-        mock_client.set_user.assert_called_once_with("leaf")
-        mock_client.set_password.assert_called_once_with("secret")
-        mock_client.connect.assert_called_once()
-
-    @patch("leaf.modules.input_modules.opc_watcher.time")
-    @patch("leaf.modules.input_modules.opc_watcher.Client")
-    def test_anonymous_by_default(self, mock_client_cls: Mock, _mock_time: Mock) -> None:
+    @patch("leaf.modules.input_modules.opc_watcher.Client", FakeClient)
+    def test_anonymous_by_default(self) -> None:
         """Without a username the client connects anonymously."""
-        mock_client = Mock()
-        mock_client_cls.return_value = mock_client
-        watcher = self._make_watcher()
+        client = self._make_watcher()._new_client()
 
-        def stop(*_):
-            watcher._running = False
-
-        mock_client.connect.side_effect = stop
-        watcher.start()
-        assert watcher._thread is not None
-        watcher._thread.join(timeout=5.0)
-
-        mock_client.set_user.assert_not_called()
-        mock_client.set_password.assert_not_called()
+        assert isinstance(client, FakeClient)
+        self.assertIsNone(client.user)
+        self.assertIsNone(client.password)
 
     @patch("leaf.modules.input_modules.opc_watcher.time")
     @patch("leaf.modules.input_modules.opc_watcher.Client")
@@ -360,7 +360,7 @@ class TestOPCWatcherReconnect(unittest.TestCase):
 
         mock_client.connect.side_effect = connect_side_effect
 
-        watcher = self._make_watcher()
+        watcher = self._make_watcher(wait=mock_time.sleep)
         with patch.object(watcher, "_subscribe_to_topics"):
             watcher.start()
             watcher._thread.join(timeout=5.0)
@@ -385,7 +385,7 @@ class TestOPCWatcherReconnect(unittest.TestCase):
         mock_client_cls.return_value = mock_client
         mock_client.connect.side_effect = ConnectionRefusedError("Server unavailable")
 
-        watcher = self._make_watcher()
+        watcher = self._make_watcher(wait=mock_time.sleep)
         with patch.object(watcher, "_subscribe_to_topics"):
             watcher.start()
             watcher._thread.join(timeout=5.0)
@@ -429,7 +429,7 @@ class TestOPCWatcherReconnect(unittest.TestCase):
 
         mock_client.get_root_node.return_value.get_browse_name.side_effect = disconnect_side_effect
 
-        watcher = self._make_watcher()
+        watcher = self._make_watcher(wait=mock_time.sleep)
         with patch.object(watcher, "_subscribe_to_topics"):
             watcher.start()
             watcher._thread.join(timeout=5.0)
@@ -452,7 +452,7 @@ class TestOPCWatcherReconnect(unittest.TestCase):
         mock_client = Mock()
         mock_client_cls.return_value = mock_client
 
-        watcher = self._make_watcher()
+        watcher = self._make_watcher(wait=mock_time.sleep)
 
         keepalive_calls = [0]
 
@@ -503,6 +503,22 @@ class TestOPCWatcherReconnect(unittest.TestCase):
         self.assertIs(watcher._thread, first_thread)
         self.assertEqual(mock_client_cls.call_count, 1)
 
+    @patch("leaf.modules.input_modules.opc_watcher.Client")
+    def test_stop_interrupts_keepalive_wait(self, mock_client_cls: Mock) -> None:
+        """stop() wakes the thread from its 10 s keepalive wait instead of timing out."""
+        connected = threading.Event()
+        mock_client_cls.return_value.connect.side_effect = lambda: connected.set()
+        watcher = self._make_watcher()
+
+        with patch.object(watcher, "_subscribe_to_topics"):
+            watcher.start()
+            self.assertTrue(connected.wait(timeout=2.0))
+            started = time.monotonic()
+            watcher.stop()
+
+        self.assertLess(time.monotonic() - started, 1.0)
+        self.assertFalse(watcher.is_running())
+
     @patch("leaf.modules.input_modules.opc_watcher.time")
     @patch("leaf.modules.input_modules.opc_watcher.Client")
     def test_backoff_caps_at_max_reconnect_delay(self, mock_client_cls, mock_time):
@@ -523,7 +539,7 @@ class TestOPCWatcherReconnect(unittest.TestCase):
         mock_client_cls.return_value = mock_client
         mock_client.connect.side_effect = ConnectionRefusedError("Server unavailable")
 
-        watcher = self._make_watcher()
+        watcher = self._make_watcher(wait=mock_time.sleep)
         with patch.object(watcher, "_subscribe_to_topics"):
             watcher.start()
             watcher._thread.join(timeout=5.0)

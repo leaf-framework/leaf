@@ -1,26 +1,33 @@
+import logging
 import threading
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")
 
+if TYPE_CHECKING:
+    from opcua import Client, Node, Subscription  # pyright: ignore[reportMissingTypeStubs]
+    from opcua.common.subscription import DataChangeNotif  # pyright: ignore[reportMissingTypeStubs]
+    from opcua.ua import NodeId  # pyright: ignore[reportMissingTypeStubs]
+
 try:
-    from opcua import Client, Node, Subscription  # type: ignore
-    from opcua.ua import DataChangeNotification  # type: ignore
+    from opcua import Client, Node, Subscription  # pyright: ignore[reportMissingTypeStubs]
+    from opcua.common.subscription import DataChangeNotif  # pyright: ignore[reportMissingTypeStubs]
+    from opcua.ua import NodeId  # pyright: ignore[reportMissingTypeStubs]
 
     OPCUA_AVAILABLE = True
     # Suppress OPC UA library logging to avoid cluttering the output
-    import logging
-
     logging.getLogger("opcua").setLevel(logging.WARNING)
 except ImportError:
     logger.warning("OPC UA library not available. OPCWatcher will not function.")
     OPCUA_AVAILABLE = False
-    Client = Node = Subscription = DataChangeNotification = None  # Placeholders
+    # Runtime placeholders only; hidden from type checkers so the opcua types stay usable.
+    if not TYPE_CHECKING:
+        Client = Node = Subscription = DataChangeNotif = NodeId = None
 
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.event_watcher import EventWatcher
@@ -29,6 +36,14 @@ FIRST_RECONNECT_DELAY = 1
 RECONNECT_RATE = 2
 MAX_RECONNECT_DELAY = 60
 KEEPALIVE_INTERVAL = 10
+
+
+def _node_id(node: Node) -> NodeId:
+    """Return the node's id; opcua types it as optional, but a real node always has one."""
+    node_id: object = getattr(node, "nodeid", None)
+    if not isinstance(node_id, NodeId):
+        raise ValueError("OPC UA node has no node id.")
+    return node_id
 
 
 class OPCWatcher(EventWatcher):
@@ -79,13 +94,16 @@ class OPCWatcher(EventWatcher):
             raise ValueError("Host and port must be specified.")
         self._client: Client | None = None
         self._thread: threading.Thread | None = None
+        # Waits use this instead of time.sleep so stop() can wake the thread at once.
+        self._stop_event: threading.Event = threading.Event()
 
-    def datachange_notification(self, node: Node, val: int | str | float, data: DataChangeNotification) -> None:
-        self.logger.debug(f"OPC datachange_notification: node={node.nodeid.Identifier}, value={val}")
+    def datachange_notification(self, node: Node, val: int | str | float, data: DataChangeNotif) -> None:
+        node_id = _node_id(node)
+        self.logger.debug(f"OPC datachange_notification: node={node_id.Identifier}, value={val}")
         self._dispatch_callback(
             self._metadata_manager.measurement,
             {
-                "node": node.nodeid.Identifier,
+                "node": node_id.Identifier,
                 "value": val,
                 "timestamp": data.monitored_item.Value.SourceTimestamp,
                 "data": data,
@@ -104,6 +122,7 @@ class OPCWatcher(EventWatcher):
             return
 
         super().start()
+        self._stop_event.clear()
         self._thread = threading.Thread(target=self._connection_loop, daemon=True)
         self._thread.start()
         self.logger.info(f"OPCWatcher started for {self._host}:{self._port}")
@@ -139,7 +158,7 @@ class OPCWatcher(EventWatcher):
 
                 # Keepalive loop — detect silent disconnections
                 while self._running:
-                    time.sleep(KEEPALIVE_INTERVAL)
+                    _ = self._stop_event.wait(KEEPALIVE_INTERVAL)
                     try:
                         self._client.get_root_node().get_browse_name()
                     except Exception as e:
@@ -156,14 +175,11 @@ class OPCWatcher(EventWatcher):
                 break
 
             self.logger.info(f"Reconnecting in {reconnect_delay}s...")
-            time.sleep(reconnect_delay)
+            _ = self._stop_event.wait(reconnect_delay)
             reconnect_delay = min(reconnect_delay * RECONNECT_RATE, MAX_RECONNECT_DELAY)
 
-    def _new_client(self):
+    def _new_client(self) -> Client:
         """Create an OPC UA client, with credentials when a username is configured."""
-        # start() already guards this; repeated here so the type checker knows Client is set.
-        if Client is None:
-            raise RuntimeError("OPC UA library is not available.")
         client = Client(f"opc.tcp://{self._host}:{self._port}")
         if self._username:
             client.set_user(self._username)
@@ -247,12 +263,13 @@ class OPCWatcher(EventWatcher):
 
                 handle = self._sub.subscribe_data_change(node)
                 self._handles.append(handle)
-                self.logger.info(f"Subscribed to: {node.nodeid.to_string()}")
+                node_id = _node_id(node)
+                self.logger.info(f"Subscribed to: {node_id.to_string()}")
                 # Send a dummy value to trigger the callback
                 self._dispatch_callback(
                     self._metadata_manager.measurement,
                     {
-                        "node": node.nodeid.Identifier,
+                        "node": node_id.Identifier,
                         "value": node.get_value(),
                         "timestamp": time.time(),
                         "data": None,
@@ -263,7 +280,7 @@ class OPCWatcher(EventWatcher):
                 self.logger.error(f"Failed to subscribe to {topic}: {e}")
                 if "ServiceFault" in str(e):
                     self.logger.info("Retrying in 5 seconds...")
-                    time.sleep(5)
+                    _ = self._stop_event.wait(5)
                     continue  # Try the next topic
 
     def stop(self) -> None:
@@ -272,6 +289,7 @@ class OPCWatcher(EventWatcher):
         """
         self.logger.info("Stopping OPCWatcher")
         super().stop()  # sets _running = False, exits connection loop
+        self._stop_event.set()
 
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=5.0)
