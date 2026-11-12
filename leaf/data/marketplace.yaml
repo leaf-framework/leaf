@@ -198,6 +198,11 @@
     host: string                # OPC server host address
     topics: list[string]        # Optional: list of OPC node IDs to subscribe to
     exclude_topics: list[string] # Optional: list of OPC node IDs to exclude
+    username: string            # Optional: login; anonymous when omitted
+    password: string            # Optional: stored in secrets.env by the config wizard
+    security: string            # Optional: "Policy,Mode,cert,key[,server_cert]" for an encrypted channel
+    certificate: string         # Optional: client certificate path for certificate login
+    private_key: string         # Optional: private key belonging to the certificate
     mapper:                     # Optional: tag mapping rules applied to each measurement
       - field: node             # Tag field to match against (e.g. "node")
         pattern: '^R1_.*'       # Regex pattern to match the field value
@@ -231,8 +236,9 @@
     manufacturer: Movesense
     device_type: RAMSMART sensor
     application: Monitoring
-  # requirements:
-  repo_url: https://git.wur.nl/leaf/adapters/leaf-ramsmart.git
+  requirements:
+    device_addresses: list[string]  # Optional: MAC addresses to monitor; empty listens to all RAMSMART sensors
+  repo_url: https://git.wur.nl/leaf-framework/adapters/leaf-ramsmart.git
   # Private repository: installed with a username and token handed out per user. One deploy
   # token (read_repository, with an expiry) per person, named after them; lost → revoke and reissue.
   access: restricted
