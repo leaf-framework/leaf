@@ -259,6 +259,25 @@ class EquipmentAdapter(ABC):
             return
         self._report_control(topic, data, "mqtt")
 
+    def security_warnings(self) -> list[str]:
+        """Issues of the inputs and output this instance uses that lack credentials or encryption."""
+        issues = self._watcher.security_warnings() + self._output.security_warnings()
+        if self._external_watcher is not None:
+            issues += self._external_watcher.security_warnings()
+        return issues
+
+    def disconnected(self) -> list[str]:
+        """Inputs and output of this running instance that are not connected; none once it is stopped."""
+        if self._stop_event.is_set():
+            return []
+        down: list[str] = []
+        for watcher in (self._watcher, self._external_watcher):
+            if watcher is not None and not watcher.is_connected():
+                down.append(f"{type(watcher).__name__} input")
+        if not self._output.is_connected():
+            down.append(f"{self._output.name} output")
+        return down
+
     def has_controller(self) -> bool:
         """True when the instance runs with control: true and a controller is attached."""
         return self._controller is not None

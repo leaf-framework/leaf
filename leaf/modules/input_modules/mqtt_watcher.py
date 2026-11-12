@@ -14,6 +14,7 @@ from leaf.modules.input_modules.event_watcher import EventWatcher
 from leaf.register.metadata import MetadataManager
 from leaf.register.topic_utilities import topic_utilities
 from leaf.utility.logger.logger_utils import get_logger
+from leaf.utility.security import mqtt_warnings
 
 logger = get_logger(__name__, log_file="input_module.log")
 
@@ -331,6 +332,9 @@ class MQTTEventWatcher(EventWatcher):
         if rc != mqtt.MQTT_ERR_SUCCESS:
             # paho's loop_start() handles automatic reconnection
             logger.warning(f"Unexpected disconnect (rc={rc}), paho will auto-reconnect")
+
+    def security_warnings(self) -> list[str]:
+        return mqtt_warnings("MQTT input", self._broker, self._username, self._tls)
 
     def is_connected(self) -> bool:
         """

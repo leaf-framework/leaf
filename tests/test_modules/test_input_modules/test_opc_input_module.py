@@ -6,6 +6,8 @@ import threading
 import time
 import unittest
 
+import pytest
+
 sys.path.insert(0, os.path.join(".."))
 sys.path.insert(0, os.path.join("..", ".."))
 sys.path.insert(0, os.path.join("..", "..", ".."))
@@ -21,6 +23,10 @@ try:
 except ImportError:
     OPCUA_AVAILABLE = False
     Server = None
+
+
+# opcua's Server() builds a ~37k-line standard address space, which can pass the 30s default on a busy CI runner.
+pytestmark = pytest.mark.timeout(120)
 
 
 def free_port() -> int:

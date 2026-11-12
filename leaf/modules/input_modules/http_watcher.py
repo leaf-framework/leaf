@@ -8,8 +8,12 @@ from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.polling_watcher import PollingWatcher
 from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
+from leaf.utility.security import http_warnings
 
 logger = get_logger(__name__, log_file="input_module.log")
+
+# Without a timeout a server that never answers blocks polling forever.
+DEFAULT_TIMEOUT = 30.0
 
 
 class URLState:
@@ -76,6 +80,7 @@ class HTTPWatcher(PollingWatcher):
         stop_url: str | None = None,
         interval: int = 60,
         headers: dict[str, str] | None = None,
+        timeout: float = DEFAULT_TIMEOUT,
         callbacks: list[Callable[[str, Any], None]] | None = None,
         error_holder: ErrorHolder | None = None,
     ) -> None:
@@ -89,6 +94,7 @@ class HTTPWatcher(PollingWatcher):
             stop_url (Optional[str]): Optional URL to detect stop events.
             interval (int): Polling frequency in seconds.
             headers (Optional[Dict[str, str]]): Custom headers to include in all requests.
+            timeout (float): Seconds to wait for a response before the request counts as failed.
             callbacks (Optional[List[Callable]]): Callback functions to execute on data updates.
             error_holder (Optional[ErrorHolder]): Optional error management object.
         """
@@ -97,8 +103,11 @@ class HTTPWatcher(PollingWatcher):
         )
 
         self._headers: dict[str, str] = headers or {}
+        self._timeout: float = timeout
 
         self._urls: dict[str, str] = {"measurement": measurement_url}
+        # URLs whose last request failed (bad host, 404, ...), so the UI can show the input as down.
+        self._failing_urls: set[str] = set()
         self._url_states: dict[str, URLState] = {"measurement": URLState("measurement")}
 
         if start_url:
@@ -108,6 +117,19 @@ class HTTPWatcher(PollingWatcher):
         if stop_url:
             self._urls["stop"] = stop_url
             self._url_states["stop"] = URLState("stop")
+
+    def is_connected(self) -> bool:
+        if not self.is_running():
+            return False
+        if self._failing_urls:
+            return False
+        return True
+
+    def security_warnings(self) -> list[str]:
+        issues: list[str] = []
+        for url in self._urls.values():
+            issues += http_warnings("HTTP input", url)
+        return issues
 
     def _fetch_data(self) -> dict[str, dict | None]:
         """
@@ -128,11 +150,13 @@ class HTTPWatcher(PollingWatcher):
                 headers["If-Modified-Since"] = state.last_modified
 
             try:
-                response = requests.get(url, headers=headers)
+                response = requests.get(url, headers=headers, timeout=self._timeout)
                 response.raise_for_status()
             except RequestException as e:
+                self._failing_urls.add(url)
                 logger.error(f"[HTTPWatcher] Failed to fetch {key} from {url}: {e}", exc_info=True)
                 continue
+            self._failing_urls.discard(url)
 
             if response.status_code == 200:
                 new_data = state.update_from_response(response)

@@ -225,6 +225,12 @@ def error_shutdown(error: Exception, output: OutputModule, unhandled_errors: lis
     output.disconnect()
 
 
+def log_insecure_connections() -> None:
+    """Log each insecure connection once; the shared output reports the same issue for every instance."""
+    for issue in sorted({issue for adapter in adapters for issue in adapter.security_warnings()}):
+        logger.warning(f"Insecure connection: {issue}")
+
+
 def run_adapters(
     equipment_instances: list[dict[str, Any]],
     output: OutputModule,
@@ -284,6 +290,7 @@ def run_adapters(
                 logger.warning("Continuing with other adapters...")
 
         startup_done.set()
+        log_insecure_connections()
 
         # If no adapters started successfully, log warning but don't crash
         if len(adapters) == 0:

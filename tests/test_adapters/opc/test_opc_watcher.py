@@ -247,6 +247,18 @@ class FakeClient:
         self.url: str = url
         self.user: str | None = None
         self.password: str | None = None
+        self.security: str | None = None
+        self.certificate: str | None = None
+        self.private_key: str | None = None
+
+    def set_security_string(self, security: str) -> None:
+        self.security = security
+
+    def load_client_certificate(self, path: str) -> None:
+        self.certificate = path
+
+    def load_private_key(self, path: str | None) -> None:
+        self.private_key = path
 
     def set_user(self, username: str) -> None:
         self.user = username
@@ -335,6 +347,28 @@ class TestOPCWatcherReconnect(unittest.TestCase):
         assert isinstance(client, FakeClient)
         self.assertIsNone(client.user)
         self.assertIsNone(client.password)
+        self.assertIsNone(client.security)
+        self.assertIsNone(client.certificate)
+
+    @patch("leaf.modules.input_modules.opc_watcher.Client", FakeClient)
+    def test_security_and_certificate_set_on_client(self) -> None:
+        """A security string and login certificate are passed to every new client."""
+        watcher = OPCWatcher(
+            metadata_manager=self.metadata_manager,
+            host="localhost",
+            port=4840,
+            topics={"temperature"},
+            exclude_topics=[],
+            security="Basic256Sha256,SignAndEncrypt,c.pem,k.pem",
+            certificate="user.pem",
+            private_key="user_key.pem",
+        )
+        client = watcher._new_client()
+
+        assert isinstance(client, FakeClient)
+        self.assertEqual(client.security, "Basic256Sha256,SignAndEncrypt,c.pem,k.pem")
+        self.assertEqual(client.certificate, "user.pem")
+        self.assertEqual(client.private_key, "user_key.pem")
 
     @patch("leaf.modules.input_modules.opc_watcher.time")
     @patch("leaf.modules.input_modules.opc_watcher.Client")

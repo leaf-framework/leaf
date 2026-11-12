@@ -374,6 +374,15 @@ class OutputModule(ABC):
         """
         return self._topic_store
 
+    def security_warnings(self) -> list[str]:
+        """Issues of connections made without credentials or encryption, including the fallback and parallels."""
+        issues: list[str] = []
+        if self._fallback is not None:
+            issues += self._fallback.security_warnings()
+        for parallel in self._parallels:
+            issues += parallel.security_warnings()
+        return issues
+
     def on_adapter_ready(self, metadata_manager: Any) -> None:  # noqa: B027
         """
         Called by EquipmentAdapter once instance metadata is available.

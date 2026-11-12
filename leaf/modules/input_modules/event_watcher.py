@@ -60,6 +60,14 @@ class EventWatcher(ABC):
         """
         return self._running
 
+    def is_connected(self) -> bool:
+        """True while the input can deliver data; inputs with a remote connection override this."""
+        return self.is_running()
+
+    def security_warnings(self) -> list[str]:
+        """Issues of a connection made without credentials or encryption; none for local inputs."""
+        return []
+
     def add_callback(self, callback: Callable[[str, Any], None]) -> None:
         """
         Register a new callback.

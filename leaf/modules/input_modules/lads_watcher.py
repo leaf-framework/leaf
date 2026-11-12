@@ -5,6 +5,7 @@ from typing import Any
 
 from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
+from leaf.utility.security import is_local
 
 logger = get_logger(__name__, log_file="input_module.log")
 
@@ -91,6 +92,8 @@ class LADSWatcher(EventWatcher):
         if host is None or port is None:
             raise ValueError("Host and port must be specified.")
         self._client: Client | None = None
+        # True once connected and subscribed, False from the first failure on.
+        self._connected: bool = False
         self._thread: threading.Thread | None = None
         # NodeId string -> {"functional_unit": str, "browse_name": str, "node": Node}
         self._variables: dict[str, dict[str, Any]] = {}
@@ -109,6 +112,12 @@ class LADSWatcher(EventWatcher):
                 "data": data,
             },
         )
+
+    def security_warnings(self) -> list[str]:
+        if is_local(self._host):
+            return []
+        # LADS has no login or encryption options yet, so there is no setting to point to.
+        return [f"LADS to {self._host}: anonymous and unencrypted, keep it on a trusted network"]
 
     def start(self) -> None:
         """
@@ -147,6 +156,7 @@ class LADSWatcher(EventWatcher):
                     raise ValueError("No LADS functional unit variables discovered on server.")
 
                 self._subscribe_to_variables()
+                self._connected = True
 
                 # Reset backoff on successful connection
                 reconnect_delay = FIRST_RECONNECT_DELAY
@@ -176,8 +186,12 @@ class LADSWatcher(EventWatcher):
             time.sleep(reconnect_delay)
             reconnect_delay = min(reconnect_delay * RECONNECT_RATE, MAX_RECONNECT_DELAY)
 
+    def is_connected(self) -> bool:
+        return self._connected
+
     def _cleanup_connection(self) -> None:
         """Unsubscribe and disconnect cleanly."""
+        self._connected = False
         if self._sub and self._handles:
             try:
                 for handle in self._handles:
