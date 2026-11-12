@@ -37,10 +37,9 @@ class OutputModule(ABC):
         Initialize the OutputModule.
 
         Args:
-            fallback (Optional[OutputModule]): Optional fallback output module.
+            fallback (Optional[OutputModule]): Output that takes the messages while this one fails.
             error_holder (Optional[ErrorHolder]): Error tracking mechanism.
-            name (Optional[str]): Human-readable name for this module instance.
-                If not provided, a default is derived from the class name.
+            name (Optional[str]): Label in logs and the status page; empty gives e.g. FILE(out.json).
 
         Raises:
             AdapterLogicError: If fallback is not a valid OutputModule.
@@ -373,6 +372,10 @@ class OutputModule(ABC):
             TopicStore: The topic store.
         """
         return self._topic_store
+
+    def outputs(self) -> list["OutputModule"]:
+        """The configured outputs behind this one: itself, or each member of an OutputGroup."""
+        return [self]
 
     def security_warnings(self) -> list[str]:
         """Issues of connections made without credentials or encryption, including the fallback and parallels."""

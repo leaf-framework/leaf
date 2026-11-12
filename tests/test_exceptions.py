@@ -539,7 +539,7 @@ class TestExceptionsGeneral(unittest.TestCase):
                 SeverityLevel.WARNING,
             ),
         ]
-        expected_logs = ["Disabling client MQTT."]
+        expected_logs = [f"Disabling client {output.name}."]
         self.assertIsInstance(output._enabled, type(time.time()))
         self.assertTrue(len(logs.records) > 0)
         for log, (exc_type, exc_value, _) in _with_exception(logs.records):

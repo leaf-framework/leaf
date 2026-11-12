@@ -23,6 +23,27 @@ OUTPUTS:
     filename: fallback.json
 ```
 
+Every output receives all data, except one that another output names as its `fallback`;
+that one only takes over while the other fails. Two outputs of the same plugin each need a `name`,
+which `fallback` can then refer to.
+
+```yaml
+OUTPUTS:
+  - plugin: MQTT
+    name: lab
+    broker: mqtt.lab
+    fallback: buffer
+  - plugin: MQTT
+    name: cloud
+    broker: mqtt.cloud
+  - plugin: FILE
+    name: share
+    filename: /mnt/share/leaf.json
+  - plugin: FILE
+    name: buffer
+    filename: buffer.json
+```
+
 #### Available Adapters
 - **HelloWorld**: Demo adapter for testing
 - Install more from the Adapters tab

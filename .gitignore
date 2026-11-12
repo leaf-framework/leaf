@@ -144,3 +144,6 @@ dump.rdb
 
 # This project locks with poetry.lock
 uv.lock
+
+# Passwords stored by the configuration wizard
+secrets.env

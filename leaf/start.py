@@ -21,7 +21,7 @@ from leaf.error_handler.exceptions import ClientUnreachableError, SeverityLevel
 from leaf.modules.output_modules.output_module import OutputModule
 from leaf.registry.registry import discover_from_config
 from leaf.ui.interface import start_nicegui
-from leaf.utility.config_utils import substitute_env_variables
+from leaf.utility.config_utils import load_secrets, substitute_in_config
 from leaf.utility.logger.logger_utils import get_logger, set_global_log_level, set_log_dir
 from leaf.utility.running_adapters import adapters, startup_done
 from leaf.utility.running_utilities import (
@@ -340,28 +340,28 @@ def run_adapters(
                         logger.warning(
                             f"Client unreachable (attempt {client_warning_retry_count + 1}): {error}", exc_info=error
                         )
-                        # Only disable/reconnect if the error is from the primary output module
-                        if hasattr(error, "client") and error.client == output:
-                            if output.is_enabled():
-                                if client_warning_retry_count >= max_warning_retries:
-                                    logger.error(f"Disabling client {output.__class__.__name__}.", exc_info=error)
-                                    output.disable()
-                                    client_warning_retry_count = 0
-                                else:
-                                    client_warning_retry_count += 1
-                                    output.disconnect()
-                                    time.sleep(cooldown_period_warning)
-                                    output.connect()
-                        # If error is from a fallback module, just log it (don't disable primary)
+                        # Only disable/reconnect a configured output; a fallback's error is just logged
+                        failed = getattr(error, "client", None)
+                        if failed in output.outputs() and failed.is_enabled():
+                            if client_warning_retry_count >= max_warning_retries:
+                                logger.error(f"Disabling client {failed.name}.", exc_info=error)
+                                failed.disable()
+                                client_warning_retry_count = 0
+                            else:
+                                client_warning_retry_count += 1
+                                failed.disconnect()
+                                time.sleep(cooldown_period_warning)
+                                failed.connect()
                     else:
                         logger.warning(f"Warning encountered: {error}", exc_info=error)
 
                 elif error.severity == SeverityLevel.INFO:
                     logger.info(f"Informational error: {error}", exc_info=error)
 
-            if not output.is_enabled():
-                logger.debug("Output module is disabled, attempting to reconnect.")
-            handle_disabled_modules(output, output_disable_time)
+            for member in output.outputs():
+                if not member.is_enabled():
+                    logger.debug(f"Output {member.name} is disabled, attempting to reconnect.")
+                handle_disabled_modules(member, output_disable_time)
 
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received. Shutting down.")
@@ -531,9 +531,9 @@ def main(args: list[str] | None = None) -> None:
             if not content.strip():
                 run_ui_error_mode("Configuration file is empty, please provide a valid configuration.")
                 return
-            # Substitute environment variables before parsing YAML
-            content = substitute_env_variables(content)
-            config = yaml.safe_load(content)
+            load_secrets(context.args.config)
+            # After parsing, so a substituted password cannot break the YAML
+            config = substitute_in_config(yaml.safe_load(content))
             context.config_yaml = yaml.dump(config, indent=4)
             discover_from_config(config, context.args.path)
     except yaml.YAMLError as e:
