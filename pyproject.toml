@@ -46,6 +46,7 @@ pytest-forked = "^1.6.0"
 pytest-timeout = "^2.4.0"
 pytest-xdist = "^3.8.0"
 opcua = "^0.98.13"
+cryptography = "^50.0.2"
 
 [tool.poetry.group.dev.dependencies]
 bump2version = "^1.0.1"
@@ -80,6 +81,8 @@ markers = [
 
 [tool.coverage.run]
 source = ["leaf"]
+# sys.monitoring stops tracing code outside `source`, so libraries such as opcua run at full speed.
+core = "sysmon"
 omit = [
     "*/tests/*",
     "*/test_*",

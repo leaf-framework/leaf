@@ -1,5 +1,6 @@
 import errno
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -9,6 +10,7 @@ import uuid
 from csv import Error as csv_error
 from pathlib import Path
 from threading import Thread
+from types import TracebackType
 from unittest.mock import MagicMock, mock_open, patch
 
 import paho.mqtt.client as mqtt
@@ -222,6 +224,20 @@ class TestExceptionsInit(unittest.TestCase):
 
         self.assertRaises(AdapterBuildError, _init_cont_proc)
         self.assertRaises(AdapterBuildError, _init_disc_proc)
+
+
+# What LogRecord.exc_info holds when set.
+ExcInfo = tuple[type[BaseException], BaseException, TracebackType | None] | tuple[None, None, None]
+
+
+def _with_exception(records: list[logging.LogRecord]) -> list[tuple[logging.LogRecord, ExcInfo]]:
+    """Records that carry an exception, with it; plain warnings (e.g. the insecure-connection notice) do not."""
+    found: list[tuple[logging.LogRecord, ExcInfo]] = []
+    for record in records:
+        if record.exc_info is None:
+            continue
+        found.append((record, record.exc_info))
+    return found
 
 
 class TestExceptionsGeneral(unittest.TestCase):
@@ -526,8 +542,7 @@ class TestExceptionsGeneral(unittest.TestCase):
         expected_logs = ["Disabling client MQTT."]
         self.assertIsInstance(output._enabled, type(time.time()))
         self.assertTrue(len(logs.records) > 0)
-        for log in logs.records:
-            exc_type, exc_value, exc_traceback = log.exc_info
+        for log, (exc_type, exc_value, _) in _with_exception(logs.records):
             for exp_log in list(expected_logs):
                 if exp_log == log.getMessage():
                     expected_logs.remove(exp_log)

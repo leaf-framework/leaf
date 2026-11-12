@@ -12,6 +12,7 @@ from leaf.error_handler.exceptions import AdapterBuildError, ClientUnreachableEr
 from leaf.modules.input_modules.external_event_watcher import ExternalEventWatcher
 from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
+from leaf.utility.security import mqtt_warnings
 
 logger = get_logger(__name__, log_file="input_module.log")
 
@@ -232,6 +233,9 @@ class MQTTExternalEventWatcher(ExternalEventWatcher):
         if rc != mqtt.MQTT_ERR_SUCCESS:
             # paho's loop_start() handles automatic reconnection
             logger.warning(f"Unexpected disconnect (rc={rc}), paho will auto-reconnect")
+
+    def security_warnings(self) -> list[str]:
+        return mqtt_warnings("MQTT external events", self._broker, self._username, self._tls)
 
     def is_connected(self) -> bool:
         """

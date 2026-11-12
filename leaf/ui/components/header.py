@@ -7,6 +7,7 @@ from pathlib import Path
 from nicegui import ui
 
 from leaf.ui.components.app_control import create_app_controls
+from leaf.ui.components.security_status import create_security_status
 from leaf.ui.components.update_notice import create_update_notice
 
 
@@ -39,10 +40,7 @@ def create_header(dark_mode: ui.dark_mode, curr_dir: Path, drawer=None) -> None:
                 ui.label("Lightweight Equipment Adapter Framework").classes("text-sm opacity-80 ml-4 hidden md:block")
 
             with ui.row().classes("items-center"):
-                # Status indicator
-                with ui.row().classes("items-center mr-4 hidden md:flex"):
-                    ui.html('<span class="status-indicator status-online"></span>', sanitize=False)
-                    ui.label("System Online").classes("text-sm opacity-90")
+                create_security_status()
 
                 create_app_controls()
 

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from leaf.register.metadata import MetadataManager
 from leaf.utility.logger.logger_utils import get_logger
+from leaf.utility.security import is_local
 
 logger = get_logger(__name__, log_file="input_module.log")
 
@@ -64,6 +65,9 @@ class OPCWatcher(EventWatcher):
         error_holder: ErrorHolder | None = None,
         username: str | None = None,
         password: str | None = None,
+        security: str | None = None,
+        certificate: str | None = None,
+        private_key: str | None = None,
     ) -> None:
         """
         Initialize OPCWatcher.
@@ -74,6 +78,10 @@ class OPCWatcher(EventWatcher):
             error_holder (Optional[ErrorHolder]): Optional object to manage errors.
             username (Optional[str]): OPC UA username; anonymous login when omitted.
             password (Optional[str]): Password for the given username.
+            security (Optional[str]): Secure channel as "Policy,Mode,cert,key[,server_cert]",
+                e.g. "Basic256Sha256,SignAndEncrypt,client.pem,client_key.pem". Needs `cryptography`.
+            certificate (Optional[str]): Client certificate path for certificate login.
+            private_key (Optional[str]): Private key path belonging to `certificate`.
         """
         super().__init__(metadata_manager, callbacks=callbacks, error_holder=error_holder)
 
@@ -89,10 +97,15 @@ class OPCWatcher(EventWatcher):
         self._interval = interval
         self._username: str | None = username
         self._password: str | None = password
+        self._security: str | None = security
+        self._certificate: str | None = certificate
+        self._private_key: str | None = private_key
         self.logger = get_logger(__name__, log_file="input_module.log")
         if host is None or port is None:
             raise ValueError("Host and port must be specified.")
         self._client: Client | None = None
+        # True once connected and subscribed, False from the first failure on.
+        self._connected: bool = False
         self._thread: threading.Thread | None = None
         # Waits use this instead of time.sleep so stop() can wake the thread at once.
         self._stop_event: threading.Event = threading.Event()
@@ -109,6 +122,16 @@ class OPCWatcher(EventWatcher):
                 "data": data,
             },
         )
+
+    def security_warnings(self) -> list[str]:
+        if is_local(self._host):
+            return []
+        issues: list[str] = []
+        if not self._security:
+            issues.append(f"OPC UA to {self._host}: traffic unencrypted, set security")
+        if not self._username and not self._certificate:
+            issues.append(f"OPC UA to {self._host}: anonymous login, set username/password or certificate")
+        return issues
 
     def start(self) -> None:
         """
@@ -151,6 +174,7 @@ class OPCWatcher(EventWatcher):
                     raise ValueError("No topics provided. Please provide a list of topics to subscribe to.")
 
                 self._subscribe_to_topics()
+                self._connected = True
 
                 # Reset backoff on successful connection
                 reconnect_delay = FIRST_RECONNECT_DELAY
@@ -179,15 +203,24 @@ class OPCWatcher(EventWatcher):
             reconnect_delay = min(reconnect_delay * RECONNECT_RATE, MAX_RECONNECT_DELAY)
 
     def _new_client(self) -> Client:
-        """Create an OPC UA client, with credentials when a username is configured."""
+        """Create an OPC UA client with the configured secure channel and login."""
         client = Client(f"opc.tcp://{self._host}:{self._port}")
+        if self._security:
+            client.set_security_string(self._security)
+        if self._certificate:
+            client.load_client_certificate(self._certificate)
+            client.load_private_key(self._private_key)
         if self._username:
             client.set_user(self._username)
             client.set_password(self._password)
         return client
 
+    def is_connected(self) -> bool:
+        return self._connected
+
     def _cleanup_connection(self) -> None:
         """Unsubscribe and disconnect cleanly."""
+        self._connected = False
         if self._sub and self._handles:
             try:
                 for handle in self._handles:
