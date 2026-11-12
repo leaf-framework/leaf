@@ -7,6 +7,7 @@ from nicegui import ui
 
 from leaf.registry.discovery import get_all_adapter_codes
 from leaf.ui.components.app_control import restart_leaf
+from leaf.ui.components.config_wizard import open_equipment_wizard, open_output_wizard
 from leaf.utility.logger.logger_utils import get_logger
 
 logger = get_logger(__name__, log_file="input_module.log")
@@ -58,12 +59,18 @@ def create_configuration_tab(config_tab: ui.tab, config_path: Path | None) -> No
         with ui.row().classes("w-full px-6 flex flex-nowrap h-[calc(100vh-300px)] min-h-96"):
             # Configuration editor - Left half
             with ui.column().classes("flex-1 min-w-0 mr-6 h-full"):
-                ui.label("Configuration Editor").classes("text-lg font-semibold mb-3 text-heading")
+                with ui.row().classes("w-full items-center justify-between mb-3"):
+                    ui.label("Configuration Editor").classes("text-lg font-semibold text-heading")
+                    with ui.row().classes("gap-2"):
+                        add_equipment = ui.button("Add equipment", icon="add").props("flat dense")
+                        add_output = ui.button("Add output", icon="add").props("flat dense")
                 with ui.card().classes("leaf-card flex-grow min-h-0 w-full overflow-hidden"):
                     with ui.card_section().classes("p-0 w-full h-full"):
                         editor = ui.codemirror(value=config_yaml, language="YAML", theme="basicDark").classes(
                             "w-full h-full"
                         )
+                _ = add_equipment.on_click(lambda: open_equipment_wizard(editor, configuration_path))
+                _ = add_output.on_click(lambda: open_output_wizard(editor, configuration_path))
 
             # Help section - Right side, same width as the editor
             with ui.column().classes("flex-1 min-w-0 h-full"):

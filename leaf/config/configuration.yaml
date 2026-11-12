@@ -15,11 +15,14 @@ OUTPUTS:
 # MQTT output requires 'broker' and 'port' 
 # optionally 'username', 'password', 'clientid', 'protocol', 'transport', and 'tls'
 # and optionally an alternative 'fallback' output
+# Every output receives all data, except one named as another's fallback.
+# Two outputs of the same plugin each need a 'name'; fallback can refer to it.
   # - plugin: FILE
+  #   name: local
   #   filename: testing.json
-  #   parallel: SQL
-  # - plugin: SQL
-  #   filename: testing.db
+  # - plugin: FILE
+  #   name: share
+  #   filename: /mnt/share/testing.json
 #   username: None #OPTIONAL expects a str
 #   password: None #OPTIONAL expects a str
 #   clientid: None #OPTIONAL expects a str

@@ -274,8 +274,9 @@ class EquipmentAdapter(ABC):
         for watcher in (self._watcher, self._external_watcher):
             if watcher is not None and not watcher.is_connected():
                 down.append(f"{type(watcher).__name__} input")
-        if not self._output.is_connected():
-            down.append(f"{self._output.name} output")
+        for output in self._output.outputs():
+            if not output.is_connected():
+                down.append(f"{output.name} output")
         return down
 
     def has_controller(self) -> bool:

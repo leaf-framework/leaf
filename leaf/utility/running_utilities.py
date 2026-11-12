@@ -1,8 +1,10 @@
 import inspect
 import os
+import re
 import tempfile
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any, cast
 
 from leaf.adapters.control_spec import apply_limits, read_controls
@@ -16,6 +18,7 @@ from leaf.register.topic_utilities import topic_utilities
 from leaf.registry.loader import load_class_from_file
 from leaf.registry.registry import get_equipment_adapter, get_external_input, get_output_adapter
 from leaf.utility.logger.logger_utils import get_logger
+from leaf.utility.output_group import OutputGroup
 
 logger = get_logger(__name__, log_file="global.log", error_log_file="global_error.log")
 
@@ -48,8 +51,13 @@ def output_messages(output_module: OutputModule) -> None:
 
 def get_existing_ids(output_module: OutputModule, time_to_sleep: float = 5.0) -> list[str]:
     """Returns instance IDs of equipment already present in the system."""
-    if not isinstance(output_module, MQTT):
-        return []
+    for member in output_module.outputs():
+        if isinstance(member, MQTT):
+            return _existing_ids(member, time_to_sleep)
+    return []
+
+
+def _existing_ids(output_module: MQTT, time_to_sleep: float) -> list[str]:
     topic = topic_utilities.details()
     logger.debug(f"Setting up subscription to {topic}")
     output_module.subscribe(topic)
@@ -64,75 +72,91 @@ def get_existing_ids(output_module: OutputModule, time_to_sleep: float = 5.0) ->
     return ids
 
 
+@dataclass
+class _Output:
+    code: str
+    fallback: str | None
+    output: OutputModule
+
+
+def _pop_output_codes(out_data: dict[str, Any]) -> tuple[str, str | None]:
+    """Take plugin and fallback out of an OUTPUTS entry, lowercased so "MQTT" and "mqtt" meet."""
+    output_code = str(out_data.pop("plugin")).lower()
+    fallback = out_data.pop("fallback", None)
+    fallback_ref: str | None = None
+    if fallback:
+        fallback_ref = str(fallback).lower()
+    if out_data.pop("parallel", None) is not None:
+        logger.warning("'parallel' is ignored: every output that is not a fallback receives all data")
+    return output_code, fallback_ref
+
+
+def _output_key(code: str, out_data: dict[str, Any]) -> str:
+    """How a fallback refers to an output: its name, or its plugin when it has none."""
+    name = out_data.get("name")
+    if name:
+        return str(name).lower()
+    return code
+
+
+def _resolve(ref: str, outputs: dict[str, _Output]) -> str:
+    """Key of the output a fallback names: by name, or by plugin when only one output uses that plugin."""
+    if ref in outputs:
+        return ref
+    matches: list[str] = []
+    for key, out in outputs.items():
+        if out.code == ref:
+            matches.append(key)
+    if not matches:
+        raise AdapterBuildError(f"Can't find fallback output: {ref}")
+    if len(matches) > 1:
+        raise AdapterBuildError(f"Fallback '{ref}' matches several outputs, use one of their names: {matches}")
+    return matches[0]
+
+
+def _default_fallback(key: str, error_holder: ErrorHolder) -> FILE:
+    leaf_tmp_dir = os.path.join(tempfile.gettempdir(), "leaf")
+    os.makedirs(leaf_tmp_dir, exist_ok=True)
+    # A name can hold spaces or slashes; the file name must not
+    safe_key = re.sub(r"[^\w.-]", "_", key)
+    tmp_path = os.path.join(leaf_tmp_dir, f"{safe_key}_fallback.json")
+    logger.warning(f"No fallback configured for '{key}', defaulting to {tmp_path}")
+    return FILE(filename=tmp_path, error_holder=error_holder)
+
+
 def build_output_module(config: dict[str, Any], error_holder: ErrorHolder) -> OutputModule | None:
-    """Finds, initializes, and connects all output adapters defined in config."""
-    outputs = config["OUTPUTS"]
-    output_objects = {}
-    fallback_codes = set()
-    parallel_codes = set()  # All codes used as parallels (to exclude from primary)
-    logger.debug("Building output module")
-
-    for out_data in outputs:
-        logger.debug(f"Building output module for {out_data}")
-        output_code = out_data.pop("plugin")
-        logger.debug(f"Building output module for {output_code}")
-        fallback_code = out_data.pop("fallback", None)
-        parallel = out_data.pop("parallel", None)
-
-        # Normalize parallel to list
-        if parallel is None:
-            parallel_list = []
-        elif isinstance(parallel, str):
-            parallel_list = [parallel]
-        else:
-            parallel_list = list(parallel)
-
-        parallel_codes.update(parallel_list)
-        if fallback_code:
-            fallback_codes.add(fallback_code)
-
-        output_objects[output_code] = {
-            "data": out_data,
-            "fallback_code": fallback_code,
-            "parallel_codes": parallel_list,
-            "output": None,
-        }
-
-    # Build all output module instances
-    for code, out_data in output_objects.items():
+    """Builds every output in OUTPUTS; each one that is not another's fallback receives all data."""
+    outputs: dict[str, _Output] = {}
+    for out_data in config["OUTPUTS"]:
+        code, fallback_ref = _pop_output_codes(out_data)
+        key = _output_key(code, out_data)
+        if key in outputs:
+            raise AdapterBuildError(f"Two outputs are called '{key}': give each a different name")
         try:
-            adapter_cls = get_output_adapter(code)
-            output_objects[code]["output"] = adapter_cls(fallback=None, error_holder=error_holder, **out_data["data"])
+            output = get_output_adapter(code)(fallback=None, error_holder=error_holder, **out_data)
         except TypeError as ex:
             raise AdapterBuildError(f"Code '{code}' missing parameters ({ex.args})")
+        outputs[key] = _Output(code, fallback_ref, output)
 
-    # Wire up fallbacks
-    for code, out_data in output_objects.items():
-        if out_data["fallback_code"]:
-            fallback_code = out_data["fallback_code"]
-            if fallback_code not in output_objects:
-                raise AdapterBuildError(f"Can't find fallback output: {fallback_code}")
-            output_objects[code]["output"].set_fallback(output_objects[fallback_code]["output"])
-        elif code not in fallback_codes and code not in parallel_codes:
-            leaf_tmp_dir = os.path.join(tempfile.gettempdir(), "leaf")
-            os.makedirs(leaf_tmp_dir, exist_ok=True)
-            tmp_path = os.path.join(leaf_tmp_dir, f"{code}_fallback.json")
-            output_objects[code]["output"].set_fallback(FILE(filename=tmp_path, error_holder=error_holder))
-            logger.warning(f"No fallback configured for '{code}', defaulting to {tmp_path}")
+    fallback_keys: set[str] = set()
+    for out in outputs.values():
+        if out.fallback:
+            fallback_keys.add(_resolve(out.fallback, outputs))
 
-    # Wire up parallels
-    for code, out_data in output_objects.items():
-        for parallel_code in out_data["parallel_codes"]:
-            if parallel_code not in output_objects:
-                raise AdapterBuildError(f"Can't find parallel output: {parallel_code}")
-            output_objects[code]["output"].add_parallel(output_objects[parallel_code]["output"])
+    receivers: list[OutputModule] = []
+    for key, out in outputs.items():
+        if out.fallback:
+            out.output.set_fallback(outputs[_resolve(out.fallback, outputs)].output)
+        elif key not in fallback_keys:
+            out.output.set_fallback(_default_fallback(key, error_holder))
+        if key not in fallback_keys:
+            receivers.append(out.output)
 
-    # Return the first output that is not a fallback or parallel (the primary)
-    for code in sorted(output_objects):
-        if code not in fallback_codes and code not in parallel_codes:
-            return output_objects[code]["output"]
-
-    return None
+    if not receivers:
+        return None
+    if len(receivers) == 1:
+        return receivers[0]
+    return OutputGroup(receivers)
 
 
 def process_instance(instance: dict[str, Any], output: OutputModule) -> EquipmentAdapter:

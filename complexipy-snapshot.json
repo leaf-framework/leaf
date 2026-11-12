@@ -77,7 +77,7 @@
     "functions": [
       {
         "name": "run_adapters",
-        "complexity": 68
+        "complexity": 64
       },
       {
         "name": "main",
@@ -134,12 +134,12 @@
     "file_name": "running_utilities.py",
     "functions": [
       {
-        "name": "process_instance",
-        "complexity": 22
+        "name": "build_output_module",
+        "complexity": 16
       },
       {
-        "name": "build_output_module",
-        "complexity": 28
+        "name": "process_instance",
+        "complexity": 22
       }
     ]
   },

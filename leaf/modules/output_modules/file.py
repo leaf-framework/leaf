@@ -17,6 +17,10 @@ class FILE(OutputModule):
         error_holder: ErrorHolder | None = None,
         name: str | None = None,
     ) -> None:
+        """
+        Args:
+            filename (str): Path of the file the messages are written to.
+        """
         super().__init__(fallback=fallback, error_holder=error_holder, name=name)
         if not self._name:
             self._name = f"FILE({filename.replace('/', '_')})"
