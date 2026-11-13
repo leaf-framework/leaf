@@ -1,3 +1,24 @@
+## 0.13.0
+
+- Feature: Configuration wizards. The Configuration tab adds equipment and outputs through a form built from each module's constructor; list fields take one item per line, and passwords plus any names an adapter lists in `SECRET_FIELDS` go to `secrets.env`. ([!164](https://gitlab.com/leaf-framework/leaf/-/merge_requests/164), [!165](https://gitlab.com/leaf-framework/leaf/-/merge_requests/165))
+- Patch: every output that is not a fallback receives all data. ([!164](https://gitlab.com/leaf-framework/leaf/-/merge_requests/164))
+- Patch: the marketplace points RAMSMART at its new repository and lists the RAMSMART and OPC options. ([!166](https://gitlab.com/leaf-framework/leaf/-/merge_requests/166))
+
+## 0.12.2
+
+- Feature: OPC UA encryption and certificate login, with security notes for inputs and outputs in the UI. ([!162](https://gitlab.com/leaf-framework/leaf/-/merge_requests/162), [!163](https://gitlab.com/leaf-framework/leaf/-/merge_requests/163))
+
+## 0.12.1
+
+- Feature: OPC UA username and password login. ([!161](https://gitlab.com/leaf-framework/leaf/-/merge_requests/161))
+
+## 0.12.0
+
+- Feature: Foldable instance controls and current-value tiles. ([!157](https://gitlab.com/leaf-framework/leaf/-/merge_requests/157))
+- Feature: a LeafPoint's entity defaults to the instance, and control results use the instance as their entity. ([!159](https://gitlab.com/leaf-framework/leaf/-/merge_requests/159), [!160](https://gitlab.com/leaf-framework/leaf/-/merge_requests/160))
+- Patch: `PollingWatcher.stop()` returns at once instead of waiting out the poll. ([!156](https://gitlab.com/leaf-framework/leaf/-/merge_requests/156))
+- Patch: releases are copied to the GitHub mirror on tag. ([!158](https://gitlab.com/leaf-framework/leaf/-/merge_requests/158))
+
 ## 0.11.1
 
 - Feature: Install from git URL ([!152](https://gitlab.com/leaf-framework/leaf/-/merge_requests/152))
