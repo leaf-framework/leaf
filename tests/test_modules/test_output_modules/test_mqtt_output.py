@@ -59,6 +59,12 @@ class TestMQTT(unittest.TestCase):
         else:
             self.fail()
 
+    def test_unfilled_topic_field_is_dropped_with_error(self):
+        self._adapter.client.publish = MagicMock()
+        with self.assertLogs(logger, level="ERROR"):
+            self.assertFalse(self._adapter.transmit("org/+/instance/measurement", {"x": 1}))
+        self._adapter.client.publish.assert_not_called()
+
     def test_false_null_payload(self):
         test_topic = "test_false_null_payload"
         self._mock_client.subscribe(test_topic)

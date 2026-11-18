@@ -1,4 +1,4 @@
-"""Header status dot: red when a connection is down, amber when one is insecure, green otherwise."""
+"""Sidebar status dot: red when a connection is down, amber when one is insecure, green otherwise."""
 
 from collections.abc import Callable
 
@@ -93,10 +93,10 @@ def _open_status_dialog() -> None:
 
 
 def create_security_status() -> None:
-    """Add the clickable status dot and label to the header."""
-    with ui.row().classes("items-center mr-4 cursor-pointer").on("click", _open_status_dialog) as row:
+    """Add the clickable status dot and label to the sidebar."""
+    with ui.row().classes("leaf-status").on("click", _open_status_dialog) as row:
         dot = ui.html('<span class="status-indicator status-online"></span>', sanitize=False)
-        label = ui.label("System Online").classes("text-sm opacity-90")
+        label = ui.label("System Online")
     row.tooltip("Click for connection and security status")
 
     def refresh() -> None:

@@ -31,6 +31,8 @@ typecheck-complexity:
   image: registry.gitlab.com/leaf-framework/leaf:runner
   before_script:
     - source /venv/bin/activate
+    # Serial installs: parallel ones raced on packages poetry itself runs from in /venv
+    - poetry config installer.parallel false
     - poetry install --with test,dev
   script:
     - poetry run basedpyright
@@ -43,6 +45,8 @@ test:
   before_script:
     - mosquitto -d
     - source /venv/bin/activate
+    # Serial installs: parallel ones raced on packages poetry itself runs from in /venv
+    - poetry config installer.parallel false
     - poetry install --with test,dev
     # leaf-example is normally installed by end users via the UI marketplace
     # (see leaf/ui/tabs/adapters.py), not bundled as a project dependency.
@@ -95,6 +99,8 @@ coverage:
   before_script:
     - mosquitto -d
     - source /venv/bin/activate
+    # Serial installs: parallel ones raced on packages poetry itself runs from in /venv
+    - poetry config installer.parallel false
     - poetry install --with test,dev
     - pip install --no-deps "git+https://gitlab.com/leaf-framework/leaf-adapters/leaf-example.git"
   script:

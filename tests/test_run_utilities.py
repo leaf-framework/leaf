@@ -24,7 +24,7 @@ from leaf.register.metadata import MetadataManager
 from leaf.registry.registry import discover_from_config
 from leaf.utility.logger.logger_utils import get_logger
 from leaf.utility.output_group import OutputGroup
-from leaf.utility.running_utilities import build_output_module, handle_disabled_modules
+from leaf.utility.running_utilities import _check_tags, build_output_module, handle_disabled_modules
 from tests.mock_mqtt_client import MockBioreactorClient
 
 logger = get_logger(__name__, log_file="test_run_utilities.log", error_log_file="test_run_utilities_error.log")
@@ -229,3 +229,9 @@ def test_group_sends_past_a_failing_output(tmp_path: Path) -> None:
     group = OutputGroup([_Down(str(tmp_path / "down.json")), good])
     assert not group.transmit("topic", {"value": 1})
     assert (tmp_path / "good.json").read_text() == '{"topic":[{"value":1}]}\n'
+
+
+def test_instance_needs_organisation_and_department() -> None:
+    _check_tags("dev1", {"organisation": "wur", "department": "ssb"})
+    with pytest.raises(AdapterBuildError, match="Missing department in the data of 'dev1'"):
+        _check_tags("dev1", {"organisation": "wur", "department": ""})

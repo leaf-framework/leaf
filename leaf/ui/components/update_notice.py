@@ -1,4 +1,4 @@
-"""Header indicator offering the update found by leaf.ui.update_checker."""
+"""Sidebar indicator offering the update found by leaf.ui.update_checker."""
 
 import asyncio
 
@@ -113,22 +113,18 @@ def _open_update_dialog() -> None:
 
 def create_update_notice() -> None:
     """
-    Add the version label and the "update available" button to the header.
+    Add the version label and the "update available" button to the sidebar.
 
     The badge starts hidden and stays hidden until a check finds a newer
     release. Clicking the version label runs a check immediately, for anyone
     who does not want to wait for the scheduled one.
     """
-    version_label = (
-        ui.label(f"v{__version__}")
-        .classes("text-xs opacity-70 ml-2 self-end mb-1 cursor-pointer hover:opacity-100")
-        .tooltip("Click to check for updates")
-    )
+    version_label = ui.label(f"v{__version__}").classes("cursor-pointer").tooltip("Click to check for updates")
 
     notice_button = (
         ui.button("", icon="system_update", on_click=_open_update_dialog)
         .props('flat dense title="A newer LEAF version is available"')
-        .classes("text-yellow-300 text-xs ml-2 self-end mb-1")
+        .classes("text-yellow-300")
     )
     notice_button.visible = False
 

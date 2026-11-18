@@ -47,6 +47,8 @@ pytest-timeout = "^2.4.0"
 pytest-xdist = "^3.8.0"
 opcua = "^0.98.13"
 cryptography = "^50.0.2"
+# starlette.testclient builds on httpx2; without it TestClient falls back and loses its types
+httpx2 = "^2.16.2"
 
 [tool.poetry.group.dev.dependencies]
 bump2version = "^1.0.1"

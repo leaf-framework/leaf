@@ -1,470 +1,419 @@
-/* ============================================
-   LEFT SIDEBAR NAVIGATION
-   ============================================ */
-
-/* Sidebar drawer background */
-.q-drawer .bg-gray-50 {
-    background-color: #f9fafb;
+/* The LEAF look, shared with leaf-portal's theme.css:
+   canopy ink from the logo, ember for actions, sky for "live" and focus.
+   Quasar's dark mode toggles .body--dark, so the dark tokens hang off that. */
+/* IBM Plex, latin subset, served from leaf/ui/fonts (OFL, see OFL.txt there). */
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/leaf-fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/leaf-fonts/ibm-plex-sans-latin-400-italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/leaf-fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/leaf-fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans Condensed";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/leaf-fonts/ibm-plex-sans-condensed-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans Condensed";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/leaf-fonts/ibm-plex-sans-condensed-latin-600-normal.woff2") format("woff2");
 }
 
-/* Vertical tabs container inside sidebar */
-.leaf-sidebar-tabs.q-tabs--vertical {
-    background: transparent !important;
-    width: 100%;
+:root {
+  --canopy: #0f2420;
+  --canopy-2: #173430;
+  --canopy-text: #cfe0dc;
+  --canopy-muted: #86a39d;
+  --page: #eef3f2;
+  --surface: #ffffff;
+  --surface-2: #e5ecea;
+  --text: #14211e;
+  --text-2: #5b6b67;
+  --line: #d5dfdc;
+  --brand: #f15b25;
+  --brand-ink: #c2410c;
+  --brand-soft: #fde8df;
+  --sky: #6fd3f2;
+  --sky-ink: #0b7fa6;
+  --error: #c52f2f;
+  --radius: 14px;
+  --radius-s: 8px;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+}
+.body--dark {
+  --canopy: #0a1916;
+  --canopy-2: #142b27;
+  --page: #0d1b18;
+  --surface: #13241f;
+  --surface-2: #1b302a;
+  --text: #e3ece9;
+  --text-2: #93a7a1;
+  --line: #24403a;
+  --brand-ink: #ff8a5c;
+  --brand-soft: #3a1a0e;
+  --sky-ink: #6fd3f2;
+  --error: #f07171;
 }
 
-/* Each sidebar tab item */
-.leaf-sidebar-tabs .q-tab {
-    justify-content: flex-start !important;
-    padding: 10px 16px !important;
-    border-radius: 8px !important;
-    margin: 2px 8px !important;
-    width: calc(100% - 16px) !important;
-    min-height: 44px !important;
-    color: #6b7280 !important;
-    transition: background 0.15s ease, color 0.15s ease;
+body,
+.body--dark {
+  background: var(--page) !important;
+  color: var(--text);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.q-page-container {
+  background: var(--page);
+}
+:focus-visible {
+  outline: 2px solid var(--sky);
+  outline-offset: 2px;
+}
+.text-h6,
+.text-lg.font-bold,
+.text-xl.font-bold,
+.text-2xl.font-bold {
+  font-family: var(--cond);
 }
 
-.leaf-sidebar-tabs .q-tab:hover {
-    background: #f3f4f6 !important;
-    color: #374151 !important;
+/* ---- the canopy rail ----
+   NiceGUI puts the drawer's classes on .q-drawer__content; the white comes from the aside. */
+.q-drawer--left {
+  background: var(--canopy) !important;
+  border-right: 1px solid var(--canopy-2);
+}
+.leaf-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  background: var(--canopy);
+  color: var(--canopy-text);
+}
+.leaf-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px 14px;
+  color: #fff;
+  font: 600 22px/1 var(--cond);
+  letter-spacing: 0.06em;
+}
+.leaf-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px;
 }
 
-/* Active tab */
-.leaf-sidebar-tabs .q-tab--active {
-    background: #fff4f0 !important;
-    color: #f15b25 !important;
+/* The pages are Quasar tabs; styled as the portal's rail links. */
+.leaf-nav.q-tabs--vertical {
+  background: transparent !important;
+}
+.leaf-nav .q-tab {
+  position: relative;
+  justify-content: flex-start !important;
+  min-height: 0;
+  margin: 1px 0;
+  padding: 7px 10px;
+  border-radius: var(--radius-s);
+  color: var(--canopy-text);
+}
+.leaf-nav .q-tab__content {
+  flex-direction: row !important;
+  gap: 12px;
+  padding: 0;
+}
+.leaf-nav .q-tab__icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: var(--canopy-muted);
+}
+.leaf-nav .q-tab__label {
+  font-size: 14px;
+  font-weight: 400;
+}
+.leaf-nav .q-tab:hover {
+  background: var(--canopy-2);
+}
+.leaf-nav .q-tab--active {
+  background: var(--canopy-2);
+  color: #fff;
+}
+.leaf-nav .q-tab--active .q-tab__label {
+  font-weight: 500;
+}
+.leaf-nav .q-tab--active .q-tab__icon {
+  color: var(--sky);
+}
+.leaf-nav .q-tab--active::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--sky);
+}
+.leaf-nav .q-tab__indicator,
+.leaf-nav .q-focus-helper {
+  display: none !important;
 }
 
-.leaf-sidebar-tabs .q-tab--active .q-tab__icon,
-.leaf-sidebar-tabs .q-tab--active .q-tab__label {
-    color: #f15b25 !important;
+/* Footer: status, restart/stop and theme, like the portal's profile block. */
+.leaf-me {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 12px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--canopy-2);
+}
+.leaf-status {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+.leaf-status .q-label,
+.leaf-status > div:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leaf-me .q-btn {
+  color: var(--canopy-muted) !important;
+}
+.leaf-me .q-btn:hover {
+  color: #fff !important;
+}
+.leaf-build {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 22px 10px;
+  font-size: 11px;
+  color: var(--canopy-muted);
+}
+.leaf-build > .q-btn {
+  font-size: 11px;
+}
+/* Phones get a slim bar with the menu button; desktops have the rail. */
+.leaf-mobile-bar.q-header {
+  background: var(--canopy);
+  color: #fff;
 }
 
-/* Hide the default Quasar vertical indicator bar */
-.leaf-sidebar-tabs .q-tab__indicator {
-    display: none !important;
+/* ---- surfaces ---- */
+.q-card,
+.leaf-card {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius) !important;
 }
-
-/* Tab label alignment */
-.leaf-sidebar-tabs .q-tab__content {
-    flex-direction: row !important;
-    gap: 10px;
-    align-items: center;
+.q-card--bordered,
+.q-table--bordered {
+  border-color: var(--line) !important;
 }
-
-.leaf-sidebar-tabs .q-tab__label {
-    font-size: 0.875rem;
-    font-weight: 500;
-}
-
-/* Dark mode sidebar */
-.dark .q-drawer {
-    background-color: #1f2937 !important;
-}
-
-.dark .leaf-sidebar-tabs .q-tab {
-    color: #9ca3af !important;
-}
-
-.dark .leaf-sidebar-tabs .q-tab:hover {
-    background: #374151 !important;
-    color: #e5e7eb !important;
-}
-
-.dark .leaf-sidebar-tabs .q-tab--active {
-    background: rgba(241, 91, 37, 0.15) !important;
-    color: #f15b25 !important;
-}
-
-.dark .leaf-sidebar-tabs .q-tab--active .q-tab__icon,
-.dark .leaf-sidebar-tabs .q-tab--active .q-tab__label {
-    color: #f15b25 !important;
-}
-
-/* ============================================
-   END SIDEBAR NAVIGATION
-   ============================================ */
-
-/* Light mode styles */
-.leaf-gradient {
-    background: linear-gradient(135deg, #f15b25 0%, #d14e1e 100%);
-}
-.leaf-card,
-.q-card.leaf-card,
-.nicegui-card.leaf-card {
-    background: rgba(255, 255, 255, 0.95) !important;
-    background-color: #ffffff !important;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(229, 231, 235, 0.8) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
-    border-radius: 12px;
-    transition: all 0.3s ease;
-}
-.leaf-card:hover,
-.q-card.leaf-card:hover,
-.nicegui-card.leaf-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15) !important;
-}
-/* Make card sections transparent to inherit parent card background */
 .q-card__section {
-    background-color: transparent !important;
+  background-color: transparent !important;
 }
-.leaf-header {
-    background: #1c1c1c;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+.q-table__card {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
 }
-.leaf-tab {
-    transition: all 0.2s ease;
-    border-radius: 8px 8px 0 0;
+.q-table thead th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
 }
-.leaf-tab:hover {
-    background: rgba(255, 255, 255, 0.1);
+.q-table--bordered thead tr:first-child th,
+.q-table tbody td {
+  border-color: color-mix(in srgb, var(--line) 70%, transparent);
 }
+.q-menu,
+.q-dialog .q-card {
+  background: var(--surface);
+  color: var(--text);
+}
+.q-expansion-item .q-icon {
+  color: var(--text-2);
+}
+
+/* ---- buttons: pills, sentence case ---- */
+.q-btn {
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.q-btn.q-btn--round {
+  border-radius: 50%;
+}
+.q-btn-group {
+  border-radius: 999px;
+  overflow: hidden;
+}
+.q-btn--flat:not(.q-btn--round) {
+  font-weight: 500;
+}
+.btn-primary {
+  background-color: var(--brand) !important;
+  color: #fff !important;
+}
+.btn-secondary {
+  background-color: var(--canopy-2) !important;
+  color: #fff !important;
+}
+.btn-tertiary {
+  background-color: var(--surface-2) !important;
+  color: var(--text) !important;
+}
+.btn-danger {
+  background-color: var(--error) !important;
+  color: #fff !important;
+}
+
+/* ---- fields: boxed, sky focus ---- */
+.q-field--outlined .q-field__control {
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.q-field--outlined .q-field__control::before {
+  border-color: var(--line);
+}
+.q-field--outlined.q-field--focused .q-field__control::after {
+  border-color: var(--sky-ink);
+  border-width: 1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sky) 35%, transparent);
+}
+.q-field__label,
+.q-field__native,
+.q-field__input {
+  color: var(--text);
+}
+
+/* ---- tabs inside pages ---- */
+.q-tab-panels {
+  background: transparent;
+}
+.q-tab {
+  text-transform: none;
+}
+.q-tab__label {
+  font-weight: 500;
+}
+
+/* ---- status dots ---- */
 .status-indicator {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 8px;
-    animation: pulse 2s infinite;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+  animation: pulse 2s infinite;
 }
 .status-online { background-color: #10b981; }
 .status-offline { background-color: #ef4444; }
 .status-warning { background-color: #f59e0b; }
-
-/* Dark mode styles */
-.dark .leaf-card,
-.dark .q-card.leaf-card,
-.dark .nicegui-card.leaf-card {
-    background: rgba(31, 41, 55, 0.95) !important;
-    background-color: #1f2937 !important;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(55, 65, 81, 0.4) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
-}
-.dark .leaf-card:hover,
-.dark .q-card.leaf-card:hover,
-.dark .nicegui-card.leaf-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4) !important;
-    border: 1px solid rgba(75, 85, 99, 0.6) !important;
-}
-/* Override Quasar card section backgrounds in dark mode */
-.dark .q-card__section {
-    background-color: transparent !important;
-}
-.dark .leaf-header {
-    background: #1c1c1c;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-.dark .leaf-tab:hover {
-    background: rgba(0, 0, 0, 0.2);
-}
-
-/* Enhanced animations */
 @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-indicator {
+    animation: none;
+  }
 }
 
-
-/* Dark mode button styling */
-.dark .bg-gray-50 {
-    background-color: #1f2937 !important;
-}
-.dark .border-t {
-    border-color: #374151 !important;
-}
-
-/* Dark mode help cards */
-.dark .bg-blue-50 {
-    background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
-    border-color: #6b7280 !important;
-}
-.dark .bg-green-50 {
-    background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
-    border-color: #6b7280 !important;
-}
-.dark .bg-amber-50 {
-    background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
-    border-color: #6b7280 !important;
-}
-
-/* Dark mode configuration help box */
-.dark .bg-gradient-to-br.from-blue-50.to-indigo-50 {
-    background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
-    border-color: #6b7280 !important;
-}
-.dark .text-gray-700 {
-    color: #e5e7eb !important;
-}
-
-/* Dark mode text colors */
-.dark .text-gray-800 {
-    color: #f3f4f6 !important;
-}
-.dark .text-gray-700 {
-    color: #e5e7eb !important;
-}
-.dark .text-gray-600 {
-    color: #d1d5db !important;
-}
-
-/* Dark mode gradient backgrounds - override tailwind classes */
-.dark .bg-gradient-to-r.from-gray-50.to-white,
-.dark .bg-gradient-to-r.from-gray-50,
-.dark [class*="from-gray-50"][class*="to-white"] {
-    background: linear-gradient(to right, #1f2937, #111827) !important;
-    background-color: #1f2937 !important;
-}
-.dark .bg-gradient-to-br.from-gray-50.to-gray-100 {
-    background: linear-gradient(to bottom right, #374151, #1f2937) !important;
-}
-.dark .border-gray-200 {
-    border-color: #374151 !important;
-}
-
-/* Dark mode buttons */
-.dark .bg-gray-500 {
-    background-color: #4b5563 !important;
-}
-.dark .bg-gray-500:hover,
-.dark .hover\:bg-gray-600:hover {
-    background-color: #6b7280 !important;
-}
-.dark .bg-gray-600 {
-    background-color: #4b5563 !important;
-}
-.dark .bg-gray-600:hover,
-.dark .hover\:bg-gray-700:hover {
-    background-color: #6b7280 !important;
-}
-
-/* Dark mode form elements */
-.dark .q-field__control {
-    background-color: #374151 !important;
-    color: #f3f4f6 !important;
-}
-.dark .q-field__label {
-    color: #d1d5db !important;
-}
-.dark .q-select__dropdown-icon,
-.dark .q-field__append {
-    color: #d1d5db !important;
-}
-
-/* Dark mode cards and containers */
-.dark .bg-white {
-    background-color: #1f2937 !important;
-}
-.dark .border-b {
-    border-color: #374151 !important;
-}
-
-
-/* Dark mode CodeMirror editor */
-.dark .cm-editor {
-    background-color: #1f2937 !important;
-}
-.dark .cm-editor .cm-gutters {
-    background-color: #111827 !important;
-    color: #9ca3af !important;
-}
-
-/* Dark mode status colors for visibility */
-.dark .status-online {
-    background-color: #10b981;
-    box-shadow: 0 0 8px #10b981;
-}
-.dark .status-offline {
-    background-color: #ef4444;
-    box-shadow: 0 0 8px #ef4444;
-}
-.dark .status-warning {
-    background-color: #f59e0b;
-    box-shadow: 0 0 8px #f59e0b;
-}
-
-/* Log display - already dark styled, keep it consistent */
-.bg-gray-900 {
-    background-color: #111827 !important;
-}
-.text-green-400 {
-    color: #34d399 !important;
-}
-
-/* Light mode adjustments for log if needed */
-body:not(.dark) .bg-gray-900 {
-    background-color: #1f2937 !important;
-}
-body:not(.dark) .text-green-400 {
-    color: #059669 !important;
-}
-
-/* ============================================
-   SEMANTIC CUSTOM CLASSES FOR THEMING
-   ============================================ */
-
-/* Text Colors */
-.text-icon {
-    color: #6b7280;
-}
-.dark .text-icon {
-    color: #9ca3af !important;
-}
-
-.text-heading {
-    color: #1f2937;
-}
-.dark .text-heading {
-    color: #f3f4f6 !important;
-}
-
-.text-subheading {
-    color: #374151;
-}
-.dark .text-subheading {
-    color: #e5e7eb !important;
-}
-
-.text-body {
-    color: #4b5563;
-}
-.dark .text-body {
-    color: #d1d5db !important;
-}
-
-.text-body-secondary {
-    color: #6b7280;
-}
-.dark .text-body-secondary {
-    color: #9ca3af !important;
-}
-
-/* Background Colors - Panels */
-.bg-panel-light {
-    background-color: #f9fafb;
-}
-.dark .bg-panel-light {
-    background-color: #1f2937 !important;
-}
-
+/* ---- semantic text and panel classes used by the tabs ---- */
+.text-heading { color: var(--text); }
+.text-subheading { color: var(--text); }
+.text-body { color: var(--text); }
+.text-body-secondary,
+.text-icon { color: var(--text-2); }
+.bg-panel-light { background-color: var(--surface-2); }
 .bg-info-card {
-    background: linear-gradient(to bottom right, #f9fafb, #f3f4f6);
-    border-color: #e5e7eb;
+  background: var(--surface-2);
+  border-color: var(--line);
 }
-.dark .bg-info-card {
-    background: linear-gradient(to bottom right, #374151, #4b5563) !important;
-    border-color: #6b7280 !important;
+.border-default { border-color: var(--line); }
+.bg-log-display { background-color: #0d1b18; }
+.text-green-400 { color: #34d399 !important; }
+
+/* Tailwind utilities still hardcoded in a few tabs; NiceGUI's Tailwind has no dark: variant. */
+.body--dark .bg-white { background-color: var(--surface) !important; }
+.body--dark .bg-gray-50 { background-color: var(--page) !important; }
+.body--dark .bg-gray-100 { background-color: var(--surface-2) !important; }
+.body--dark .bg-red-100 { background-color: #450a0a !important; }
+.body--dark .border-gray-200 { border-color: var(--line) !important; }
+.body--dark .text-gray-500 { color: var(--text-2) !important; }
+.body--dark .text-red-700 { color: #fca5a5 !important; }
+.body--dark .text-red-600 { color: #f87171 !important; }
+
+/* ---- CodeMirror editor ---- */
+.body--dark .cm-editor {
+  background-color: var(--surface) !important;
+}
+.body--dark .cm-editor .cm-gutters {
+  background-color: var(--page) !important;
+  color: var(--text-2) !important;
 }
 
-.bg-log-display {
-    background-color: #111827;
+/* ---- markdown ---- */
+.prose {
+  color: var(--text);
 }
-.dark .bg-log-display {
-    background-color: #0f172a !important;
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose strong {
+  color: var(--text);
 }
-
-/* Button Styles */
-.btn-primary {
-    background-color: #f15b25;
-    color: white;
+.prose h1,
+.prose h2,
+.prose h3 {
+  font-family: var(--cond);
 }
-.btn-primary:hover {
-    background-color: #d14e1e;
+.prose a {
+  color: var(--sky-ink);
 }
-.dark .btn-primary {
-    background-color: #f15b25 !important;
+.prose code {
+  color: var(--brand-ink);
+  background-color: var(--surface-2);
 }
-.dark .btn-primary:hover {
-    background-color: #d14e1e !important;
-}
-
-.btn-secondary {
-    background-color: #4b5563;
-    color: white;
-}
-.btn-secondary:hover {
-    background-color: #6b7280;
-}
-.dark .btn-secondary {
-    background-color: #6b7280 !important;
-}
-.dark .btn-secondary:hover {
-    background-color: #9ca3af !important;
-}
-
-.btn-tertiary {
-    background-color: #6b7280;
-    color: white;
-}
-.btn-tertiary:hover {
-    background-color: #9ca3af;
-}
-.dark .btn-tertiary {
-    background-color: #4b5563 !important;
-}
-.dark .btn-tertiary:hover {
-    background-color: #6b7280 !important;
-}
-
-.btn-danger {
-    background-color: #ef4444;
-    color: white;
-}
-.btn-danger:hover {
-    background-color: #dc2626;
-}
-.dark .btn-danger {
-    background-color: #ef4444 !important;
-}
-.dark .btn-danger:hover {
-    background-color: #dc2626 !important;
-}
-
-/* Border Colors */
-.border-default {
-    border-color: #e5e7eb;
-}
-.dark .border-default {
-    border-color: #374151 !important;
-}
-
-/* Prose/Markdown Dark Mode Overrides */
-.dark .prose {
-    color: #e5e7eb !important;
-}
-.dark .prose h1,
-.dark .prose h2,
-.dark .prose h3,
-.dark .prose h4,
-.dark .prose h5,
-.dark .prose h6 {
-    color: #f3f4f6 !important;
-}
-.dark .prose strong {
-    color: #f9fafb !important;
-}
-.dark .prose a {
-    color: #60a5fa !important;
-}
-.dark .prose code {
-    color: #93c5fd !important;
-    background-color: #1f2937 !important;
-}
-.dark .prose pre {
-    background-color: #1f2937 !important;
-}
-.dark .prose .codehilite {
-    background-color: #111827 !important;
-}
-.dark .prose ul,
-.dark .prose ol {
-    color: #e5e7eb !important;
-}
-.dark .prose li {
-    color: #e5e7eb !important;
+.prose pre,
+.prose .codehilite {
+  background-color: var(--surface-2) !important;
 }
