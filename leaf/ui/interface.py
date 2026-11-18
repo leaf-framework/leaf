@@ -9,8 +9,8 @@ from nicegui import app, ui
 from leaf import __version__
 from leaf.registry.discovery import discover_adapter_ui_extensions
 from leaf.ui.auth import require_password
-from leaf.ui.components.header import create_header
-from leaf.ui.constants import DEFAULT_PORT, TAB_CLASSES
+from leaf.ui.components.header import create_mobile_bar, create_rail, create_rail_footer
+from leaf.ui.constants import DEFAULT_PORT
 from leaf.ui.tabs.adapters import create_adapters_tab
 from leaf.ui.tabs.configuration import create_configuration_tab
 from leaf.ui.tabs.control import create_control_tab
@@ -87,6 +87,18 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
     except Exception as e:
         logger.error(f"Error discovering adapter UI extensions: {e}", exc_info=True)
 
+    # Bundled, not Google Fonts: LEAF often runs on machines without internet.
+    app.add_static_files("/leaf-fonts", curr_dir / "fonts")
+
+    # Quasar's Material defaults (raised, uppercase, underlined) -> flat and boxed, as in leaf-portal.
+    _ = ui.button.default_props("unelevated no-caps")
+    _ = ui.card.default_props("flat bordered")
+    _ = ui.table.default_props("flat bordered")
+    _ = ui.input.default_props("outlined dense")
+    _ = ui.number.default_props("outlined dense")
+    _ = ui.select.default_props("outlined dense")
+    _ = ui.textarea.default_props("outlined dense")
+
     # Define the main page
     @ui.page("/")
     def index():
@@ -131,40 +143,40 @@ def start_nicegui(port: int = DEFAULT_PORT, config_path: Path | None = None, aut
                 </script>
             """)
 
-            # Apply portal color theme
-            ui.colors(primary="#f15b25", secondary="#6fd3f2")
+            # dark / dark_page are what Quasar paints its own dark surfaces with: the theme's tokens.
+            _ = ui.colors(
+                primary="#f15b25",
+                secondary="#6fd3f2",
+                negative="#c52f2f",
+                dark="#13241f",
+                dark_page="#0d1b18",
+            )
+            # None follows the OS until the rail's theme button overrides it.
+            dark = ui.dark_mode(value=None)
 
-            # Dark mode toggle
-            dark = ui.dark_mode()
-
-            # Create left sidebar with vertical tabs
-            drawer = ui.left_drawer(value=True).classes("bg-gray-50 border-r border-gray-200 pt-4")
+            icon_src = f"data:image/svg+xml;base64,{favicon_b64}"
+            drawer = create_rail(icon_src)
             with drawer:
-                with ui.tabs(value=None).props("vertical").classes("w-full leaf-sidebar-tabs") as tabs:
-                    config_tab: ui.tab = ui.tab("Configuration", icon="settings").classes(TAB_CLASSES)
-                    logs_tab = ui.tab("Logs", icon="article").classes(TAB_CLASSES)
-                    docs_tab = ui.tab("Documentation", icon="help").classes(TAB_CLASSES)
-                    monitor_tab = ui.tab("Monitoring", icon="monitor").classes(TAB_CLASSES)
-                    control_tab = ui.tab("Control", icon="tune").classes(TAB_CLASSES)
-                    adapters_tab = ui.tab("Adapters", icon="extension").classes(TAB_CLASSES)
+                with ui.tabs(value=None).props("vertical").classes("leaf-nav") as tabs:
+                    config_tab: ui.tab = ui.tab("Configuration", icon="sym_r_settings")
+                    logs_tab = ui.tab("Logs", icon="sym_r_article")
+                    docs_tab = ui.tab("Documentation", icon="sym_r_help")
+                    monitor_tab = ui.tab("Monitoring", icon="sym_r_monitoring")
+                    control_tab = ui.tab("Control", icon="sym_r_tune")
+                    adapters_tab = ui.tab("Adapters", icon="sym_r_extension")
 
                     # Dynamically create tabs for adapter UI extensions
                     adapter_tabs = []
                     for ext in adapter_ui_extensions:
                         ui_config = ext["ui_config"]
-                        tab = ui.tab(ui_config["tab_name"], icon=ui_config.get("tab_icon", "extension")).classes(
-                            TAB_CLASSES
-                        )
+                        tab = ui.tab(ui_config["tab_name"], icon=ui_config.get("tab_icon", "extension"))
                         adapter_tabs.append((tab, ext))
                         logger.debug(f"Created tab for adapter: {ext['adapter_code']}")
+                create_rail_footer(dark)
+            create_mobile_bar(drawer, icon_src)
 
             # Attach event handler to logs tab to scroll to bottom
             logs_tab.on("click", lambda: ui.run_javascript("scrollLogToBottom()"))
-
-            # Create header with drawer toggle
-            logger.debug(f"[PERF] Creating header: {time.time() - start_time:.3f}s")
-            create_header(dark, curr_dir, drawer)
-            logger.debug(f"[PERF] Header created: {time.time() - start_time:.3f}s")
 
             # Show startup error banner if there's an error
             startup_error = get_startup_error()

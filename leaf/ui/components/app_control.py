@@ -59,7 +59,7 @@ def confirm(
 
 
 def create_app_controls() -> None:
-    """Add Restart and Stop buttons to the header, each behind a confirmation."""
+    """Add Restart and Stop buttons to the sidebar, each behind a confirmation."""
     _ = ui.button(
         "",
         icon="restart_alt",
@@ -71,7 +71,8 @@ def create_app_controls() -> None:
             "btn-primary",
             restart_leaf,
         ),
-    ).props('flat round color=white title="Restart LEAF"')
+        color=None,
+    ).props('flat round dense title="Restart LEAF"')
     _ = ui.button(
         "",
         icon="stop",
@@ -83,4 +84,5 @@ def create_app_controls() -> None:
             "btn-danger",
             stop_leaf,
         ),
-    ).props('flat round color=white title="Stop LEAF"')
+        color=None,
+    ).props('flat round dense title="Stop LEAF"')

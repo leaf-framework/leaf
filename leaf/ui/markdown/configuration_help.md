@@ -7,6 +7,8 @@ EQUIPMENT_INSTANCES:
       data:
         instance_id: my_device
         organisation: university_lab
+        department: research
+        # root: leaf  # optional first part of every topic
       requirements:
         interval: 30
 ```

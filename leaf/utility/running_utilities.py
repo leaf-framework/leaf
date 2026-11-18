@@ -159,6 +159,16 @@ def build_output_module(config: dict[str, Any], error_holder: ErrorHolder) -> Ou
     return OutputGroup(receivers)
 
 
+def _check_tags(instance_id: str, instance_data: dict[str, Any]) -> None:
+    """Every point is tagged with organisation and department, so they must be configured rather than defaulted."""
+    missing: list[str] = []
+    for key in ("organisation", "department"):
+        if not instance_data.get(key):
+            missing.append(key)
+    if missing:
+        raise AdapterBuildError(f"Missing {', '.join(missing)} in the data of '{instance_id}'.")
+
+
 def process_instance(instance: dict[str, Any], output: OutputModule) -> EquipmentAdapter:
     """Initializes and validates an equipment adapter from config data."""
     equipment_code = instance.pop("adapter")
@@ -192,6 +202,7 @@ def process_instance(instance: dict[str, Any], output: OutputModule) -> Equipmen
         instance_id = instance_data["instance_id"]
     except KeyError:
         raise AdapterBuildError("Missing instance ID.")
+    _check_tags(instance_id, instance_data)
 
     if instance_id in get_existing_ids(output):
         logger.warning(f"ID '{instance_id}' is already registered. Adapter may overwrite existing state.")

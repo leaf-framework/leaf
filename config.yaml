@@ -5,6 +5,7 @@ EQUIPMENT_INSTANCES:
       data:
         instance_id: example_equipment_id1
         organisation: example_equipment_organisation1
+        department: example_department1
       requirements:
         write_file: test/tmp123.csv
 

@@ -35,19 +35,19 @@ def create_documentation_tab(docs_tab: ui.tab, docs_main_md: str, docs_protips_m
                                     ui.button(
                                         "Official Documentation",
                                         on_click=lambda: ui.run_javascript(
-                                            'window.open("https://docs.leaf-framework.org", "_blank")'
+                                            'window.open("https://leaf-framework.org", "_blank")'
                                         ),
                                     ).classes("btn-secondary w-full rounded transition-colors")
                                     ui.button(
-                                        "Adapter Templates",
+                                        "Adapter Repositories",
                                         on_click=lambda: ui.run_javascript(
-                                            'window.open("https://gitlab.com/LabEquipmentAdapterFramework/leaf-adapters/leaf-template", "_blank")'
+                                            'window.open("https://gitlab.com/leaf-framework/leaf-adapters", "_blank")'
                                         ),
                                     ).classes("btn-secondary w-full rounded transition-colors")
                                     ui.button(
                                         "Report Issues / Request Features",
                                         on_click=lambda: ui.run_javascript(
-                                            'window.open("https://gitlab.com/LabEquipmentAdapterFramework/leaf/-/issues", "_blank")'
+                                            'window.open("https://gitlab.com/leaf-framework/leaf/-/issues", "_blank")'
                                         ),
                                     ).classes("btn-secondary w-full rounded transition-colors")
 

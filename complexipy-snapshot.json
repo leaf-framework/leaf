@@ -43,7 +43,7 @@
       },
       {
         "name": "MQTT::transmit",
-        "complexity": 30
+        "complexity": 28
       }
     ]
   },

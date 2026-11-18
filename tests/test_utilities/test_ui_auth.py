@@ -1,6 +1,3 @@
-from typing import cast
-
-import httpx
 import pytest
 from fastapi import FastAPI, WebSocket
 from starlette.testclient import TestClient
@@ -27,7 +24,7 @@ def client() -> TestClient:
     return TestClient(app)
 
 
-def test_pages_redirect_to_login(client: httpx.Client) -> None:
+def test_pages_redirect_to_login(client: TestClient) -> None:
     resp = client.get("/?tab=logs", follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/login?next=/%3Ftab%3Dlogs"
@@ -45,19 +42,17 @@ def test_websocket_needs_session(client: TestClient) -> None:
 
 
 def test_right_password_sets_session(client: TestClient) -> None:
-    # Starlette leaves TestClient's HTTP methods untyped; httpx.Client has them.
-    http = cast(httpx.Client, client)
-    resp = http.post("/login", data={"password": "s3cret", "next": "/"}, follow_redirects=False)
+    resp = client.post("/login", data={"password": "s3cret", "next": "/"}, follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/"
     assert "HttpOnly" in resp.headers["set-cookie"]
 
-    assert http.get("/", follow_redirects=False).status_code == 200
+    assert client.get("/", follow_redirects=False).status_code == 200
     with client.websocket_connect("/ws") as ws:
         assert ws.receive_text() == "hi"
 
 
-def test_wrong_password_is_rejected(client: httpx.Client) -> None:
+def test_wrong_password_is_rejected(client: TestClient) -> None:
     resp = client.post("/login", data={"password": "wrong", "next": "/"})
     assert resp.status_code == 401
     assert "Wrong password" in resp.text
@@ -65,13 +60,13 @@ def test_wrong_password_is_rejected(client: httpx.Client) -> None:
     assert client.get("/", follow_redirects=False).status_code == 303
 
 
-def test_login_only_redirects_within_the_site(client: httpx.Client) -> None:
+def test_login_only_redirects_within_the_site(client: TestClient) -> None:
     for target in ("https://evil.example", "//evil.example", "/\\evil.example"):
         resp = client.post("/login", data={"password": "s3cret", "next": target}, follow_redirects=False)
         assert resp.headers["location"] == "/"
 
 
-def test_forged_or_extended_session_is_rejected(client: httpx.Client) -> None:
+def test_forged_or_extended_session_is_rejected(client: TestClient) -> None:
     client.cookies.set("leaf_session", "9999999999.deadbeef")
     assert client.get("/", follow_redirects=False).status_code == 303
 

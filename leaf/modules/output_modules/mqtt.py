@@ -24,6 +24,11 @@ logger = get_logger(__name__, log_file="output_module.log")
 _ILLEGAL_TOPIC_CHARS = re.compile(r"[+#\x00]")
 
 
+def _has_wildcard(topic: str) -> bool:
+    """A bare '+' or '#' level: what a required topic field becomes when it is left empty."""
+    return any(part in ("+", "#") for part in topic.split("/"))
+
+
 class MQTT(OutputModule):
     """
     Handles output via the MQTT protocol. Inherits from the abstract
@@ -196,6 +201,14 @@ class MQTT(OutputModule):
             logger.error(f"Failed to disconnect from MQTT broker: {e}")
             self._handle_exception(ClientUnreachableError("Failed to disconnect from broker.", output_module=self))
 
+    def _transmit_disabled(self, topic: str, data: str | dict[Any, Any] | None, use_fallback: bool) -> bool:
+        """transmit while the module is disabled: hand the message to the fallback, if there is one."""
+        logger.warning(f"{self.__class__.__name__} - transmit called with module disabled.")
+        if use_fallback and self._fallback is not None:
+            logger.debug("Calling fallback as module is disabled.")
+            return self.fallback(topic, data)
+        return False
+
     def _sanitize_topic(self, topic: str) -> str:
         """
         Strip MQTT-illegal characters ('+', '#', NUL) out of topic segments
@@ -236,13 +249,12 @@ class MQTT(OutputModule):
             bool: True if the message was successfully published, False otherwise.
         """
         topic = self._sanitize_topic(topic)
-        if not self.is_enabled():
-            logger.warning(f"{self.__class__.__name__} - transmit called with module disabled.")
-            # Call the fallback if available
-            if use_fallback and self._fallback is not None:
-                logger.debug("Calling fallback as module is disabled.")
-                return self.fallback(topic, data)
+        # An unfilled topic field is a data bug, not a lost connection, so no reconnect
+        if _has_wildcard(topic):
+            logger.error(f"Not publishing to '{topic}': a required topic field is missing ('+' or '#' left in it)")
             return False
+        if not self.is_enabled():
+            return self._transmit_disabled(topic, data, use_fallback)
         # Register the topic in sending_success if not already present
         if topic not in self.sending_success:
             self.sending_success[topic] = False

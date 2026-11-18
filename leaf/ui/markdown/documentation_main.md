@@ -1,13 +1,13 @@
 ###### LEAF System Overview
 
-**LEAF (Laboratory Equipment Adapter Framework)** is a powerful system for monitoring laboratory equipment and transmitting data to various cloud destinations.
+**LEAF (Lightweight Equipment Adapter Framework)** is a powerful system for monitoring laboratory equipment and transmitting data to various cloud destinations.
 
 ###### Quick Start Guide
 
 ###### Step 1: Configure Your Setup
 1. Navigate to the **Configuration** tab
 2. Edit the YAML configuration to define your equipment and outputs
-3. Save and restart the application
+3. Save, then restart LEAF with the restart button at the foot of the sidebar
 
 ###### Step 2: Install Adapters
 1. Go to the **Adapters** tab
@@ -16,8 +16,14 @@
 
 ###### Step 3: Monitor Operations
 1. Check the **Logs** tab for system activity
-2. Monitor equipment status and data flow
-3. Debug any issues using the live log feed
+2. Follow live measurements in the **Monitoring** tab
+3. Send commands to equipment that supports it in the **Control** tab (shown only while a running instance has a controller)
+
+###### The Sidebar
+- **Status dot**: green when all connections are up, amber when one is insecure, red when one is down. Click it for details.
+- **Restart / Stop**: restart reloads the saved configuration; stop shuts LEAF down.
+- **Theme**: cycles between following the system, dark and light.
+- **Version**: click it to check for a newer LEAF release.
 
 ###### Configuration Structure
 
@@ -30,6 +36,8 @@ EQUIPMENT_INSTANCES:
       data:
         instance_id: my_bioreactor_01
         organisation: university_lab
+        department: research
+        # root: leaf  # optional first part of every topic
       requirements:
         interval: 30  # seconds
 ```

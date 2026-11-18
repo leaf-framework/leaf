@@ -8,4 +8,3 @@ MAX_LOG_LINES = 1000
 # UI Constants
 CARD_WIDTH_CLASS = "w-64"
 CARD_CLASSES = "leaf-card"
-TAB_CLASSES = "leaf-tab"

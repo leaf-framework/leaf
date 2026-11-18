@@ -5,6 +5,7 @@ EQUIPMENT_INSTANCES:
         instance_id: demo_device
         organisation: university_lab
         department: research
+        # root: leaf  # optional first part of every topic
       requirements:
         interval: 1
 
