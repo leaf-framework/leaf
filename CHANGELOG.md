@@ -1,3 +1,9 @@
+## 0.14.0
+
+- Breaking: an adapter whose data lacks `organisation` or `department` no longer starts, and an MQTT topic with an unfilled `+` or `#` field is refused. The example configurations include both, plus the optional `root`. ([!168](https://gitlab.com/leaf-framework/leaf/-/merge_requests/168))
+- Feature: the web interface takes leaf-portal's look: a sidebar in place of the header, a theme that follows the system, and IBM Plex bundled for machines without internet. ([!168](https://gitlab.com/leaf-framework/leaf/-/merge_requests/168))
+- Patch: CI installs dependencies one at a time, on a runner image built from the lock file. ([!168](https://gitlab.com/leaf-framework/leaf/-/merge_requests/168))
+
 ## 0.13.0
 
 - Feature: Configuration wizards. The Configuration tab adds equipment and outputs through a form built from each module's constructor; list fields take one item per line, and passwords plus any names an adapter lists in `SECRET_FIELDS` go to `secrets.env`. ([!164](https://gitlab.com/leaf-framework/leaf/-/merge_requests/164), [!165](https://gitlab.com/leaf-framework/leaf/-/merge_requests/165))
