@@ -48,15 +48,17 @@ def _node_id(node: Node) -> NodeId:
     return node_id
 
 
-def _topic_node_id(topic: str) -> NodeId:
+def topic_node_id(topic: str) -> NodeId:
     """Parse a configured topic; a bare name means the string node ns=2;s=<name>."""
     full = f"ns=2;s={topic}"
     if topic.startswith(("ns=", "i=", "g=")):
         full = topic
-    node_id: NodeId = NodeId.from_string(full)
+    node_id: NodeId = NodeId.from_string(full)  # pyright: ignore[reportUnknownMemberType]
     # opcua 0.98 keeps a parsed GUID as str, which crashes when the read request is encoded.
-    if node_id.NodeIdType == NodeIdType.Guid and isinstance(node_id.Identifier, str):
-        node_id.Identifier = uuid.UUID(node_id.Identifier)
+    id_type: object = getattr(node_id, "NodeIdType", None)
+    identifier: object = getattr(node_id, "Identifier", None)
+    if id_type == NodeIdType.Guid and isinstance(identifier, str):
+        node_id.Identifier = uuid.UUID(identifier)
     return node_id
 
 
@@ -299,7 +301,7 @@ class OPCWatcher(EventWatcher):
                 self.logger.info(f"Excluded topic: {topic}")
                 continue
             try:
-                node = self._client.get_node(_topic_node_id(topic))
+                node = self._client.get_node(topic_node_id(topic))  # pyright: ignore[reportUnknownMemberType]
 
                 handle = self._sub.subscribe_data_change(node)
                 self._handles.append(handle)

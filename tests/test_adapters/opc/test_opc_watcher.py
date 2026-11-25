@@ -19,7 +19,7 @@ from leaf.modules.input_modules.opc_watcher import (
     OPCUA_AVAILABLE,
     RECONNECT_RATE,
     OPCWatcher,
-    _topic_node_id,
+    topic_node_id,
 )
 from leaf.register.metadata import MetadataManager
 
@@ -589,17 +589,19 @@ class TestOPCWatcherReconnect(unittest.TestCase):
 class TestTopicNodeId(unittest.TestCase):
     def test_guid_topic_encodes(self) -> None:
         # A GUID left as str crashed opcua's encoder, so every read of a GUID node failed.
-        from opcua.ua.ua_binary import nodeid_to_binary  # pyright: ignore[reportMissingTypeStubs]
+        from opcua.ua.ua_binary import (  # pyright: ignore[reportMissingTypeStubs]
+            nodeid_to_binary,  # pyright: ignore[reportUnknownVariableType]
+        )
 
-        node_id = _topic_node_id("g=00000018-0002-0000-0008-00060000000c")
-        self.assertEqual(str(node_id.Identifier), "00000018-0002-0000-0008-00060000000c")
+        node_id = topic_node_id("g=00000018-0002-0000-0008-00060000000c")
+        self.assertEqual(node_id.to_string(), "g=00000018-0002-0000-0008-00060000000c")
         self.assertTrue(nodeid_to_binary(node_id))
-        self.assertEqual(_topic_node_id("ns=3;g=00000018-0002-0000-0008-00060000000c").NamespaceIndex, 3)
+        self.assertEqual(topic_node_id("ns=3;g=00000018-0002-0000-0008-00060000000c").NamespaceIndex, 3)
 
     def test_plain_and_numeric_topics(self) -> None:
-        self.assertEqual(_topic_node_id("R1_pH").to_string(), "ns=2;s=R1_pH")
-        self.assertEqual(_topic_node_id("i=2258").to_string(), "i=2258")
-        self.assertEqual(_topic_node_id("ns=4;s=Temp").to_string(), "ns=4;s=Temp")
+        self.assertEqual(topic_node_id("R1_pH").to_string(), "ns=2;s=R1_pH")
+        self.assertEqual(topic_node_id("i=2258").to_string(), "i=2258")
+        self.assertEqual(topic_node_id("ns=4;s=Temp").to_string(), "ns=4;s=Temp")
 
 
 if __name__ == "__main__":
