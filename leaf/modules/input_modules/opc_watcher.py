@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+import uuid
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -13,12 +14,12 @@ logger = get_logger(__name__, log_file="input_module.log")
 if TYPE_CHECKING:
     from opcua import Client, Node, Subscription  # pyright: ignore[reportMissingTypeStubs]
     from opcua.common.subscription import DataChangeNotif  # pyright: ignore[reportMissingTypeStubs]
-    from opcua.ua import NodeId  # pyright: ignore[reportMissingTypeStubs]
+    from opcua.ua import NodeId, NodeIdType  # pyright: ignore[reportMissingTypeStubs]
 
 try:
     from opcua import Client, Node, Subscription  # pyright: ignore[reportMissingTypeStubs]
     from opcua.common.subscription import DataChangeNotif  # pyright: ignore[reportMissingTypeStubs]
-    from opcua.ua import NodeId  # pyright: ignore[reportMissingTypeStubs]
+    from opcua.ua import NodeId, NodeIdType  # pyright: ignore[reportMissingTypeStubs]
 
     OPCUA_AVAILABLE = True
     # Suppress OPC UA library logging to avoid cluttering the output
@@ -28,7 +29,7 @@ except ImportError:
     OPCUA_AVAILABLE = False
     # Runtime placeholders only; hidden from type checkers so the opcua types stay usable.
     if not TYPE_CHECKING:
-        Client = Node = Subscription = DataChangeNotif = NodeId = None
+        Client = Node = Subscription = DataChangeNotif = NodeId = NodeIdType = None
 
 from leaf.error_handler.error_holder import ErrorHolder
 from leaf.modules.input_modules.event_watcher import EventWatcher
@@ -44,6 +45,18 @@ def _node_id(node: Node) -> NodeId:
     node_id: object = getattr(node, "nodeid", None)
     if not isinstance(node_id, NodeId):
         raise ValueError("OPC UA node has no node id.")
+    return node_id
+
+
+def _topic_node_id(topic: str) -> NodeId:
+    """Parse a configured topic; a bare name means the string node ns=2;s=<name>."""
+    full = f"ns=2;s={topic}"
+    if topic.startswith(("ns=", "i=", "g=")):
+        full = topic
+    node_id: NodeId = NodeId.from_string(full)
+    # opcua 0.98 keeps a parsed GUID as str, which crashes when the read request is encoded.
+    if node_id.NodeIdType == NodeIdType.Guid and isinstance(node_id.Identifier, str):
+        node_id.Identifier = uuid.UUID(node_id.Identifier)
     return node_id
 
 
@@ -286,13 +299,7 @@ class OPCWatcher(EventWatcher):
                 self.logger.info(f"Excluded topic: {topic}")
                 continue
             try:
-                # Support both full NodeId format (ns=2;s=topic) and simple topic names
-                if topic.startswith("ns=") or topic.startswith("i="):
-                    logger.debug(f"Full NodeId format provided: {topic}")
-                    node = self._client.get_node(topic)
-                else:
-                    logger.debug(f"Simple topic name provided, subscribing to ns=2;s={topic}")
-                    node = self._client.get_node(f"ns=2;s={topic}")
+                node = self._client.get_node(_topic_node_id(topic))
 
                 handle = self._sub.subscribe_data_change(node)
                 self._handles.append(handle)
