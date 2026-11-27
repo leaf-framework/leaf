@@ -21,6 +21,8 @@ SKIPPED = {"error_holder", "external_watcher", "instance_data", "output"}
 # Masked in the form and moved to secrets.env, so the configuration only holds ${VAR}.
 # A class adds its own with a SECRET_FIELDS attribute, e.g. SECRET_FIELDS = {"private_key"}.
 SECRET_FIELDS = {"password"}
+# Shown under each form, since _set_values leaves unchanged defaults out of the YAML.
+DEFAULTS_NOTE = "Fields left at their default are not written; the adapter or output uses that default."
 # A docstring argument, with or without its type: "port (int): The port number." or "port: The port number."
 # Help text is required, so section headers such as "Args:" do not count.
 DOC_ARG = re.compile(r"^\s*(\w+)\s*(?:\([^)]*\))?:\s*(\S.*)$")
@@ -376,6 +378,7 @@ def open_output_wizard(editor: ui.codemirror, config_path: Path) -> None:
 
         _ = plugin.on_value_change(lambda _: build_form())
         build_form()
+        _ = ui.label(DEFAULTS_NOTE).classes("text-xs text-body-secondary")
         with ui.row().classes("w-full justify-end"):
             ui.button("Cancel", on_click=dialog.close).props("flat")
             ui.button("Add to configuration", icon="add", on_click=add).classes("btn-primary")
@@ -450,6 +453,7 @@ def open_equipment_wizard(editor: ui.codemirror, config_path: Path) -> None:
 
         _ = adapter.on_value_change(lambda _: build_form())
         build_form()
+        _ = ui.label(DEFAULTS_NOTE).classes("text-xs text-body-secondary")
         with ui.row().classes("w-full justify-end"):
             ui.button("Cancel", on_click=dialog.close).props("flat")
             ui.button("Add to configuration", icon="add", on_click=add).classes("btn-primary")
